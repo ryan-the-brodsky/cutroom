@@ -146,13 +146,50 @@ railway redeploy --service cutroom -y
 curl -sf https://cutroom-production-0f3c.up.railway.app/api/health
 ```
 
-The GHCR package must be **public** for Railway to pull it without registry
-credentials (the repo itself may stay private):
+Railway must be able to pull the image. Two ways, pick one:
+
+**(a) Make the GHCR package public.** Publishes the built container only — the
+repository stays private. Needs a token with `write:packages`
+(`gh auth refresh -h github.com -s write:packages`) or the web UI:
 
 ```bash
 gh api -X PATCH /user/packages/container/cutroom -f visibility=public
 # or: github.com/users/ryan-the-brodsky/packages/container/cutroom/settings
+#     → Danger Zone → Change visibility → Public
 ```
+
+**(b) Give Railway registry credentials and keep the image private.** Railway's
+public GraphQL API takes them on `serviceInstanceUpdate`; the password is a
+GitHub token with `read:packages`
+(`gh auth refresh -h github.com -s read:packages`). Verified against the live
+schema: `ServiceInstanceUpdateInput.registryCredentials: RegistryCredentialsInput{username, password}`.
+
+```bash
+RW_TOK=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.railway/config.json')))['user']['accessToken'])")
+GH_TOK=$(gh auth token)   # must carry read:packages
+
+python3 -c '
+import json, os
+print(json.dumps({
+  "query": "mutation($s:String!,$e:String!,$i:ServiceInstanceUpdateInput!)"
+           "{serviceInstanceUpdate(serviceId:$s,environmentId:$e,input:$i)}",
+  "variables": {
+    "s": "432042c8-5b3b-4ac4-9bdc-8c60a5ed3e97",
+    "e": "aa83e186-a468-4901-aa8f-f1093013caf8",
+    "i": {"registryCredentials": {"username": "ryan-the-brodsky",
+                                  "password": os.environ["GH_TOK"]}}}}))' \
+  > /tmp/regcreds.json
+
+curl -s https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer $RW_TOK" -H 'Content-Type: application/json' \
+  --data @/tmp/regcreds.json
+rm -f /tmp/regcreds.json
+
+railway redeploy --service cutroom -y
+```
+
+Without one of these the deployment fails at `CREATE_CONTAINER` with
+*"We were unable to connect to the registry for this image."*
 
 ### Variables (names only — values live in Railway and `~/.claude/.env`)
 
@@ -178,26 +215,56 @@ Secrets (**never** commit these; generated with `openssl rand -hex`):
   lanes, keys, import, delete or pause.
 - `CUTROOM_WORKER_TOKEN` — remote worker job claims.
 
-Provider keys (Addendum A; anything unset falls back to the `mock` lane):
+Demo policy (workstream B's caps): `CUTROOM_DEMO_PAID_JOBS_PER_HOUR=12`,
+`CUTROOM_DEMO_JOBS_PER_MIN=60`, `CUTROOM_DEMO_PROJECT=next-year`.
 
-- `ELEVEN_LABS_API_KEY` — **set**.
-- `FAL_KEY` — **not set** (motion lane). The value exists locally in the
-  `fal` row of `~/.cutroom/cutroom.db`; copy it over by hand.
-- `OPENROUTER_API_KEY` — **not set** (direction + still lanes). No local copy
-  exists; mint one at <https://openrouter.ai/keys>.
+Provider keys (Addendum A; anything unset falls back to the `mock` lane). All
+set. The server accepts either spelling for fal and ElevenLabs, so both are
+set: `OPENROUTER_API_KEY`, `FAL_KEY`, `FAL_AI_API_KEY`, `ELEVEN_LABS_API_KEY`,
+`ELEVENLABS_API_KEY`.
 
-Lane defaults (`<backend>:<model>` — models are blank placeholders until
-workstream B pins the exact ids):
+Lane defaults and the models behind them:
 
-`CUTROOM_LANE_DIRECTION=openrouter:` · `CUTROOM_LANE_STILL=openrouter-image:` ·
-`CUTROOM_LANE_I2I=fal:` · `CUTROOM_LANE_MOTION=fal:` ·
-`CUTROOM_LANE_VO=elevenlabs:`
+| name | value |
+|---|---|
+| `CUTROOM_LANE_DIRECTION` | `openrouter:z-ai/glm-5.3-flash` |
+| `CUTROOM_LANE_STILL` | `openrouter-image:google/gemini-2.5-flash-image` |
+| `CUTROOM_LANE_I2I` | `openrouter-image:google/gemini-2.5-flash-image` |
+| `CUTROOM_LANE_MOTION` | `fal:fal-ai/wan/v2.2-a14b/image-to-video/turbo` |
+| `CUTROOM_LANE_VO` | `elevenlabs` |
+| `CUTROOM_OPENROUTER_MODEL` | `z-ai/glm-5.3-flash` |
+| `CUTROOM_OPENROUTER_IMAGE_MODEL` | `google/gemini-2.5-flash-image` |
+| `CUTROOM_FAL_MOTION_MODEL` | `fal-ai/wan/v2.2-a14b/image-to-video/turbo` |
 
-Demo data (set once workstream B's `cutroom demo-bundle` and boot importer
-land): `CUTROOM_DEMO_BUNDLE` = the GitHub Release asset API URL
-`https://api.github.com/repos/ryan-the-brodsky/cutroom/releases/assets/<id>`,
-`CUTROOM_DEMO_BUNDLE_TOKEN` = a token with `contents:read` on the repo (only
-needed while the repo is private).
+SFX and music lanes are deliberately unset, so they fall back to `mock`.
+
+### Demo data
+
+Built with `cutroom demo-bundle` from the private game7 tree and published as a
+GitHub Release asset on this repo:
+
+```bash
+server/.venv/bin/cutroom demo-bundle \
+  /Users/ryan-the-brodsky/Documents/programming/game7 \
+  /tmp/cutroom-D/demo-data-v1.tar.zst          # 941 files, 290 MB raw → 278 MB
+
+gh release create demo-data-v1 /tmp/cutroom-D/demo-data-v1.tar.zst \
+  --repo ryan-the-brodsky/cutroom --title "Demo data v1 (next-year)"
+gh api repos/ryan-the-brodsky/cutroom/releases/tags/demo-data-v1 --jq '.assets[].id'
+```
+
+- `CUTROOM_DEMO_BUNDLE` = `https://api.github.com/repos/ryan-the-brodsky/cutroom/releases/assets/540277013` — **set**.
+- `CUTROOM_DEMO_BUNDLE_TOKEN` — a bearer token with `contents:read` on this
+  repo. Only needed **while the repo is private**; drop it the moment the repo
+  goes public. Mint a *fine-grained* PAT scoped to this one repository with
+  Contents: Read-only (<https://github.com/settings/personal-access-tokens/new>).
+  Do **not** use `gh auth token` here: that is Ryan's account-wide OAuth token
+  with `repo` write access to every repository he owns, and this env var lives
+  on a public-facing demo host.
+
+At boot, if no projects exist, the server downloads the bundle into
+`$CUTROOM_DATA/demo-src` and imports it as project `next-year`. Force it by
+hand with `railway ssh --service cutroom` then `cutroom demo-import`.
 
 ```bash
 railway variables --set 'NAME=value'          # add or change one
