@@ -39,16 +39,29 @@ export interface InstallResult {
 
 let installing: Promise<InstallResult> | null = null;
 
-/** Pick whatever shape workstream B settled on for `resolve.ts`. */
-function pickResolver(mod: Record<string, unknown>): ShotResolver | null {
-  const cands = [
-    mod.resolver, mod.shotResolver, mod.default,
-    typeof mod.createResolver === "function" ? (mod.createResolver as () => ShotResolver)() : null,
-    typeof mod.makeResolver === "function" ? (mod.makeResolver as () => ShotResolver)() : null,
-  ];
-  for (const c of cands) {
-    const r = c as ShotResolver | null;
-    if (r && typeof r.resolve === "function" && typeof r.index === "function") return r;
+const isResolver = (v: unknown): v is ShotResolver =>
+  Boolean(v) && typeof (v as ShotResolver).resolve === "function" &&
+  typeof (v as ShotResolver).index === "function";
+
+/**
+ * Pick whatever shape workstream B settled on for `resolve.ts`.
+ * B's is `makeResolver(api)` (default-exported), so factories get the real api function —
+ * calling one bare leaves it without a fetcher and every resolve fails with "n is not a
+ * function" deep inside the minified bundle. Ask me how I know.
+ */
+function pickResolver(mod: Record<string, unknown>, api: ActionContext["api"]): ShotResolver | null {
+  for (const v of [mod.resolver, mod.shotResolver, mod.default]) {
+    if (isResolver(v)) return v as ShotResolver;
+  }
+  for (const key of ["makeResolver", "createResolver", "default"]) {
+    const f = mod[key];
+    if (typeof f !== "function") continue;
+    for (const args of [[api], []] as unknown[][]) {
+      try {
+        const r = (f as (...a: unknown[]) => unknown)(...args);
+        if (isResolver(r)) return r as ShotResolver;
+      } catch { /* try the next arity */ }
+    }
   }
   return null;
 }
@@ -82,7 +95,7 @@ export function installAgentLayer(router?: RouterLike | null): Promise<InstallRe
     try {
       const load = resolveMods["./resolve.ts"];
       if (load) {
-        const r = pickResolver((await load()) as Record<string, unknown>);
+        const r = pickResolver((await load()) as Record<string, unknown>, ctx.api);
         if (r) { setResolver(r); resolverKind = "workstream-b"; }
       }
     } catch (e) { console.warn("[cutroom/agent] resolve.ts failed to load", e); }
