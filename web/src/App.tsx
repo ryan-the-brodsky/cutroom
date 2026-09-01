@@ -1,7 +1,27 @@
 import { useEffect } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router-dom";
-import { api } from "./api";
+import { api, setToken } from "./api";
+import { ANCHORS } from "./agent/contract";
+import Palette from "./agent/Palette";
+import { AgentChip, AgentTrail } from "./agent/presence";
 import { usePoll, useToast } from "./hooks";
+
+/**
+ * Addendum A: a judge's link is one click — `?token=<t>` is stored and stripped from the URL
+ * before anything fetches. Runs at module load (before the first render) because child effects
+ * fire before parent effects, and the pages start polling in theirs.
+ */
+(function intakeToken() {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    const t = url.searchParams.get("token");
+    if (!t) return;
+    setToken(t);
+    url.searchParams.delete("token");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  } catch { /* never block boot on this */ }
+})();
 
 function SystemChips() {
   const { data } = usePoll<any>("/api/system", 5000);
@@ -19,6 +39,7 @@ function SystemChips() {
         ⏸ paused</span>}
       <button
         className="small"
+        data-action={ANCHORS.pause}
         title="Pause/resume all generation (the MOTION_PAUSED sentinel, as an API)"
         onClick={() => api("/api/system/pause", { paused: !data.paused })}>
         {data.paused ? "▶ resume" : "⏸ pause"}
@@ -40,23 +61,30 @@ export default function App() {
     <div className="app">
       <nav className="sidebar">
         <div className="brand">CUTROOM</div>
-        <NavLink to="/" end>Projects</NavLink>
+        <NavLink to="/" end data-action={ANCHORS.navProjects}>Projects</NavLink>
         {projectPid && <>
-          <NavLink to={`/p/${projectPid}`} end>Film Editor</NavLink>
-          <NavLink to={`/p/${projectPid}/timeline`}>Timeline</NavLink>
-          <NavLink to={`/p/${projectPid}/chat`}>Director chat</NavLink>
+          <NavLink to={`/p/${projectPid}`} end
+                   data-action={ANCHORS.navFilm}>Film Editor</NavLink>
+          <NavLink to={`/p/${projectPid}/timeline`}
+                   data-action={ANCHORS.navTimeline}>Timeline</NavLink>
+          <NavLink to={`/p/${projectPid}/chat`}
+                   data-action={ANCHORS.navChat}>Director chat</NavLink>
         </>}
-        <NavLink to="/jobs">Jobs</NavLink>
-        <NavLink to="/settings">Settings</NavLink>
+        <NavLink to="/jobs" data-action={ANCHORS.navJobs}>Jobs</NavLink>
+        <NavLink to="/settings" data-action={ANCHORS.navSettings}>Settings</NavLink>
         <div className="spacer" />
         <div className="muted small" style={{ padding: 8 }}>
           {pid ? <>project: <b>{pid}</b></> : "no project selected"}
+        </div>
+        <div className="muted small" style={{ padding: "0 8px 8px" }}>
+          press <b>⌘K</b> for everything
         </div>
       </nav>
       <div className="main">
         <div className="topbar">
           <span className="title">{pid || "Cutroom"}</span>
           <div style={{ flex: 1 }} />
+          <AgentChip />
           <SystemChips />
         </div>
         <div className="content">
@@ -69,6 +97,8 @@ export default function App() {
           {toast.job && <Link to="/jobs">view job →</Link>}
         </div>
       )}
+      <AgentTrail />
+      <Palette />
     </div>
   );
 }

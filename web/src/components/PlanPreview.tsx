@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ANCHORS } from "../agent/contract";
 import { api } from "../api";
 import { pushToast, useAsync } from "../hooks";
 import type { Plan } from "../types";
@@ -34,6 +35,7 @@ export default function PlanPreview({ pid, plan, source, onApplied }: {
       ) : (
         <div className="row">
           <button className="primary" disabled={busy}
+            data-action={ANCHORS.planApply}
             onClick={() => run(
               () => api(`/api/projects/${pid}/plan/apply`, plan),
               (d: any) => {

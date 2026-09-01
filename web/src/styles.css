@@ -186,3 +186,90 @@ h3 { font-size: 14px; margin: 12px 0 8px; }
     rgba(255,255,255,0.06), transparent);
   animation: skel-shimmer 1.2s infinite; }
 @keyframes skel-shimmer { 100% { transform: translateX(100%); } }
+
+/* ================================================================= agent layer
+   The visible half of WebMCP: a ring on the control the agent just touched, the
+   trail of what it did, the ⌘K palette, and the status chip. See
+   docs/WEBMCP-PLAN.md §3.3 / §3.5. */
+
+@keyframes agent-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(232,179,75,0.85), 0 0 0 0 rgba(232,179,75,0.35); }
+  60%  { box-shadow: 0 0 0 4px rgba(232,179,75,0.55), 0 0 22px 6px rgba(232,179,75,0.28); }
+  100% { box-shadow: 0 0 0 0 rgba(232,179,75,0.0), 0 0 0 0 rgba(232,179,75,0.0); }
+}
+.agent-pulse {
+  animation: agent-ring 1.2s ease-out 1;
+  border-radius: 7px;
+  position: relative;
+  z-index: 4;
+}
+
+.agent-chip { cursor: pointer; gap: 6px; }
+.agent-chip:hover { border-color: var(--accent); }
+.agent-chip.on { border-color: var(--accent); color: var(--text); }
+.agent-chip .ok { color: var(--good); }
+.agent-chip .bad { color: var(--dim); }
+.agent-chip .agent-count {
+  background: var(--accent); color: #1a1508; border-radius: 999px;
+  padding: 0 6px; font-weight: 600; font-size: 11px;
+}
+
+.agent-trail {
+  position: fixed; right: 14px; bottom: 14px; width: 380px; max-width: calc(100vw - 28px);
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(0,0,0,0.5); z-index: 40; overflow: hidden;
+}
+.agent-trail.collapsed {
+  width: auto; padding: 6px 12px; font-size: 12px; color: var(--dim);
+  cursor: pointer; display: block;
+}
+.agent-trail.collapsed:hover { color: var(--text); border-color: var(--accent); }
+.agent-trail-head {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border-bottom: 1px solid var(--line); background: var(--bg3);
+}
+.agent-trail-body { max-height: 46vh; overflow-y: auto; }
+.agent-step {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 10px;
+  border-bottom: 1px solid rgba(43,43,54,0.6); font-size: 12px;
+}
+.agent-step:last-child { border-bottom: none; }
+.agent-step.clickable { cursor: pointer; }
+.agent-step.clickable:hover { background: var(--bg3); }
+.agent-step-t { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.agent-step-main { flex: 1; min-width: 0; }
+.agent-step-tool { flex-shrink: 0; opacity: 0.6; }
+.agent-toast { border-color: var(--accent); }
+
+.pal-backdrop {
+  position: fixed; inset: 0; background: rgba(6,6,10,0.62); z-index: 60;
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh;
+  backdrop-filter: blur(2px);
+}
+.pal {
+  width: min(680px, calc(100vw - 32px)); background: var(--bg2);
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6); display: flex; flex-direction: column;
+}
+.pal-input {
+  border: none; border-bottom: 1px solid var(--line); border-radius: 0;
+  padding: 14px 16px; font-size: 15px; background: transparent;
+}
+.pal-input:focus { border-color: var(--line); }
+.pal-list { max-height: 46vh; overflow-y: auto; }
+.pal-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.pal-row.active { background: var(--bg3); border-left-color: var(--accent); }
+.pal-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pal-where { opacity: 0.8; }
+.pal-row-meta { flex-shrink: 0; }
+.pal-kbd {
+  font-size: 11px; border: 1px solid var(--line); border-radius: 5px;
+  padding: 1px 6px; color: var(--dim);
+}
+.pal-foot {
+  border-top: 1px solid var(--line); padding: 9px 16px; background: var(--bg3);
+  display: flex; flex-direction: column; gap: 3px;
+}

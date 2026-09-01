@@ -1,13 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, mediaUrl, thumbUrl } from "../api";
+import { ANCHORS, type FilmShotLite } from "../agent/contract";
+import { usePageHandles } from "../agent/pageHandles";
+import { pick, useQueryState } from "../agent/urlState";
 import Player from "../components/Player";
 import { pushToast, useAsync, useJobWatch, usePoll } from "../hooks";
 import type { FilmEntry, Take } from "../types";
 
 /** FILM EDITOR — the arrangement room. Grab what exists, order and time it,
  * pick what plays, prep the next shot for focused work, cut the film.
- * Granular per-shot work lives in the Shot Editor. */
+ * Granular per-shot work lives in the Shot Editor.
+ *
+ * sel / view / scope / res live in the query string, so "act 1 at 1080, B10-S2 selected"
+ * is a link the agent layer can navigate to (docs/WEBMCP-PLAN.md §3.3). */
+
+const VIEWS = ["board", "strip"] as const;
+const SCOPES = ["full", "act1", "act2", "act3", "act4"] as const;
+const RESES = ["720", "1080"] as const;
+
 export default function FilmEditorPage() {
   const { pid } = useParams() as { pid: string };
   const nav = useNavigate();
@@ -15,12 +26,17 @@ export default function FilmEditorPage() {
     usePoll<FilmEntry[]>(`/api/projects/${pid}/film`, 12000);
   const { data: animatics, refresh: refreshCuts } =
     usePoll<Take[]>(`/api/projects/${pid}/takes?kind=animatic&limit=10`, 0);
-  const [sel, setSel] = useState<string | null>(null);
-  const [res, setRes] = useState("720");
-  const [scope, setScope] = useState("full");
+  const [q, setQ] = useQueryState();
+  const sel = q.get("sel");
+  const view = pick(q, "view", VIEWS, "board");
+  const scope = pick(q, "scope", SCOPES, "full");
+  const res = pick(q, "res", RESES, "720");
+  const setSel = (s: string | null) => setQ({ sel: s });
+  const setView = (v: (typeof VIEWS)[number]) => setQ({ view: v });
+  const setScope = (s: string) => setQ({ scope: s });
+  const setRes = (r: "720" | "1080") => setQ({ res: r });
   const [playingCut, setPlayingCut] = useState<string | null>(null);
   const [cutJob, setCutJob] = useState<string | null>(null);
-  const [view, setView] = useState<"board" | "strip">("board");
   const { busy, error, run } = useAsync();
 
   useJobWatch(cutJob, (ok) => {
@@ -33,7 +49,33 @@ export default function FilmEditorPage() {
   const total = (film || []).reduce((a, s) => a + (s.seconds || 0), 0);
 
   const setOverride = (sid: string, patch: any) =>
-    api(`/api/projects/${pid}/shots/${sid}/override`, patch).then(refresh);
+    api(`/api/projects/${pid}/shots/${sid}/override`, patch).then(() => refresh());
+  const fire = (p: Promise<unknown>) => { void p.catch(() => {}); };
+
+  /** The same handler "🎞 cut the film" calls. */
+  const cutFilm = async () => {
+    const d = await run(
+      () => api<{ job: string }>(`/api/projects/${pid}/animatic`, { res, scope }),
+      (v: any) => { setCutJob(v.job); pushToast({ text: "cutting…", job: v.job }); });
+    if (!d?.job) throw new Error("the cut did not queue — see the error above");
+    return d;
+  };
+
+  const shotsLite: FilmShotLite[] = useMemo(() => (film || []).map((s, i) => ({
+    sid: s.sid, ordinal: i + 1, beat: s.beat, act: s.act, type: s.type,
+    seconds: s.seconds, keeper: s.keeper ?? null, active_source: s.active_source ?? null,
+  })), [film]);
+
+  usePageHandles({
+    kind: "film", pid,
+    getState: () => ({ selected: sel, scope, res, shots: shotsLite }),
+    selectShot: setSel,
+    setScope,
+    setRes,
+    cutFilm,
+    setOverride,
+    refresh: async () => { refresh(); refreshCuts(); },
+  });
 
   return (
     <div>
@@ -42,23 +84,23 @@ export default function FilmEditorPage() {
           <span className="muted"> · {film?.length || 0} shots ·
             {" "}{Math.floor(total / 60)}m{Math.round(total % 60)}s</span></h2>
         <div className="row">
-          <button className="small" onClick={() =>
+          <button className="small" data-action="film.view" onClick={() =>
             setView(view === "board" ? "strip" : "board")}>
             {view === "board" ? "▤ strip only" : "▦ board"}</button>
-          <select value={scope} onChange={(e) => setScope(e.target.value)}>
+          <select value={scope} data-action={ANCHORS.filmScope}
+                  onChange={(e) => setScope(e.target.value)}>
             <option value="full">whole film</option>
             {[1, 2, 3, 4].map((a) => (
               <option key={a} value={`act${a}`}>act {a}</option>))}
           </select>
-          <select value={res} onChange={(e) => setRes(e.target.value)}>
+          <select value={res} data-action={ANCHORS.filmRes}
+                  onChange={(e) => setRes(e.target.value as "720" | "1080")}>
             <option value="720">720p preview</option>
             <option value="1080">1080p final</option>
           </select>
           <button className="primary" disabled={busy || !!cutJob}
-            onClick={() => run(
-              () => api(`/api/projects/${pid}/animatic`, { res, scope }),
-              (d: any) => { setCutJob(d.job);
-                            pushToast({ text: "cutting…", job: d.job }); })}>
+            data-action={ANCHORS.filmCut}
+            onClick={() => fire(cutFilm())}>
             {cutJob ? "⏳ cutting…" : "🎞 cut the film"}
           </button>
         </div>
@@ -71,6 +113,7 @@ export default function FilmEditorPage() {
           <div key={s.sid}
                className={`tl-cell ${sel === s.sid ? "selected" : ""}`}
                style={{ width: Math.max(56, s.seconds * 16) }}
+               data-action={ANCHORS.filmShot} data-sid={s.sid}
                onClick={() => setSel(s.sid)}
                onDoubleClick={() => nav(`/p/${pid}/shot/${s.sid}`)}
                title={`${s.sid} · ${s.seconds}s — double-click to edit`}>
@@ -101,7 +144,8 @@ export default function FilmEditorPage() {
                 <span className="badge cel">source override</span>}
             </div>
             <Link to={`/p/${pid}/shot/${selected.sid}`}>
-              <button className="primary">open Shot Editor →</button></Link>
+              <button className="primary" data-action={ANCHORS.quickOpen}
+                      data-sid={selected.sid}>open Shot Editor →</button></Link>
           </div>
           <div className="row" style={{ alignItems: "flex-start" }}>
             <div style={{ width: 320, flexShrink: 0 }}>
@@ -111,22 +155,25 @@ export default function FilmEditorPage() {
               <div className="row">
                 <label className="field">seconds
                   <input type="number" step="0.1" style={{ width: 76 }}
+                         data-action={ANCHORS.quickSeconds} data-sid={selected.sid}
                          defaultValue={selected.seconds}
-                         onBlur={(e) => setOverride(selected.sid,
-                           { seconds: parseFloat(e.target.value) })} /></label>
+                         onBlur={(e) => fire(setOverride(selected.sid,
+                           { seconds: parseFloat(e.target.value) }))} /></label>
                 <label className="field">VO offset
                   <input type="number" step="0.1" style={{ width: 76 }}
+                         data-action={ANCHORS.quickVoOffset} data-sid={selected.sid}
                          defaultValue={selected.override.vo_offset || 0}
-                         onBlur={(e) => setOverride(selected.sid,
-                           { vo_offset: parseFloat(e.target.value) })} /></label>
+                         onBlur={(e) => fire(setOverride(selected.sid,
+                           { vo_offset: parseFloat(e.target.value) }))} /></label>
                 <label className="field">mute VO
                   <input type="checkbox"
+                         data-action={ANCHORS.quickMute} data-sid={selected.sid}
                          defaultChecked={!!selected.override.mute_vo}
-                         onChange={(e) => setOverride(selected.sid,
-                           { mute_vo: e.target.checked || null })} /></label>
+                         onChange={(e) => fire(setOverride(selected.sid,
+                           { mute_vo: e.target.checked || null }))} /></label>
                 {selected.override.source && (
                   <button className="small" onClick={() =>
-                    setOverride(selected.sid, { source: null })}>
+                    fire(setOverride(selected.sid, { source: null }))}>
                     clear override</button>)}
               </div>
               <div className="muted small">what plays — click a take:</div>
@@ -138,14 +185,15 @@ export default function FilmEditorPage() {
                   .filter((v, i, a) => a.indexOf(v) === i).slice(0, 10)
                   .map((p) => (
                     <img key={p} src={thumbUrl(pid, p, 160)}
+                         data-action={ANCHORS.quickSource} data-path={p}
                          style={{ height: 54, borderRadius: 4,
                                   cursor: "pointer",
                                   border: selected.active_source === p
                                     ? "2px solid var(--accent)"
                                     : "2px solid transparent" }}
                          title={p}
-                         onClick={() => setOverride(selected.sid,
-                                                    { source: p })} />
+                         onClick={() => fire(setOverride(selected.sid,
+                                                         { source: p }))} />
                   ))}
               </div>
             </div>
@@ -167,6 +215,7 @@ export default function FilmEditorPage() {
               <div className="grid cards">
                 {shots.map((s) => (
                   <div key={s.sid} className="card"
+                       data-action={ANCHORS.filmShot} data-sid={s.sid}
                        style={{ cursor: "pointer", borderColor:
                          sel === s.sid ? "var(--accent)" : undefined }}
                        onClick={() => setSel(s.sid)}
@@ -213,6 +262,7 @@ export default function FilmEditorPage() {
             ) : (
               <img className="thumb" src={thumbUrl(pid, a.path)}
                    style={{ cursor: "pointer" }}
+                   data-action="film.cut.play" data-path={a.path}
                    onClick={() => setPlayingCut(a.path)} alt={a.path} />
             )}
             <div className="muted small">{a.path.split("/").pop()}

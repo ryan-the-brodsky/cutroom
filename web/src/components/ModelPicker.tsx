@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ANCHORS } from "../agent/contract";
 import { api } from "../api";
 
 interface LaneBackend { id: string; label: string; type: string;
@@ -39,11 +40,12 @@ export default function ModelPicker({ pid, lane, backend, model, onChange }: {
   }, [effective, lane]);
 
   return (
-    <div className="row">
+    <div className="row" data-action={ANCHORS.genModel} data-lane={lane}>
       <label className="field">
         backend {isDefault && projectDefault &&
           <span className="ok">(project default)</span>}
-        <select value={effective}
+        <select value={effective} data-action={`${ANCHORS.genModel}.backend`}
+                data-lane={lane}
                 onChange={(e) => onChange(e.target.value, "")}>
           {backends.length === 0 && <option value="">none enabled</option>}
           {backends.map((b) => (
