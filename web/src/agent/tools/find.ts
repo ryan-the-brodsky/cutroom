@@ -308,10 +308,21 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
       where: cut(whereLabel(d), 40),
       ...(howChars > 0 ? { how: cut(d.howTo, howChars) } : {}),
     }));
-    let rows = build(12, 96);
-    for (const [n, h] of [[12, 96], [12, 56], [12, 0], [8, 0], [5, 0]] as const) {
-      rows = build(n, h);
-      if (JSON.stringify(rows).length < 1100) break;
+    // No query: a compact one-line-per-feature map of EVERYTHING (discovery is the
+    // product's premise; never silently drop tools). With a query: detailed rows.
+    let rows: unknown[];
+    if (!q) {
+      rows = matched.map((d) => `${d.name} — ${cut(whereLabel(d), 34)}`);
+      for (const w of [34, 26, 18]) {
+        rows = matched.map((d) => `${d.name} — ${cut(whereLabel(d), w)}`);
+        if (JSON.stringify(rows).length < 1250) break;
+      }
+    } else {
+      rows = build(8, 96);
+      for (const [n, h] of [[8, 96], [8, 56], [8, 0], [5, 0]] as const) {
+        rows = build(n, h);
+        if (JSON.stringify(rows).length < 1100) break;
+      }
     }
     return ok(
       q ? `${matched.length} feature${matched.length === 1 ? "" : "s"} match “${cut(q, 26)}”`
@@ -319,9 +330,11 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
       {
         features: rows,
         total: matched.length,
-        ...(matched.length > rows.length
-          ? { hint: "Narrow with `query` to see the rest, or call show_me with a feature name." }
-          : {}),
+        ...(q
+          ? (matched.length > rows.length
+            ? { hint: "Narrow with `query` to see the rest, or call show_me with a feature name." }
+            : {})
+          : { hint: "Call again with `query` for a feature's how-to, or show_me to navigate there." }),
       },
     );
   },

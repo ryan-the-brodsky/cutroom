@@ -242,19 +242,24 @@ export function anchorSelector(anchor: Anchor, data?: Record<string, string>): s
 
 // ---------------------------------------------------------------- helpers shared by all
 
-/** Keep any result under BUDGETS.output chars: shrink arrays first, then strings. */
+/**
+ * Keep any result under BUDGETS.output chars: shrink arrays first, then long prose strings.
+ * Never truncates whitespace-free strings (paths, ids, urls) — those are identifiers the
+ * agent passes back. Marks the top-level object with `truncated: true` when anything shrank.
+ */
 export function clip<T>(value: T, limit = BUDGETS.output): T {
   const size = (v: unknown) => JSON.stringify(v)?.length ?? 0;
   if (size(value) <= limit) return value;
   const shrink = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.slice(0, Math.max(1, Math.floor(v.length / 2))).map(shrink);
     if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, shrink(x)]));
-    if (typeof v === "string" && v.length > 200) return v.slice(0, 200) + "…";
+    if (typeof v === "string" && v.length > 200 && /\s/.test(v)) return v.slice(0, 200) + "…";
     return v;
   };
   let out: unknown = value;
   for (let i = 0; i < 6 && size(out) > limit; i++) out = shrink(out);
   if (size(out) > limit) out = { ok: (value as { ok?: boolean })?.ok ?? true, summary: "result truncated", truncated: true };
+  else if (out && typeof out === "object" && !Array.isArray(out)) out = { ...(out as Record<string, unknown>), truncated: true };
   return out as T;
 }
 

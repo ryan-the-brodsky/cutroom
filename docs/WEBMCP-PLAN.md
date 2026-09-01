@@ -559,3 +559,12 @@ at low cost, with Ryan able to toggle providers without redeploying.
 - **G0 (Tue 16:25 PT)** — `platform/` initialised as its own repo; snapshot commit `cebcf93`;
   MIT LICENSE; `contract.ts` frozen (`b7d04e0`); Addendum A (real providers, gated + capped)
   folded in; workstreams A–F launched in parallel on Opus at ~16:25.
+- **G1 (Tue 17:20 PT, ~9 h early)** — A/B/C/E/F all landed. Hero journey J1 runs on
+  `http://localhost` in Chrome 152 through the **native** `document.modelContext`
+  (`--enable-features=WebMCP` alone suffices; `navigator.modelContextTesting` does not exist in
+  152, so the harness drives `document.modelContext` from page script). 19 tools registered;
+  253 web unit tests, 153 server tests green; Playwright 19/21 (soft: animatic gallery after
+  cut_film). Architect fixes: `clip()` no longer truncates identifiers and flags `truncated`;
+  `list_features` lists every tool compactly instead of the first 12. Hosting (D) is blocked on
+  Railway's builder for this workspace; GHCR image workaround built, waiting on Ryan for package
+  visibility or a packages-scoped token.
