@@ -1,0 +1,557 @@
+# Cutroom × WebMCP — implementation plan
+
+> Architect's plan (Fable, 2026-09-01 15:45 PT). Status: **PLAN ONLY — nothing implemented.**
+> Execution model: the architect orchestrates Opus sub-agents, one per workstream (§6), against
+> the gates in §7. Companion research: [`research/webmcp-api-brief.md`](research/webmcp-api-brief.md)
+> and [`research/webmcp-challenge-brief.md`](research/webmcp-challenge-brief.md). Read both before
+> building; they contain the exact API shapes and the challenge rules this plan is designed around.
+
+## 0. The one-paragraph version
+
+Cutroom has ~97 distinct user-facing actions across two rooms, five tabs, four generate
+sub-tabs, a cel workbench, a timeline, jobs and settings — and no way to find any of it except
+by clicking. WebMCP lets the page itself hand an agent a tool list. The plan is to build **one
+action registry** that is the single source of truth for every feature (name, description,
+schema, *where it lives in the UI*, how a human does it by hand, and how to execute it), and
+derive three things from it: (1) `document.modelContext` tools for agents, (2) a ⌘K command
+palette for humans, (3) a "show me" behaviour that navigates to a feature and pulses the control.
+Every agent tool **executes through the UI the human is looking at** — it navigates, opens the
+tab, fills the console, highlights the button, then submits — so the director learns the app by
+watching the agent drive it. The hero sentence is Ryan's own: *"make a few more generative cuts
+of the David Ross close-up"* → `find_shots` → `open_shot` → `generate_takes ×3`, in one turn.
+
+**Hard constraint discovered in research:** the challenge closes **Thu 2026-09-03 13:00 PDT**
+(~45 hours from the time of writing). It requires a public open-source repo, a live HTTPS URL
+judges can open in ChatGPT's browser or flagged Chrome, and a <3-minute public YouTube video.
+Existing apps qualify if the WebMCP work is clearly documented as new. So this is a 45-hour
+sprint plan with a submission package, and a v2 roadmap after it.
+
+## 1. Facts this plan is built on
+
+### 1.1 WebMCP as it exists today (details in the API brief)
+
+- Entry point is **`document.modelContext`** (`navigator.modelContext` is a deprecated alias).
+  `registerTool(tool, { signal })`; unregister by aborting the signal. No `provideContext`,
+  no `unregisterTool`. `getTools()`, `executeTool()`, `toolchange` event.
+- Tool = `{ name (≤30 chars, [A-Za-z0-9_.-]), title, description (≤500), inputSchema
+  (JSON Schema, param descriptions ≤150), annotations { readOnlyHint, untrustedContentHint,
+  (Chromium: consequentialHint) }, async execute(input, { signal }) }`. Output ≤1.5K chars.
+- **Never reject from `execute`** — a rejection surfaces as an opaque `UnknownError`. Resolve
+  with `{ ok:false, error, hint }`.
+- Chrome passes `executeTool` input as a **JSON string**; the spec says object. Normalize.
+- **Secure context only**: `https://`, `http://localhost`, `http://127.0.0.1`. The LAN URL we
+  use for claude-in-chrome is *not* a secure context — `document.modelContext` will be absent
+  there. Develop on localhost; demo on the hosted HTTPS URL.
+- No progress/streaming API. Minutes-long jobs → submit-and-return `{job}`, plus a
+  `readOnlyHint` status tool and a bounded wait tool.
+- Chrome 152.0.7977.65 is installed here. Enable `chrome://flags/#enable-webmcp-testing` and
+  `#devtools-webmcp-support`; DevTools › Application › WebMCP lists tools and runs them by hand.
+- Clients that can call page tools **today**: ChatGPT Desktop's browser (native, the judges'
+  primary environment), Chrome DevTools pane (manual), the Model Context Tool Inspector
+  extension, **`chrome-devtools-mcp` v1.8.0 with `--categoryExperimentalWebmcp=true`** (this is
+  how Claude Code drives them — Ryan's daily path), and MCP-B's local relay. The Claude in
+  Chrome extension does not speak WebMCP.
+
+### 1.2 The challenge (details in the challenge brief)
+
+- OpenAI-run, Devpost-administered; Chrome, Cloudflare, Shopify, Vercel, Render, Netlify sponsor.
+  Judges include Sarah Drasner (Chrome) and Alex Nahas (MCP-B).
+- Judging: WebMCP leverage · Execution (complete product, not a PoC) · Potential impact (real
+  problem, real audience) · Creativity & ambition. Equal weights, ties broken in that order.
+- Organizer guidance: "Show the project working in the first 10 to 15 seconds." "Show the
+  agent actually using your tools." Describe use cases, not features ("one turn instead of six
+  screens"). Drasner: features that "only surface when an AI agent actually needs them."
+- Required: live URL · public repo with a visible OSS license · <3 min public YouTube video with
+  audio · description answering four set questions · documentation separating prior work from
+  work done after 2026-08-25 (timestamped commits).
+
+### 1.3 The codebase (from the survey; file:line refs are current as of today)
+
+- React 18 + react-router 6 + Vite 5, no state library, no front-end tests, no ⌘K, no modals
+  except `Spotlight`. Server: FastAPI, ~52 routes, DB-backed job queue with SSE watch.
+- **The Shot Editor tab is not in the URL** (`ShotPage.tsx:25`), nor is the selected take,
+  kind filter, active comp, or generate sub-tab. Deepest link: `/p/:pid/shot/:sid`.
+  Film Editor `view/scope/res` and Timeline `ppf/scopeSec` are also local state.
+- **No search, no numeric shot addressing, no cast index.** Shots are `B10-S2`-style sids with
+  an `order_idx`. "Shot 37" = 37th in film order (today that is `B11-S4`, a cemetery still).
+  "The David Ross close-up" = `B10-S2` (HERO, dugout). The cast lives in
+  `prompts/characters.jsonl` (`CHAR-ross`, "David Ross — the veteran catcher"), which the
+  importer never reads. So the two phrasings in Ryan's hero sentence point at *different*
+  shots — the resolver must surface that, not guess.
+- Every generative action returns `{job}`; `mock` backend returns real footage instantly;
+  GPU/paid backends take minutes and cost money; backend fallback is "first enabled backend
+  serving the lane" (`handlers.py:87-94`) — an agent that omits `backend` can hit a paid API.
+- Existing NL surface: `POST /direct` → EditPlan preview → `POST /plan/apply` (two-step by
+  design), plus a 4-tool Anthropic director chat. `GET /api/ops` publishes the 19-op vocabulary.
+- Doctrine the tools must encode: true freezes only (no zoom op exists), boil never auto-plays,
+  FIRST-SECOND LAW defaults, mock takes never auto-promote, never overwrite takes, explicit
+  backend or confirmed default, pause sentinel honoured by non-cpu pools.
+- The repo has **no remote and no LICENSE**; `platform/` is untracked. `~/.cutroom/projects/
+  next-year` is ~300 MB of renders + audio (assembly excluded) — a viable hosted demo dataset.
+
+## 2. Design principles
+
+1. **One registry, three surfaces.** Every feature is an `ActionDef`. WebMCP tools, the ⌘K
+   palette and "show me" are projections of it. A feature that isn't in the registry doesn't
+   exist for discovery purposes; that is the discipline that stops the drawer sprawl.
+2. **Execute through the UI, visibly.** A tool navigates to where the feature lives, pulses the
+   control, fills the same state the human would, and calls the same handler the button calls.
+   Silent API calls are reserved for read-only tools. The activity is logged in an on-screen
+   "agent trail" the human can replay. This is the "learn by watching" loop and the judges'
+   "human-agent experience".
+3. **App-level tools with explicit arguments.** Register the catalogue once at app mount with
+   `shot` as an explicit string argument, and let each tool navigate as needed. Page-scoped
+   registration is used only for context-bound tools (selection, comp layers). Reason: an agent
+   holding a stale tool list can still act; `toolchange` reliability differs by client; and
+   pre-Chrome-153 unregistration aborts in-flight executions.
+4. **Accept human language, resolve in code.** `shot: "37" | "B10-S2" | "the Ross close-up"`,
+   `count: "a few"` → 3. Return candidates when ambiguous. Enums for lanes/roles, never IDs.
+5. **Async is the product.** Generation tools return immediately with jobs; a bounded wait tool
+   and a read-only status tool close the loop; mock finishes in under a second so the demo is
+   crisp.
+6. **Cost and doctrine guards live in the tool, not the prompt.** Paid backends require
+   `confirm_cost: true`; the tool reports the backend, its cost class and what will happen.
+   Doctrine defaults (freeze after ~1s, no zoom) are the tool defaults.
+7. **Budgets are contract.** Names ≤30, descriptions ≤500, param descriptions ≤150, outputs
+   ≤1.5K chars, enforced by a unit test over the registry.
+
+## 3. Architecture
+
+All new front-end code lives in **`web/src/agent/`**. Server additions are small and listed.
+
+### 3.1 The action registry contract (`web/src/agent/contract.ts`)
+
+```ts
+export type Anchor = string;                       // a data-action value, see §3.3
+export interface Where {
+  route: string;                                   // "/p/:pid/shot/:sid"
+  query?: Record<string, string>;                  // { tab: "generate", sub: "still" }
+  anchor?: Anchor;                                 // control to pulse
+  label: string;                                   // "Shot Editor → Generate → Still"
+}
+export interface ActionDef<A = Record<string, unknown>, R = unknown> {
+  name: string;                                    // ^[a-z][a-z0-9_]{0,29}$
+  title: string;                                   // palette label
+  description: string;                             // ≤500 chars, positive verb phrase
+  inputSchema: JSONSchema7;                        // param descriptions ≤150 chars
+  annotations?: { readOnlyHint?: boolean; consequentialHint?: boolean; untrustedContentHint?: boolean };
+  where: Where | ((args: Partial<A>) => Where);    // where the feature lives
+  keywords?: string[];                             // palette / show_me matching
+  howTo?: string;                                  // "how a human does this by hand", 1–2 sentences
+  surfaces?: { agent?: boolean; palette?: boolean };   // default both true
+  summarize?: (args: A) => string;                 // "Generate 3 stills for B10-S2"
+  execute: (args: A, ctx: ActionContext) => Promise<R>;
+}
+export interface ActionContext {
+  signal: AbortSignal;
+  project: string | null;                          // current :pid or remembered last project
+  nav: (to: string) => Promise<void>;              // react-router navigate + await route mount
+  page: PageHandles;                               // imperative handles pages register on mount (§3.3)
+  api: typeof import("../api").api;
+  resolve: ShotResolver;                           // §3.4
+  trail: Trail;                                    // §3.3
+  speed: "watch" | "fast";                         // "watch" adds ~350 ms per visible step; tests use "fast"
+}
+export type ToolResult =
+  | { ok: true; summary: string; [k: string]: unknown }
+  | { ok: false; error: string; hint?: string; candidates?: unknown[] };
+```
+
+`registry.ts` exports `register(def)`, `all()`, `get(name)`, `perform(name, args, ctx)`.
+`perform` wraps every execution: validates args (ajv or a tiny hand validator), stamps the trail,
+runs `execute`, clips the result to 1.5K chars (`clip()` truncates arrays first, then strings,
+and appends `"…(truncated)"`), catches everything and returns `{ ok:false }` — it never throws.
+
+### 3.2 The WebMCP bridge (`web/src/agent/webmcp.ts`)
+
+- `const mc = document.modelContext ?? (navigator as any).modelContext` at app mount; if absent
+  and `import.meta.env.VITE_WEBMCP_POLYFILL === "1"` (or `?webmcp=polyfill`), dynamically import
+  `@mcp-b/webmcp-polyfill@5.1.0` with `installTestingShim: true`. Default: no polyfill (the
+  judges' environments are native).
+- Registers every `ActionDef` with `surfaces.agent !== false` once, with one app-level
+  `AbortController`. `execute` adapter: parse input if it is a string; call `perform`; return the
+  `ToolResult` object (the browser JSON-stringifies it).
+- Sets `annotations.readOnlyHint` from the def; also sets `consequentialHint` (harmless extra key
+  on spec-shaped implementations).
+- `useAgentTools(defs, deps)` hook for page-scoped tools: registers on mount with its own
+  controller, aborts on unmount **after** any in-flight execution settles (tracks a counter).
+- Exposes `window.__cutroomAgent = { list(), call(name, args) }` **only** when
+  `import.meta.env.DEV` or `?agent_debug=1` — the Playwright harness uses it when the native API
+  is unavailable.
+- Status chip in the topbar: "🤖 tools: 16 · native | polyfill | unavailable (needs https or
+  localhost)" so the human and the video can see the API is live.
+
+### 3.3 Visible execution: page handles, anchors, trail (`web/src/agent/presence.tsx`, `pageHandles.ts`)
+
+- **Page handles.** Pages register imperative handles on mount:
+  `usePageHandles("shot", { sid, setTab, setSub, selectTake, setKindFilter, setGen(field, v),
+  submitGenerate(sub), submitFreeze(live), submitTrim(end), submitVo(...), direct(instruction),
+  applyPlan(plan) })`, similarly `"film"` (`selectShot, setScope, setRes, cutFilm, setOverride`)
+  and `"comp"` (v2). `ctx.page.waitFor("shot", { sid })` resolves when a page with matching
+  identity has mounted (5 s timeout → `{ok:false, error:"page did not mount"}`). Tools call
+  handlers, not the DOM — inputs that commit on blur (`onBlur` seconds/offset fields) are a
+  known trap for DOM driving.
+- **Anchors.** Controls get `data-action="…"` attributes; `pulse(anchor)` scrolls into view and
+  applies a 1.2 s ring animation (`.agent-pulse`). Anchor vocabulary (fixed at G0):
+  `app.nav.{projects,film,timeline,chat,jobs,settings}` · `app.pause` ·
+  `film.{cut,scope,res}` · `film.shot[data-sid]` · `film.quick.{seconds,vo_offset,mute,open,source}` ·
+  `shot.tab.{compose,generate,motion,audio,script}` · `shot.direct.{input,submit}` · `shot.plan.apply` ·
+  `shot.takes.filter[data-kind]` · `shot.take[data-path]` · `shot.take.{keeper,source,freeze,compose}` ·
+  `shot.gen.sub.{still,restyle,animate,chain}` · `shot.gen.{still,restyle,animate,chain}.{prompt,seeds,denoise,frames,steps,cfg,freeze_after,mode,beats,submit}` ·
+  `shot.gen.model` · `shot.motion.{live,freeze,trim}` · `shot.audio.{text,voice,futz,submit,vo_offset,mute}` ·
+  `timeline.{render,scope}` · `settings.backend[data-id].{enable,health,save,delete}`.
+- **Trail.** `trail.step({ tool, title, anchor?, detail?, job? })` appends to an activity store
+  rendered as a collapsible bottom-right drawer ("Agent trail": time · tool · summary · job link;
+  click a step to re-pulse its anchor). The topbar chip shows the count. Steps are paced by
+  `ctx.speed` so a human can follow: navigate → tab → sub-tab → fields → submit.
+- **URL state (prerequisite).** `ShotPage` syncs `tab`, `sub`, `take`, `kind` to query params;
+  `FilmEditorPage` syncs `sel`, `view`, `scope`, `res`. Deep links become real:
+  `/p/next-year/shot/B10-S2?tab=generate&sub=still`. (Also fixes a long-standing UX gap.)
+
+### 3.4 Shot resolver + cast index (`web/src/agent/resolve.ts`; server: importer + one route)
+
+- Server: the importer reads `prompts/characters.jsonl` when present and stores
+  `project.settings.cast = [{ id, name, aliases[], descriptor }]` (aliases = name tokens plus
+  role words after the em dash: "David Ross — the veteran catcher" → `david`, `ross`, `catcher`,
+  `veteran catcher`). New route `GET /api/projects/{pid}/cast`. A one-off `cutroom reimport-cast
+  <project> <src_root>` refreshes existing projects without re-importing media.
+- Client: `ShotResolver.index()` loads `/film` + `/cast` once (SWR-cached) and derives per shot:
+  `ordinal` (1-based film order), `beat`, `act`, `type`, `characters` (cast aliases found in
+  `image_prompt`'s subject clause or `dialogue[].character`), `summary` (first 90 chars after
+  "Subject:" if present, else of `image_prompt`).
+- `resolve(query)` scoring, in order: exact sid (`B10-S2`, case-insensitive, `B10 S2`) →
+  ordinal (`37`, `#37`, `shot 37`) → beat (`B10`, `beat 10`) → cast alias hits → shot-type words
+  (`close-up|cu|hero` → HERO, `wide|tableau|establishing` → STILL) → free-text token overlap with
+  `image_prompt`/`register`/`render_notes`. Returns `{ best, candidates[≤8], confidence:
+  "exact"|"high"|"ambiguous"|"none" }`. When a query contains *both* an ordinal and a name that
+  disagree (Ryan's hero sentence), confidence is `ambiguous` and both are returned with reasons.
+- Unit tests pin: `"37"` → `B11-S4`; `"the David Ross close-up"` → `B10-S2` first;
+  `"David Ross close up, shot 37"` → ambiguous with both.
+
+### 3.5 Human surfaces: ⌘K palette and "show me" (`web/src/agent/Palette.tsx`)
+
+- ⌘K / Ctrl+K opens a palette listing every registry entry: title · `where.label` · howTo on
+  focus. Fuzzy filter over title/keywords/description. Enter on an arg-less action performs it;
+  on an action needing args, it navigates to `where` and pulses the anchor so the human
+  finishes by hand. Recent actions float up (localStorage).
+- `show_me` tool (§4) is the agent-side twin: it explains where a feature lives, navigates there,
+  pulses it, and returns `howTo`.
+
+### 3.6 Jobs pattern (`web/src/agent/jobs.ts`)
+
+- `submitAndSettle(jobIds, { settleMs })`: waits up to `settleMs` (default 8 s; mock finishes in
+  <1 s) via the existing SSE `GET /api/jobs/{id}/watch`; returns per-job
+  `{ job, status, takes?: [{path, thumb}] }`. Beyond the window: `status:"running"` and the hint
+  "call wait_for_jobs".
+- `wait_for_jobs` tool caps at 60 s and honours `signal` (bridges time out around 65 s).
+
+### 3.7 Cost & doctrine guard (`web/src/agent/guard.ts`)
+
+- Before any generation: resolve the effective backend for the lane (`GET /api/lanes` +
+  `GET /api/projects/{pid}/lanes` + explicit arg) and classify `free` (mock, local comfyui) vs
+  `paid` (fal, replicate, openai-images, openrouter-image, elevenlabs). Paid without
+  `confirm_cost: true` → `{ ok:false, error:"needs_confirmation", backend, cost_class,
+  hint:"re-call with confirm_cost:true" }`. An explicitly disabled backend → the server's 400
+  passes through as a descriptive error.
+- Doctrine defaults: `animate` uses 49 frames + `freeze_after: 1.0` unless overridden; no zoom
+  parameter exists; `freeze_tail` refuses stills with the server's own guard message.
+
+### 3.8 Demo mode + hosting (server `config.py`, `main.py`, new `cutroom/demo.py`)
+
+- `CUTROOM_DEMO=1`: backend create/edit/delete, project import, comp delete and pause endpoints
+  return 403 with a friendly message; every lane is pinned to `mock`; job submissions are
+  rate-limited per IP (60/min) ; the Settings page shows a "demo instance" banner. Everything
+  else (generation via mock, freezes, trims, comps, cut-the-film via ffmpeg) works for real.
+- `CUTROOM_DEMO_BUNDLE=<url>`: at boot, if no projects exist, download a `.tar.zst` game7-layout
+  bundle (shots.jsonl, characters.jsonl, curation, overrides, renders/, audio/) into
+  `$CUTROOM_DATA/demo-src` and run the importer as project `next-year`, then warm thumbs.
+  The bundle is built by `cutroom demo-bundle <game7-root> <out.tar.zst>` (excludes assembly/
+  and anything >25 MB; expected ~300 MB) and attached to a GitHub Release of the public repo.
+- Hosting: **Railway** (Ryan's account is connected via MCP; `deploy/Dockerfile` already builds
+  the SPA + server; mount a volume at `/data`; `CUTROOM_HOST=0.0.0.0`, `CUTROOM_DEMO=1`,
+  `CUTROOM_DEMO_BUNDLE`, `CUTROOM_AUTH_TOKEN` empty). Railway provides the HTTPS domain WebMCP
+  requires. Fallback: Render (sponsor credits) with the same image.
+
+## 4. Tool catalogue v1 (16 tools)
+
+All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat or a description.
+
+| # | name | annotations | arguments | where it executes (visibly) | returns |
+|---|---|---|---|---|---|
+| 1 | `find_shots` | readOnly | `query` (string) | none (silent) | candidates ≤8: sid, ordinal, beat, act, type, summary, characters, has_keeper, has_motion, plays; confidence |
+| 2 | `describe_shot` | readOnly | `shot` | none | prompts, dialogue, seconds, keeper, active source, takes by kind (counts + latest 5 paths with thumb URLs), comps, lane defaults with cost class |
+| 3 | `get_context` | readOnly | — | none | route, project, current shot/tab/sub/selected take, running jobs, WebMCP mode, agent speed |
+| 4 | `list_features` | readOnly | `query?` | none | registry entries (name, title, where.label, howTo) — includes palette-only features so the agent can teach them |
+| 5 | `show_me` | — | `feature` (string) | navigates to the feature, pulses its control | `howTo`, where.label, what is now on screen |
+| 6 | `open_shot` | — | `shot`, `tab?` enum, `sub?` enum, `take?` | Film Editor strip → Shot Editor → tab → sub-tab | resolved sid, what is visible |
+| 7 | `generate_takes` | consequential | `shot`, `lane` enum still/restyle/animate, `count` (1–4, default 3), `prompt?`, `prompt_mode?` enum replace/append, `source_take?`, `denoise?`, `region?` [l,t,r,b], `frames?`, `backend?`, `model?`, `confirm_cost?` | Shot Editor → Generate → sub-tab; fills prompt/seeds/denoise; submits N times with distinct seeds | jobs[], backend, cost_class, settled takes with thumbs, hint |
+| 8 | `freeze_tail` | consequential | `shot`, `take?`, `live_seconds` (default 1.0) | Motion edits tab; sets live; submits | job, settled take |
+| 9 | `trim_clip` | consequential | `shot`, `take?`, `end_seconds` | Motion edits tab | job, settled take |
+| 10 | `select_take` | — | `shot`, `take` (path or "latest"/"newest still"/"keeper") | takes rail → monitor | selected path, kind, duration |
+| 11 | `set_keeper` | consequential | `shot`, `take?` (default selected), `note?` | ★ on the take | applied, previous keeper (history kept) |
+| 12 | `set_timeline_source` | consequential | `shot`, `take?` | ⬆ on the take (or clear) | applied, what plays now |
+| 13 | `set_shot_timing` | consequential | `shot`, `seconds?`, `vo_offset?`, `mute_vo?` | Film Editor quick panel (or Audio tab) | applied override |
+| 14 | `synthesize_vo` | consequential | `shot`, `text?`, `voice?`, `futz?`, `confirm_cost?` | Audio tab; fills; submits | job, settled take |
+| 15 | `direct_shot` | readOnly (plan only) | `shot`, `instruction` | Direct box; types; compiles → PlanPreview shown | the EditPlan (ops with summaries) or a 422 message; nothing runs |
+| 16 | `apply_plan` | consequential | `shot`, `plan` (from 15) | ▶ apply plan | jobs[], applied ops |
+| 17 | `cut_film` | consequential | `scope` enum full/act1..4, `res` enum 720/1080 | Film Editor → Cut the film | job; on settle: animatic path + duration |
+| 18 | `get_jobs` | readOnly | `jobs?` (ids) | none | status, log tail, result paths |
+| 19 | `wait_for_jobs` | readOnly | `jobs`, `timeout_s` ≤60 | none (progress visible in topbar/Jobs) | statuses, take paths |
+
+(19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
+"16" was the working count — the number is not load-bearing. Stay under ~25 for v1.)
+
+**Descriptions** are written by workstream C to the budgets, in the verb-first house style,
+e.g. `generate_takes`: "Generate new takes for a shot in Cutroom — stills, restyles of an
+existing take, or animated cel clips. Opens the shot's Generate console on screen, fills it,
+and submits one job per take with a fresh seed. Returns job ids and, when the backend is fast,
+the finished takes. Paid backends require confirm_cost."
+
+**v2 (post-challenge)**: `add_cel_layer`, `reroll_layer`, `reroll_background`, `render_comp`,
+`chain_beats`, `set_lane_default`, `list_backends`, `export_timeline` (otio/edl), `render_timeline`,
+`separate_figure` (SAM points), plus page-scoped comp layer tools registered inside `CompEditor`.
+
+## 5. Hero journeys (these are also the evals)
+
+| # | Human says | Expected tool sequence | Visible result |
+|---|---|---|---|
+| J1 | "Make a few more generative cuts of the David Ross close-up." | `find_shots("David Ross close-up")` → `B10-S2` (high) → `generate_takes(shot:"B10-S2", lane:"still", count:3)` | Film Editor → Shot Editor B10-S2 → Generate → Still; prompt fills; 3 submits; 3 new stills appear in the rail; trail shows 5 steps |
+| J1b | "…the David Ross close up, shot 37" | `find_shots` → ambiguous (`B10-S2` by name, `B11-S4` by number) → agent asks which | nothing runs until the human answers |
+| J2 | "Keep the first second of the newest one and freeze the rest." | `select_take(shot, "newest motion")` → `freeze_tail(shot, live_seconds:1)` | Motion edits tab opens; live=1; ❄ pulses; new frozen take |
+| J3 | "How do I do that by hand?" | `show_me("freeze tail")` | navigates + pulses ❄, returns howTo |
+| J4 | "Cut act 1 at 720." | `cut_film(scope:"act1", res:"720")` → `wait_for_jobs` | Cut button pulses; animatic appears in Cuts gallery and plays |
+| J5 | "Hold his pose for the rest of the line on the dial shot." | `find_shots("dial shot")` → `direct_shot(instruction)` → plan preview → human clicks apply (or agent `apply_plan` after confirmation) | the film's own grammar produces the plan on screen |
+| J6 | "Make this take the keeper and use it in the timeline." | `set_keeper` → `set_timeline_source` | ★ then ⬆ pulse; Film Editor shows the new pick |
+
+## 6. Workstreams and agent briefs
+
+Six Opus sub-agents plus the architect. Each agent works in its own git worktree of the public
+repo (§6.D creates it at T+0), commits small, runs its tests before reporting, and reports with
+a diff summary + test output. **File ownership is exclusive**; cross-cutting edits go through
+the architect. All agents read this plan and both research briefs first.
+
+### Architect (this session)
+- Writes `web/src/agent/contract.ts` (§3.1 types + anchor constants + tool-name list) at T+0 so
+  everyone imports the same contract. Freezes it at G0.
+- Runs gates, integrates worktrees, resolves conflicts, keeps this doc's "results" log.
+
+### A — URL state, page handles, registry core, bridge, trail, palette (front-end spine)
+- **Owns**: `web/src/agent/{registry,webmcp,pageHandles,presence,Palette,jobs,guard}.ts(x)`,
+  edits to `App.tsx`, `main.tsx`, `ShotPage.tsx`, `FilmEditorPage.tsx`, `styles.css`,
+  `ModelPicker.tsx` (anchor attrs only).
+- **Deliverables**: query-param state sync (§3.3); `data-action` anchors everywhere in the
+  vocabulary; `usePageHandles` for `shot` and `film`; registry + `perform` + `clip`; WebMCP bridge
+  with feature detection + optional polyfill + debug hook; trail drawer + pulse; topbar chip;
+  ⌘K palette; `speed` setting (`?agent_speed=fast`, localStorage).
+- **Tests**: vitest unit tests for `registry` (name/description budgets, schema validity, clip),
+  `pageHandles.waitFor` timeout, palette filtering. Manual: DevTools WebMCP pane lists tools on
+  `http://localhost:8770` with the flag on.
+- **Done when**: `open_shot` and `show_me` (stub tools registered by A for smoke) drive the UI
+  visibly on localhost in Chrome 152 with the flag; `tsc` clean; vitest green.
+- ~8 agent-hours. Starts T+0.
+
+### B — Resolver, cast index, server additions, demo mode
+- **Owns**: `web/src/agent/resolve.ts` (+ tests), `server/cutroom/importer/game7.py` (cast),
+  `server/cutroom/api/projects.py` (`GET …/cast` only), `server/cutroom/demo.py`, `config.py`,
+  `main.py` (demo boot hook), `server/cutroom/__main__.py`/CLI entries `demo-bundle`,
+  `reimport-cast`, `server/tests/test_cast.py`, `test_demo.py`.
+- **Deliverables**: §3.4 and §3.8 server side; rate limit; 403 lockouts; bundle builder;
+  boot-time import from bundle.
+- **Tests**: pytest for cast parsing (aliases from the real `characters.jsonl`), resolver pins
+  (§3.4), demo-mode 403s, bundle round-trip on a tiny synthetic project.
+- **Done when**: `cutroom demo-bundle` on the real film produces a ≤350 MB archive that boots a
+  fresh data dir into a browsable `next-year` project with mock lanes; full pytest green.
+- ~6 agent-hours. Starts T+0.
+
+### C — Tool implementations
+- **Owns**: `web/src/agent/tools/*.ts` (one file per tool group: `find.ts`, `navigate.ts`,
+  `generate.ts`, `motion.ts`, `picks.ts`, `audio.ts`, `direct.ts`, `film.ts`, `jobs.ts`),
+  `web/src/agent/tools/index.ts` (the catalogue), `web/src/agent/descriptions.md` (copy deck).
+- **Inputs**: `contract.ts` (T+0), page-handle names (fixed in this plan), resolver API.
+  Until A lands, C develops against a `fakeContext` and unit-tests execution logic.
+- **Deliverables**: every §4 tool with description/schema to budget, `summarize`, `howTo`,
+  `where`; cost guard use; settle logic; error envelopes with hints; ambiguity handling.
+- **Tests**: vitest per tool with a mocked `ActionContext` (asserts navigation calls, handle
+  calls, API bodies, result shape and size); the J1–J6 sequences as table tests over the
+  resolver + tools with recorded `/film` fixtures.
+- **Done when**: all tools pass unit tests and J1/J2/J4/J6 run end-to-end on localhost via
+  `window.__cutroomAgent.call` against the mock backend.
+- ~10 agent-hours. Starts T+0 (descriptions/schemas/tests first), integrates with A at G1.
+
+### D — Repo, license, hosting, deploy pipeline
+- **Owns**: repo scaffolding (`LICENSE`, `THIRD_PARTY_NOTICES.md` — the lifted FreeCut player
+  in `web/src/runtime/` is MIT and needs its notice), `README.md` top section, `deploy/*`,
+  Railway service + volume + env, GitHub Release with the demo bundle, `docs/PRIOR-WORK.md`
+  skeleton (F finishes it), `.github/workflows/ci.yml` (tsc + vitest + pytest).
+- **Sequence**: (1) `mv platform ../cutroom && ln -s ../cutroom platform` in game7; `git init`;
+  MIT `LICENSE`; first commit `"Cutroom — prior-work snapshot (built 2026-07-12..15)"`;
+  **stop for Ryan's approval before `gh repo create … --public --push`** (outward-facing).
+  (2) Railway: create project/service from the Dockerfile, volume at `/data`, env per §3.8,
+  `generate-domain`; deploy the snapshot to prove the pipeline before the WebMCP code exists.
+  (3) When B's bundle exists: upload as a Release asset, set `CUTROOM_DEMO_BUNDLE`, redeploy,
+  verify `https://<domain>/p/next-year` shows the film.
+- **Tests**: `curl https://<domain>/api/health`; a Playwright smoke from E against the domain.
+- **Done when**: public repo exists with a visible license; HTTPS URL serves the demo film;
+  `git log` shows the snapshot commit before any WebMCP commit.
+- ~6 agent-hours + waits. Starts T+0.
+
+### E — Test harness, e2e, evals, cross-client checklist
+- **Owns**: `web/vitest.config.ts`, `web/e2e/*` (Playwright), `web/package.json` devDeps/scripts,
+  `docs/TESTING-WEBMCP.md`, `evals/journeys.json`.
+- **Deliverables**: vitest wired (`npm test`); Playwright using **system Chrome 152 with
+  `--enable-features=WebMCP,WebMCPTesting`** so tests hit the *native* API via
+  `navigator.modelContextTesting` / `document.modelContext.getTools()`; fallback to
+  `window.__cutroomAgent` when the API is absent (CI). E2E specs: tools registered ≥16; J1, J2,
+  J4, J6 end-to-end against a server started in mock/demo mode on a temp `CUTROOM_DATA`; trail
+  renders; deep links restore tab state. Evals file = §5 journeys with expected tool sequences,
+  runnable by hand through `chrome-devtools-mcp` from Claude Code (document the command in
+  TESTING-WEBMCP.md) and, if time, via GoogleChromeLabs' WebMCP Evals CLI.
+- **Cross-client checklist** (manual, with Ryan): DevTools WebMCP pane on localhost; Model
+  Context Tool Inspector; ChatGPT Desktop site tools against the hosted URL; Claude Code via
+  `chrome-devtools-mcp --categoryExperimentalWebmcp=true --autoConnect`.
+- **Done when**: `npm test` + `npm run e2e` green locally; the checklist has dated ticks.
+- ~8 agent-hours. Starts T+0 (harness), e2e specs land after G1.
+
+### F — Submission package
+- **Owns**: `docs/PRIOR-WORK.md`, `docs/SUBMISSION.md` (the four description answers, testing
+  instructions for judges, links), `docs/VIDEO-SCRIPT.md` + a deterministic demo runbook
+  (exact prompts, expected tool calls, reset steps), README "Drive Cutroom with an agent"
+  section, YouTube description text, the Devpost form field contents.
+- **Sequence**: draft at T+12h from this plan; finalize against the real build at G3; support
+  Ryan's recording at G4 (reset the demo instance, pre-warm thumbs, open the right windows).
+- **Done when**: every Devpost field has final text in `SUBMISSION.md`; PRIOR-WORK cites the
+  snapshot commit hash and the first WebMCP commit hash; the video runbook has been executed
+  once end-to-end without surprises.
+- ~6 agent-hours + Ryan's ~2 h of recording.
+
+## 7. Schedule and gates (Pacific time; T+0 = Tue 2026-09-01 16:00)
+
+| Gate | When | Exit criteria |
+|---|---|---|
+| **G0 contract** | Tue 18:30 (T+2.5h) | `contract.ts` + anchor vocabulary + tool names frozen; repo snapshot committed; A/B/C/D/E running |
+| **G1 local hero** | Wed 02:00 (T+10h) | J1 and J2 run on `http://localhost:8770` in Chrome 152 (flag on) through the DevTools pane or `chrome-devtools-mcp`; trail + pulse visible; vitest green |
+| **G2 hosted** | Wed 12:00 (T+20h) | HTTPS URL serves the demo film in demo mode; tools register there; J1/J2/J4 verified in ChatGPT Desktop *or* flagged Chrome against the hosted URL; public repo pushed |
+| **G3 complete** | Wed 20:00 (T+28h) | All v1 tools pass unit + e2e; palette + show_me polished; cross-client checklist ticked; PRIOR-WORK and SUBMISSION drafted; CI green |
+| **G4 media** | Thu 08:00 (T+40h) | Video recorded and uploaded (public); description final; repo README final; last redeploy |
+| **Submit** | **Thu 11:00 (T+43h)** | Devpost form submitted, 2 h before the 13:00 deadline; confirmation screenshot saved |
+
+Ryan's touchpoints: approve repo publish (T+1h), approve Railway deploy (T+2h), confirm
+footage may be hosted publicly (T+1h), enable ChatGPT site tools + Chrome flags (any time before
+G2), record the video (G3→G4), press submit.
+
+## 8. Testing strategy (summary)
+
+- **Registry contract tests** (vitest): every tool name matches the regex and ≤30 chars,
+  description ≤500, every param description ≤150, `inputSchema` compiles, `where.anchor` exists
+  in the anchor vocabulary, `howTo` present, `clip()` keeps outputs ≤1.5K.
+- **Resolver tests**: the §3.4 pins plus beat/act/type queries and no-match behaviour.
+- **Tool unit tests** with a fake context (C).
+- **E2E in real Chrome with the native API** (E), against a mock/demo server on a temp data dir.
+- **Server pytest** for cast import, demo mode, bundle (B); existing 115 stay green.
+- **Evals** = §5 journeys; run by hand via `chrome-devtools-mcp` before G3 and recorded in
+  `TESTING-WEBMCP.md`.
+- **Manual cross-client checklist** before G3.
+
+## 9. Submission package (what judges receive)
+
+1. **Live URL**: the Railway HTTPS domain, demo mode, no login. Testing instructions: "Chrome
+   149+: enable `chrome://flags/#enable-webmcp-testing` (and `#devtools-webmcp-support` to see
+   the tool list under DevTools › Application › WebMCP), restart, open the URL. ChatGPT Desktop:
+   Settings › Browser › Enable site tools, open the URL in the in-app browser, ask: *'Make a few
+   more generative cuts of the David Ross close-up.'*"
+2. **Repo**: public, MIT, README top section explains the agent layer with a 20-line code
+   excerpt of `registerTool`, links to `docs/WEBMCP-PLAN.md`, `PRIOR-WORK.md`, `TESTING-WEBMCP.md`.
+3. **Video (≤3:00)** storyboard — 0:00–0:15 the hero sentence typed into the agent; the UI
+   navigates itself (Film Editor → shot → Generate → Still), three takes land, trail visible.
+   0:15–0:40 the problem: a fast scroll through the ⌘K palette's ~100 features — "this is the
+   Photoshop problem; nobody finds anything." 0:40–1:20 J2 + J3: freeze the tail; "show me how"
+   pulses the control; the human repeats it by hand. 1:20–1:50 J4: cut act 1; the animatic
+   plays. 1:50–2:30 how it's built: one registry → WebMCP tools + palette + show-me; execution
+   through the UI; the same tools called from Claude Code via chrome-devtools-mcp. 2:30–2:50
+   why it matters for every deep creative tool. Show working software in the first 10 seconds.
+4. **Description**: four answers (draft in `SUBMISSION.md`): fit — a 97-action creative tool is
+   exactly the discoverability problem WebMCP exists for; better UX — one sentence replaces six
+   screens and teaches the UI while doing it; new together — director states intent, agent
+   drives the room the director is looking at, plans are previewed before anything renders,
+   cost is guarded; implementation — registry → `document.modelContext.registerTool`, visible
+   execution through page handles, resolver, async job pattern, demo mode.
+5. **PRIOR-WORK.md**: snapshot commit hash (all of Cutroom as built 2026-07-12..15) vs the
+   WebMCP commits (2026-09-01..03); a file-level list of what is new.
+
+## 10. Decisions for Ryan (recommendation first; the plan assumes the recommendation)
+
+1. **Public repo shape** — *Recommended*: a new `cutroom` repo containing `platform/` at its
+   root (the film's script, bible and prompts stay private in game7; game7 keeps a symlink).
+   Alternative: publish all of game7. The demo bundle is a Release asset, not tracked files.
+2. **Host the film footage publicly on the demo instance** — *Recommended yes*; it is Ryan's own
+   work, judges need real media, and the repo itself does not need it.
+3. **Hosting** — *Recommended Railway* (connected, Dockerfile-ready, volume + HTTPS). Render as
+   fallback.
+4. **License** — *Recommended MIT* (matches the lifted FreeCut code).
+5. **Primary demo client in the video** — *Recommended* ChatGPT Desktop's browser (the judges'
+   own environment) for J1–J4, then a short Claude Code + `chrome-devtools-mcp` segment (Ryan's
+   real workflow, and Alex Nahas will recognise the MCP bridge story). If ChatGPT site tools
+   are unavailable on Ryan's account, the Model Context Tool Inspector with the flag is the
+   fallback.
+
+## 11. Risks and mitigations
+
+| Risk | Mitigation |
+|---|---|
+| `document.modelContext` undefined on the demo URL (flag/OT confusion) | Topbar chip states the mode; judges' instructions name the exact flag; polyfill toggle available; the video shows it working regardless |
+| ChatGPT's safety review blocks generation tools or demands confirmation | That is the human-in-the-loop story — show it once in the video; keep `readOnlyHint` accurate so reads are not gated |
+| Tool executes while the human is on another page | Tools navigate first; `waitFor` page handles with timeout; error envelope explains |
+| Unregister-aborts-execution on Chrome 152 | App-level registration; page-scoped tools only in v2 |
+| Public demo abuse | Demo mode lockouts, rate limit, mock-only lanes, nightly reset from bundle |
+| `GET /timeline` cold compile after mutations | Not on any v1 tool path |
+| Agents editing the same files | Exclusive ownership in §6; architect integrates |
+| Time | Gates with explicit cut lines: if G1 slips past Wed 06:00, drop `synthesize_vo`, `trim_clip`, `direct_shot`/`apply_plan` from v1 and keep the palette; if G2 slips past Wed 16:00, demo from localhost in the video and host a static preview — the live URL is still required, so hosting is the last thing to cut |
+
+## 12. Post-challenge roadmap
+
+- v2 tools (§4) including page-scoped comp-layer tools inside `CompEditor` and timeline edit
+  verbs (`edits.ts` is already implemented and untested in UI).
+- Server-side MCP twin: expose the same catalogue over the existing director provider so
+  hosted Claude chat and WebMCP share one contract (FOUNDATION.md §7's "take the contract").
+- Origin-trial token in `index.html` so the demo works without the flag once Chrome 157 ships.
+- Progress reporting when the spec lands `reportProgress` (#196).
+- Tool-usage analytics into the trail → "features the agent used that you never opened".
+
+---
+
+## Results log
+
+*(the architect appends gate results here as they land)*
+
+---
+
+## Addendum A (Ryan, 2026-09-01 16:05 PT) — real providers on the hosted demo, gated and capped
+
+Supersedes the "mock-only" parts of §3.8. The hosted demo must do **real generation** for judges
+at low cost, with Ryan able to toggle providers without redeploying.
+
+- **Direction lane → OpenRouter**, model GLM 5.3 Flash (near-free). Uses the existing
+  `openai-chat` adapter with `base_url=https://openrouter.ai/api/v1`; the planner (`planner.py`)
+  and director chat use it. Agent B verifies the exact OpenRouter model id via
+  `GET https://openrouter.ai/api/v1/models` (expected `z-ai/glm-5.3-flash` or similar) and
+  makes it an env var.
+- **Still lane → cheap hosted image model** (OpenRouter image modality or fal flux-schnell class,
+  ~$0.003–0.04 per image). **Motion lane → fal** (already integrated and keyed locally; Wan 2.2
+  ≈ $0.20 per 5 s clip at 480p; agent B picks the cheapest model that still looks like anime
+  motion and makes it env-configurable). **VO → ElevenLabs** (key exists). Everything not keyed
+  falls back to `mock`.
+- **Boot-time seeding from env** (`main.py seed_backends` extended): `OPENROUTER_API_KEY`,
+  `FAL_KEY`, `ELEVEN_LABS_API_KEY` create/enable backends; `CUTROOM_LANE_<LANE>=<backend>:<model>`
+  sets project lane defaults for the demo project (`still`, `i2i`, `motion`, `vo`, `direction`).
+- **Toggleable without redeploy**: demo mode no longer freezes Settings; it splits roles.
+  `CUTROOM_AUTH_TOKEN` = judge/viewer token (required; given in Devpost testing instructions;
+  accepted via `?token=` in the URL so the judge link is one click — A adds the query-param
+  intake in `App.tsx`). `CUTROOM_ADMIN_TOKEN` = Ryan; only admin may edit backends/lanes/keys,
+  import, delete, or pause. Judges can generate, edit shots, cut the film.
+- **Spend cap**: `CUTROOM_DEMO_BUDGET_USD` (default 10) per rolling 24 h, tracked server-side
+  from per-lane cost estimates (`options.cost_usd` on each backend, seeded from env
+  `CUTROOM_COST_<BACKEND>=0.20`); when exceeded, paid lanes return 402 with a clear message and
+  the WebMCP tools relay it (`{ok:false, error:"budget exhausted", hint}`); `mock` keeps working.
+  Also: per-token limit of 12 paid jobs per hour; `generate_takes.count` ≤ 4.
+- The WebMCP cost guard (§3.7) reads the backend's `cost_usd` and reports it in the
+  needs-confirmation envelope: "3 stills on openrouter-image ≈ $0.12".

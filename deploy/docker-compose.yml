@@ -1,0 +1,43 @@
+# Cutroom hosted deployment.
+#   cd platform && docker compose -f deploy/docker-compose.yml up --build
+#
+# GPU boxes are NOT containers here — they are ComfyUI hosts you register as
+# backends (Settings → Backends → base_url http://gpu-box:8188). To run a
+# cutroom worker NEXT TO a GPU box instead (pull model), give that backend
+# options {"remote": true} and start the worker profile on that machine with
+# the shared /data volume mounted (NFS/SMB) so media lands in project storage.
+
+services:
+  cutroom:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "${CUTROOM_PORT:-8770}:8770"
+    environment:
+      CUTROOM_AUTH_TOKEN: ${CUTROOM_AUTH_TOKEN:-}
+      CUTROOM_WORKER_TOKEN: ${CUTROOM_WORKER_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ELEVEN_LABS_API_KEY: ${ELEVEN_LABS_API_KEY:-}
+      CUTROOM_DATABASE_URL: ${CUTROOM_DATABASE_URL:-}
+    volumes:
+      - cutroom-data:/data
+    restart: unless-stopped
+
+  # optional extra CPU worker (comps, freezes, assembly) sharing storage
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["cutroom-worker", "--server", "http://cutroom:8770",
+              "--token", "${CUTROOM_WORKER_TOKEN:-}", "--pools", "cpu"]
+    environment:
+      CUTROOM_DATA: /data
+    volumes:
+      - cutroom-data:/data
+    depends_on: [cutroom]
+    profiles: ["worker"]
+    restart: unless-stopped
+
+volumes:
+  cutroom-data:
