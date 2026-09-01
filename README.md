@@ -1,5 +1,26 @@
 # CUTROOM
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/ryan-the-brodsky/cutroom/actions/workflows/ci.yml/badge.svg)](https://github.com/ryan-the-brodsky/cutroom/actions/workflows/ci.yml)
+[![WebMCP](https://img.shields.io/badge/WebMCP-document.modelContext-8a63d2)](docs/WEBMCP-PLAN.md)
+
+> **Live demo:** _(hosted URL — pending first deploy)_ ·
+> **Third-party code:** [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) ·
+> **Prior work vs. new work:** [`docs/PRIOR-WORK.md`](docs/PRIOR-WORK.md)
+
+## Drive it with an agent (WebMCP)
+
+<!-- PLACEHOLDER — workstream F writes the final copy here. Keep the heading. -->
+Cutroom exposes its own editing surface to browser agents through
+[WebMCP](docs/WEBMCP-PLAN.md): a single action registry
+(`web/src/agent/contract.ts`) is published as tools on `document.modelContext`,
+so an agent in ChatGPT's in-app browser or flagged Chrome can direct the film —
+navigate to a shot, generate takes, freeze a tail, cut the animatic — *through
+the real UI*, with every step visible on screen. The same registry backs the
+⌘K palette and the "show me how" affordance, so nothing an agent can do is
+hidden from the human. See [`docs/WEBMCP-PLAN.md`](docs/WEBMCP-PLAN.md) for the
+architecture and [`docs/PRIOR-WORK.md`](docs/PRIOR-WORK.md) for what is new.
+
 The game7 pipeline, refactored into a hosted web application: one server,
 N film projects, M pluggable generation backends. The original `bin/` +
 `dashboard/` components remain untouched in the repo root; this directory is
