@@ -1,0 +1,14 @@
+# Keep `railway up` uploads small: everything the image builds for itself.
+server/.venv/
+server/cutroom/static/
+server/cutroom.egg-info/
+server/.pytest_cache/
+web/node_modules/
+web/dist/
+web/e2e-results/
+web/playwright-report/
+__pycache__/
+*.pyc
+.git/
+.DS_Store
+deploy/.env

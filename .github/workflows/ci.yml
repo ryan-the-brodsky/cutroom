@@ -57,17 +57,43 @@ jobs:
         working-directory: server
         run: pytest -q
 
-  docker:
-    name: docker image builds
+  # Railway's own builder is unavailable on this workspace (every source build
+  # dies at "scheduling build on Metal builder"), so the hosted demo pulls this
+  # image instead of building from source. See docs/DEPLOYMENT.md
+  # § "Hosted demo (Railway)".
+  image:
+    name: docker image → ghcr
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: build deploy/Dockerfile
+      - name: log in to ghcr
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: build (and push on push events)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile
-          push: false
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
