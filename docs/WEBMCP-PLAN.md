@@ -555,3 +555,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
   Also: per-token limit of 12 paid jobs per hour; `generate_takes.count` ≤ 4.
 - The WebMCP cost guard (§3.7) reads the backend's `cost_usd` and reports it in the
   needs-confirmation envelope: "3 stills on openrouter-image ≈ $0.12".
+
+- **G0 (Tue 16:25 PT)** — `platform/` initialised as its own repo; snapshot commit `cebcf93`;
+  MIT LICENSE; `contract.ts` frozen (`b7d04e0`); Addendum A (real providers, gated + capped)
+  folded in; workstreams A–F launched in parallel on Opus at ~16:25.
