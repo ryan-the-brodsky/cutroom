@@ -17,7 +17,8 @@ test.describe("show_me teaches the UI", () => {
 
     const res = await callTool(page, "show_me", { feature: "freeze tail" });
     expect(res.ok, `show_me failed: ${JSON.stringify(res)}`).toBe(true);
-    expect(String(res.howTo ?? ""), "show_me must explain the manual path").toBeTruthy();
+    expect(String(res.how_to ?? res.howTo ?? ""), "show_me must explain the manual path").toBeTruthy();
+    expect(String(res.where ?? ""), "show_me must name the UI path").toBeTruthy();
 
     await expect.poll(() => urlParams(page).get("tab")).toBe("motion");
 
@@ -35,10 +36,24 @@ test.describe("show_me teaches the UI", () => {
     const res = await callTool(page, "list_features", {});
     expect(res.ok).toBe(true);
 
-    const features = (res.features ?? res.entries ?? []) as { name: string; howTo?: string; where?: unknown }[];
-    expect(features.length, "list_features returned nothing").toBeGreaterThanOrEqual(16);
+    const features = (res.features ?? res.entries ?? []) as { name: string; title?: string; where?: string }[];
+    expect(features.length, "list_features returned nothing").toBeGreaterThan(0);
+
+    // KNOWN GAP (2026-09-01): the summary says "19 features" but clip() silently
+    // halves the array to fit BUDGETS.output (1.5K), so only ~12 come back. An
+    // agent asking "what can you do?" is quietly given a partial map. The fix is
+    // either a leaner per-feature payload or an explicit `truncated`/`total` field
+    // plus a `query` to page through. Until then this asserts the honest contract:
+    // return everything, or SAY that you did not.
+    const total = Number(String(res.summary ?? "").match(/(\d+)\s+features?/)?.[1] ?? features.length);
+    if (features.length < total) {
+      expect(res.truncated ?? res.total ?? res.more,
+        `list_features returned ${features.length} of ${total} with no truncation flag`).toBeTruthy();
+    }
+    expect(features.length, "list_features should cover the catalogue").toBeGreaterThanOrEqual(16);
     for (const f of features) {
-      expect.soft(f.howTo, `${f.name} has no howTo — show_me cannot teach it`).toBeTruthy();
+      expect.soft(f.title, `${f.name} has no title`).toBeTruthy();
+      expect.soft(f.where, `${f.name} has no UI location — show_me cannot walk there`).toBeTruthy();
     }
   });
 

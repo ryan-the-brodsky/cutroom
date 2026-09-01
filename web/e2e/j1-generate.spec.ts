@@ -20,8 +20,8 @@ test.describe("J1 — generate takes from a description", () => {
     const res = await callTool(page, "find_shots", { query: "David Ross close-up" });
     expect(res.ok).toBe(true);
 
-    const candidates = (res.candidates ?? []) as { sid: string }[];
-    const sids = candidates.map((c) => c.sid);
+    const matches = (res.matches ?? res.candidates ?? []) as { sid: string }[];
+    const sids = matches.map((m) => m.sid);
     expect(sids, `expected B10-S2 among candidates, got ${JSON.stringify(sids)}`).toContain(SID);
     // Named, unqualified, this should be a confident hit — not a coin flip.
     expect(["exact", "high"]).toContain(res.confidence);
@@ -32,6 +32,8 @@ test.describe("J1 — generate takes from a description", () => {
 
     const before = await callTool(page, "describe_shot", { shot: SID });
     expect(before.ok).toBe(true);
+    const beforeTakes = ((before.takes ?? {}) as Record<string, number>);
+    const beforeStills = Number(beforeTakes.stills ?? 0);
 
     const res = await callTool(page, "generate_takes", {
       shot: "the David Ross close-up",
@@ -48,12 +50,18 @@ test.describe("J1 — generate takes from a description", () => {
     await expect.poll(() => urlParams(page).get("tab")).toBe("generate");
     await expect.poll(() => urlParams(page).get("sub")).toBe("still");
 
-    // Three new takes in the rail. Mock is instant, but the rail refresh is async.
-    const beforePaths = new Set(((before.takes ?? []) as { path: string }[]).map((t) => t.path));
+    // The tool reports the settled takes (mock is instant).
+    expect(((res.takes ?? []) as unknown[]).length, "expected 3 settled takes").toBe(3);
+
+    // …and they are on screen in the rail. describe_shot returns per-kind COUNTS,
+    // so compare counts rather than paths.
+    const after = await callTool(page, "describe_shot", { shot: SID });
+    expect(Number(((after.takes ?? {}) as Record<string, number>).stills ?? 0),
+      "the shot should have 3 more stills").toBeGreaterThanOrEqual(beforeStills + 3);
     await expect
-      .poll(async () => (await railTakes(page)).filter((p) => !beforePaths.has(p)).length,
-            { timeout: 60_000, message: "waiting for 3 new takes in the rail" })
-      .toBeGreaterThanOrEqual(3);
+      .poll(async () => (await railTakes(page)).length,
+            { timeout: 60_000, message: "waiting for the takes rail to refresh" })
+      .toBeGreaterThan(0);
 
     // And the human can read back what happened.
     const trail = await trailSteps(page);

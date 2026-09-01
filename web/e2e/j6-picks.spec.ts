@@ -20,7 +20,7 @@ test.describe("J6 — keeper and timeline source", () => {
     test.skip(takes.length === 0, "no takes in the rail to pick from");
 
     const sel = await callTool(page, "select_take", { shot: SID, take: "newest still" });
-    const target = sel.ok ? String(sel.path ?? sel.selected ?? "") : takes[0];
+    const target = sel.ok ? String(sel.selected ?? sel.path ?? "") : takes[0];
     expect(target, "could not determine a take to promote").toBeTruthy();
 
     const keeper = await callTool(page, "set_keeper", { shot: SID, take: target, note: "e2e" });
@@ -32,12 +32,17 @@ test.describe("J6 — keeper and timeline source", () => {
     // The server agrees.
     const desc = await callTool(page, "describe_shot", { shot: SID });
     expect(desc.ok).toBe(true);
-    expect(String(desc.keeper ?? "")).toContain(target.split("/").pop() ?? target);
-    expect(String(desc.active_source ?? desc.activeSource ?? "")).toContain(target.split("/").pop() ?? target);
+    const leaf = target.split("/").pop() ?? target;
+    expect(String(desc.keeper ?? ""), "describe_shot should report the new keeper").toContain(leaf);
+    expect(String(desc.plays ?? desc.active_source ?? ""), "describe_shot should report what plays").toContain(leaf);
+    expect(String(keeper.keeper ?? "")).toContain(leaf);
+    expect(String(source.plays ?? "")).toContain(leaf);
 
     // And so does the Film Editor.
     await gotoApp(page, `/p/${PID}`);
-    const strip = page.locator(`[data-action="film.shot"][data-sid="${SID}"]`);
+    // The shot appears in both the strip and the board, hence .first().
+    const strip = page.locator(`[data-action="film.shot"][data-sid="${SID}"]`).first();
     await expect(strip).toBeVisible();
+    await expect(page.locator(`[data-action="film.shot"][data-sid="${SID}"]`)).not.toHaveCount(0);
   });
 });

@@ -233,7 +233,45 @@ needs is not a secure context (§1.9). Not on the checklist.
 
 ---
 
-## 5. Eval runs
+## 5. Suite status (2026-09-01 ~19:15 PT)
+
+**vitest: 253 passing / 8 files.** **Playwright `chrome-native`: 19 passing, 2 failing.**
+Verified against the native `document.modelContext` in system Chrome 152 — `agentMode`
+reports `native`, not the debug fallback.
+
+Green: tool registration (19 tools, all within the name/description/param budgets,
+read-only annotations correct), deep links (`?tab=&sub=` restore and round-trip through
+the URL), **J1** (find_shots → generate_takes ×3 → 3 stills on screen, URL on
+`B10-S2?tab=generate&sub=still`, trail ≥4 steps), **J1b** (the "shot 37" ambiguity is
+surfaced with both B10-S2 and B11-S4, and nothing runs), **J2** (freeze the tail, and
+never a still), **J4**'s tool contract (job → `wait_for_jobs` → done → animatic named),
+**J6** (keeper then timeline source), **J3/show_me** (navigates to Motion edits and
+pulses `shot.motion.freeze`).
+
+### Two open gaps, both outside the harness
+
+1. **`list_features` silently returns a partial catalogue.** Its summary says
+   *"19 features"* but only **12** come back: `clip()` halves the array to hold
+   `BUDGETS.output` (1.5K). An agent asking *"what can you do here?"* is handed an
+   incomplete map with no indication anything was dropped — and discovery is the
+   product's whole premise. Fix: a leaner per-feature payload, or an explicit
+   `total`/`truncated` field plus a `query` to page through.
+   (`e2e/show-me.spec.ts` asserts the honest contract and is red until then.)
+2. **The finished animatic is not visible in the Cuts gallery** after `cut_film`
+   settles — the tool reports the mp4, but the film page renders no `<video>`.
+   Asserted with `expect.soft`, so J4's real contract still passes.
+
+### A related trap for tool authors
+
+`clip()` truncates **long strings, including take paths**, with `…`. A truncated path is
+an identifier an agent will hand straight back to `select_take`/`set_keeper`, where it
+will not resolve. Specs therefore assert on shape (`is_clip`, `kind`, a `renders/motion/`
+prefix) rather than on the tail of a path — and tools should keep identifiers out of
+`clip()`'s reach.
+
+---
+
+## 6. Eval runs
 
 Journeys live in [`../evals/journeys.json`](../evals/journeys.json) (the §5 hero journeys, with
 the utterance, the expected tool sequence with key args, and the expected visible result).

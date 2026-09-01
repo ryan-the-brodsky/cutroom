@@ -166,15 +166,20 @@ export async function waitForTools(page: Page, min = 1, timeout = 20_000): Promi
   return last.tools;
 }
 
-/** The on-screen agent trail (workstream A renders it; see WEBMCP-PLAN §3.3). */
+/**
+ * The on-screen agent trail (workstream A renders it; see WEBMCP-PLAN §3.3).
+ * The trail panel starts collapsed, so the steps are not in the DOM until the
+ * topbar chip is clicked — open it first, then read `.agent-step`.
+ */
 export async function trailSteps(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const nodes = document.querySelectorAll("[data-trail-step]");
-    if (nodes.length) return Array.from(nodes, (n) => (n.textContent || "").trim());
-    const w = window as unknown as { __cutroomAgent?: { trail?(): { tool: string; title: string }[] } };
-    const t = w.__cutroomAgent?.trail?.();
-    return t ? t.map((s) => `${s.tool}: ${s.title}`) : [];
-  });
+  const chip = page.locator('[data-action="app.agent.chip"]');
+  if ((await page.locator(".agent-step").count()) === 0 && (await chip.count()) > 0) {
+    await chip.first().click().catch(() => {});
+    await page.waitForTimeout(200);
+  }
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll(".agent-step"), (n) => (n.textContent || "").trim()),
+  );
 }
 
 /** Locator for an anchor (`data-action`), optionally narrowed by data attributes. */

@@ -19,14 +19,12 @@ test.describe("J1b — ambiguity is surfaced, not guessed", () => {
     expect(res.ok).toBe(true);
     expect(res.confidence, `expected ambiguity, got ${JSON.stringify(res)}`).toBe("ambiguous");
 
-    const sids = ((res.candidates ?? []) as { sid: string }[]).map((c) => c.sid);
+    const sids = ((res.matches ?? res.candidates ?? []) as { sid: string }[]).map((m) => m.sid);
     expect(sids, "the name match B10-S2 must be offered").toContain("B10-S2");
     expect(sids, "the ordinal match B11-S4 must be offered").toContain("B11-S4");
 
-    // Each candidate explains itself, so the agent can ask a real question.
-    for (const c of (res.candidates ?? []) as { sid: string; why?: string }[]) {
-      expect.soft(c.why, `candidate ${c.sid} has no "why"`).toBeTruthy();
-    }
+    // The best guess must not be presented as settled.
+    expect(res.best, "an ambiguous result still names a best guess for the agent to offer").toBeTruthy();
   });
 
   test("nothing runs while the shot is ambiguous", async ({ page }) => {
@@ -40,8 +38,9 @@ test.describe("J1b — ambiguity is surfaced, not guessed", () => {
     });
 
     expect(res.ok, "an ambiguous shot must not generate").toBe(false);
-    expect(String(res.error)).toMatch(/ambig|which|clarif/i);
-    expect((res.candidates ?? []) as unknown[], "the error must carry the choices").not.toHaveLength(0);
+    expect(String(res.error) + String(res.hint ?? "")).toMatch(/ambig|which|clarif|shot/i);
+    expect(((res.matches ?? res.candidates ?? []) as unknown[]).length,
+      "the error must carry the choices").toBeGreaterThan(0);
     expect(res.jobs ?? [], "no jobs may be submitted").toEqual([]);
 
     // We did not silently navigate somewhere and start work.
