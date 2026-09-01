@@ -25,7 +25,10 @@ from lines 4, 6 and 8.
 - [ ] **3. Chrome flags on** (only for the Chrome path):
       `chrome://flags/#enable-webmcp-testing` = Enabled,
       `chrome://flags/#devtools-webmcp-support` = Enabled, Chrome restarted.
-      Confirm the Chrome version is 149 or later.
+      Confirm the Chrome version is 149 or later. Measured on Chrome
+      152.0.7977.65 (see `docs/TESTING-WEBMCP.md` §1): launching with
+      `--enable-features=WebMCP` alone is enough for the JS API, and the two
+      flags above only light up the DevTools pane. No origin-trial token.
 - [ ] **4. ChatGPT site tools on** (for the hero path): ChatGPT Desktop,
       Settings › Browser › **Enable site tools**. Confirm the account is not
       Enterprise or Edu, and the model is GPT-5.6 Sol or Terra. Open

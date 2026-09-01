@@ -162,6 +162,9 @@ Notes
   - Generation tools ask for confirm_cost before they spend anything. That is
     by design; say yes.
   - Watch the page, not the chat. Every tool drives the visible UI.
+  - If your Chrome build does not list those two flags, launching Chrome with
+    --enable-features=WebMCP is enough on its own. We measured this on
+    Chrome 152.0.7977.65; the flags only add the DevTools pane.
 ```
 
 ## Three prompts to try
