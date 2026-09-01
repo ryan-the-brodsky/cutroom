@@ -1,0 +1,398 @@
+/**
+ * The test double every tool unit test drives: a fake ActionContext with a
+ * recording router, recording page handles, a fixture-backed API and a fake
+ * resolver pinned to the §5 journey fixtures.
+ *
+ * Not shipped to users, but it lives in src/ so `tsc -p .` type-checks it
+ * against the frozen contract — which is the whole point.
+ */
+import type {
+  ActionContext, AnyPageHandles, Candidate, Confidence, FilmPageHandles,
+  FilmShotLite, GenField, GenSub, KindFilter, ResolvedShot, Resolution,
+  ShotPageHandles, ShotTab, TakeLite, TrailStep, VoField,
+} from "../contract";
+import type { AgentDeps, BackendChoice, SettledJob } from "./deps";
+import { installDeps, resetDeps } from "./deps";
+
+// ---------------------------------------------------------------- fixtures
+
+export const FIXTURE_SHOTS: Record<string, ResolvedShot> = {
+  "B10-S2": {
+    sid: "B10-S2", ordinal: 34, beat: "B10", act: 3, type: "HERO",
+    seconds: 4, summary: "David Ross in the dugout, close on the eyes",
+    characters: ["david ross", "catcher"],
+    has_keeper: true, has_motion: true, plays: "renders/B10-S2/motion/a.mp4",
+  },
+  "B11-S4": {
+    sid: "B11-S4", ordinal: 37, beat: "B11", act: 3, type: "STILL",
+    seconds: 3, summary: "The cemetery at dusk, wide and empty",
+    characters: [],
+    has_keeper: true, has_motion: false, plays: "renders/B11-S4/stills/k.png",
+  },
+};
+
+/** Shot detail as `GET /api/projects/{pid}/shots/{sid}` returns it. */
+export const FIXTURE_DETAIL: Record<string, Record<string, unknown>> = {
+  "B10-S2": {
+    sid: "B10-S2", beat: "B10", act: 3, type: "HERO", register: "hero",
+    seconds: 4,
+    image_prompt: "Subject: David Ross in the dugout, close on the eyes, anime cel",
+    negative: "text, watermark",
+    motion_prompt: "only the eyes blink; the jaw sets",
+    radio: null,
+    dialogue: [{ character: "ROSS", line: "One more inning." }],
+    keeper: "renders/B10-S2/stills/keeper.png",
+    active_source: "renders/B10-S2/motion/a.mp4",
+    override: {},
+    stills: ["renders/B10-S2/stills/keeper.png", "renders/B10-S2/stills/s2.png"],
+    i2i: ["renders/B10-S2/i2i/warm.png"],
+    motion: ["renders/B10-S2/motion/a.mp4"],
+    fx: [], crops: [], vo: [],
+    comps: [],
+  },
+  "B11-S4": {
+    sid: "B11-S4", beat: "B11", act: 3, type: "STILL", register: "still",
+    seconds: 3,
+    image_prompt: "Subject: the cemetery at dusk, wide, anime cel",
+    negative: "",
+    motion_prompt: null,
+    radio: "…and that's the ballgame from here.",
+    dialogue: [],
+    keeper: "renders/B11-S4/stills/k.png",
+    active_source: "renders/B11-S4/stills/k.png",
+    override: {},
+    stills: ["renders/B11-S4/stills/k.png"],
+    i2i: [], motion: [], fx: [], crops: [], vo: [],
+    comps: [],
+  },
+};
+
+const takeRows = (sid: string) => {
+  const d = FIXTURE_DETAIL[sid] || {};
+  const rows: { path: string; kind: string; created_at: number }[] = [];
+  let t = 2000;
+  const add = (paths: unknown, kind: string) =>
+    (Array.isArray(paths) ? paths : []).forEach((p) =>
+      rows.push({ path: String(p), kind, created_at: t-- }));
+  add(d.motion, "motion"); add(d.fx, "fx"); add(d.i2i, "i2i");
+  add(d.stills, "still");
+  return rows;
+};
+
+// ---------------------------------------------------------------- recording
+
+export interface ApiCall { path: string; body?: unknown; method?: string }
+
+export interface FakeRecord {
+  nav: string[];
+  steps: Omit<TrailStep, "id" | "t">[];
+  page: string[];
+  api: ApiCall[];
+  /** Convenience: only the anchors that were pulsed, in order. */
+  anchors: () => (string | undefined)[];
+  /** Convenience: page-handle calls as "name(arg)" strings. */
+  calls: (prefix?: string) => string[];
+}
+
+// ---------------------------------------------------------------- page fakes
+
+export class FakeShotPage implements ShotPageHandles {
+  kind = "shot" as const;
+  tab: ShotTab = "compose";
+  sub: GenSub = "still";
+  kindFilter: KindFilter = "all";
+  selected: string | null = null;
+  gen: Record<string, unknown> = {};
+  vo: Record<string, unknown> = {};
+  live = 1.0;
+  jobSeq = 0;
+  /** Set to a message to make the next submit throw. */
+  failSubmit: string | null = null;
+  directResult: { plan?: unknown; error?: string } =
+    { plan: { ops: [{ op: "freeze_tail", clip: "renders/B10-S2/motion/a.mp4", live: 1 }], note: "hold the pose" } };
+  applyResult: { results: unknown[]; note?: string } =
+    { results: [{ op: "freeze_tail", job: "job-apply-1" }], note: "applied" };
+
+  constructor(public pid: string, public sid: string, private rec: string[]) {}
+
+  private log(s: string) { this.rec.push(s); }
+
+  getState() {
+    const d = FIXTURE_DETAIL[this.sid] || {};
+    const takes: TakeLite[] = takeRows(this.sid)
+      .map((r) => ({ path: r.path, kind: r.kind, created: String(r.created_at) }));
+    return {
+      tab: this.tab, sub: this.sub, kindFilter: this.kindFilter,
+      selected: this.selected ?? (d.active_source as string | undefined) ?? null,
+      activeSource: (d.active_source as string | null) ?? null,
+      keeper: (d.keeper as string | null) ?? null,
+      takes,
+    };
+  }
+  setTab(tab: ShotTab) { this.tab = tab; this.log(`setTab(${tab})`); }
+  setSub(sub: GenSub) { this.sub = sub; this.log(`setSub(${sub})`); }
+  setKindFilter(k: KindFilter) { this.kindFilter = k; this.log(`setKindFilter(${k})`); }
+  selectTake(path: string | null) { this.selected = path; this.log(`selectTake(${path})`); }
+  setGenField(sub: GenSub, field: GenField, value: unknown) {
+    this.gen[field] = value;
+    this.log(`setGenField(${sub},${field},${JSON.stringify(value)})`);
+  }
+  async submitGenerate(sub: GenSub) {
+    this.log(`submitGenerate(${sub})`);
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-${sub}-${++this.jobSeq}`, pool: "cpu" };
+  }
+  setLive(seconds: number) { this.live = seconds; this.log(`setLive(${seconds})`); }
+  async submitFreeze() {
+    this.log("submitFreeze()");
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-freeze-${++this.jobSeq}` };
+  }
+  async submitTrim(endSeconds: number) {
+    this.log(`submitTrim(${endSeconds})`);
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-trim-${++this.jobSeq}` };
+  }
+  setVoField(field: VoField, value: unknown) {
+    this.vo[field] = value;
+    this.log(`setVoField(${field},${JSON.stringify(value)})`);
+  }
+  async submitVo() {
+    this.log("submitVo()");
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-vo-${++this.jobSeq}` };
+  }
+  async setKeeper(path: string, note?: string) {
+    this.log(`setKeeper(${path}${note ? `,${note}` : ""})`);
+  }
+  async setSource(path: string | null) { this.log(`setSource(${path})`); }
+  async setOverride(patch: Record<string, unknown>) {
+    this.log(`setOverride(${JSON.stringify(patch)})`);
+  }
+  async direct(instruction: string) {
+    this.log(`direct(${instruction})`);
+    return this.directResult;
+  }
+  async applyPlan(plan: unknown) {
+    this.log(`applyPlan(${JSON.stringify(plan).slice(0, 60)})`);
+    return this.applyResult;
+  }
+  async refresh() { this.log("refresh()"); }
+}
+
+export class FakeFilmPage implements FilmPageHandles {
+  kind = "film" as const;
+  selected: string | null = null;
+  scope = "full";
+  res = "720";
+  jobSeq = 0;
+  failCut: string | null = null;
+
+  constructor(public pid: string, private rec: string[]) {}
+  private log(s: string) { this.rec.push(s); }
+
+  getState() {
+    const shots: FilmShotLite[] = Object.values(FIXTURE_SHOTS).map((s) => ({
+      sid: s.sid, ordinal: s.ordinal, beat: s.beat, act: s.act ?? undefined,
+      type: s.type, seconds: s.seconds ?? undefined,
+      keeper: s.has_keeper ? "renders/keeper.png" : null,
+      active_source: s.plays,
+    }));
+    return { selected: this.selected, scope: this.scope, res: this.res, shots };
+  }
+  selectShot(sid: string | null) { this.selected = sid; this.log(`selectShot(${sid})`); }
+  setScope(scope: string) { this.scope = scope; this.log(`setScope(${scope})`); }
+  setRes(res: "720" | "1080") { this.res = res; this.log(`setRes(${res})`); }
+  async cutFilm() {
+    this.log("cutFilm()");
+    if (this.failCut) throw new Error(this.failCut);
+    return { job: `job-cut-${++this.jobSeq}` };
+  }
+  async setOverride(sid: string, patch: Record<string, unknown>) {
+    this.log(`setOverride(${sid},${JSON.stringify(patch)})`);
+  }
+  async refresh() { this.log("refresh()"); }
+}
+
+// ---------------------------------------------------------------- resolver fake
+
+export interface ResolverFixture {
+  /** Exact query → resolution. Falls through to the heuristics below. */
+  [query: string]: Resolution;
+}
+
+const cand = (s: ResolvedShot, score: number, why: string): Candidate =>
+  ({ ...s, score, why });
+
+const res = (best: ResolvedShot | null, candidates: Candidate[], confidence: Confidence): Resolution =>
+  ({ best, candidates, confidence });
+
+/**
+ * The §3.4 pins: "the David Ross close-up" → B10-S2, "37" → B11-S4, and both
+ * together → ambiguous with both candidates.
+ */
+export function fakeResolve(query: string): Resolution {
+  const q = query.trim().toLowerCase();
+  const ross = FIXTURE_SHOTS["B10-S2"];
+  const cem = FIXTURE_SHOTS["B11-S4"];
+  const hasName = /ross|david|catcher/.test(q);
+  const hasNumber = /\b(37|#37|shot 37)\b/.test(q);
+
+  if (hasName && hasNumber) {
+    return res(null, [
+      cand(ross, 80, "David Ross by name"),
+      cand(cem, 78, "37th shot in film order"),
+    ], "ambiguous");
+  }
+  if (/^b10[-\s]?s2$/i.test(q)) return res(ross, [cand(ross, 100, "exact sid")], "exact");
+  if (/^b11[-\s]?s4$/i.test(q)) return res(cem, [cand(cem, 100, "exact sid")], "exact");
+  if (hasName) return res(ross, [cand(ross, 90, "cast alias")], "high");
+  if (hasNumber) return res(cem, [cand(cem, 90, "film order")], "high");
+  if (/cemetery|dusk|wide/.test(q)) return res(cem, [cand(cem, 70, "prompt words")], "high");
+  if (/dugout|close.?up|hero/.test(q)) return res(ross, [cand(ross, 70, "prompt words")], "high");
+  return res(null, [], "none");
+}
+
+// ---------------------------------------------------------------- api fake
+
+export type ApiFixtures = Record<string, unknown> | ((path: string, body?: unknown) => unknown);
+
+function defaultApi(path: string): unknown {
+  const shotMatch = /\/api\/projects\/[^/]+\/shots\/([^/?]+)$/.exec(path);
+  if (shotMatch) {
+    const d = FIXTURE_DETAIL[shotMatch[1]];
+    if (!d) throw new Error(`404 ${shotMatch[1]}`);
+    return d;
+  }
+  const takesMatch = /\/api\/projects\/[^/]+\/takes\?shot=([^&]+)/.exec(path);
+  if (takesMatch) return takeRows(decodeURIComponent(takesMatch[1]));
+  if (path.startsWith("/api/jobs?")) return [];
+  if (/^\/api\/jobs\/[^/]+\/log/.test(path)) return { status: "done", lines: [] };
+  if (/^\/api\/jobs\/[^/]+$/.test(path)) {
+    return { id: path.split("/").pop(), status: "done", type: "gen.still", result: {} };
+  }
+  if (path === "/api/lanes") {
+    return {
+      still: [{ id: "mock", type: "mock", enabled: true }],
+      i2i: [{ id: "mock", type: "mock", enabled: true }],
+      motion: [{ id: "mock", type: "mock", enabled: true }],
+      vo: [{ id: "mock", type: "mock", enabled: true }],
+    };
+  }
+  if (/\/api\/projects\/[^/]+\/lanes$/.test(path)) {
+    return { still: { backend: "mock", model: null }, motion: { backend: "mock", model: null } };
+  }
+  return {};
+}
+
+// ---------------------------------------------------------------- the context
+
+export interface FakeOptions {
+  project?: string | null;
+  speed?: "watch" | "fast";
+  /** Page the router "lands on"; defaults to matching the nav target. */
+  page?: AnyPageHandles | null;
+  api?: ApiFixtures;
+  resolve?: (query: string) => Resolution;
+  /** Make waitFor reject, to exercise the page_did_not_mount envelope. */
+  failWaitFor?: boolean;
+  settle?: SettledJob[] | ((ids: string[]) => SettledJob[]);
+  backend?: BackendChoice;
+}
+
+export interface FakeContext {
+  ctx: ActionContext;
+  rec: FakeRecord;
+  shotPage: FakeShotPage;
+  filmPage: FakeFilmPage;
+  /** Restore the real deps after a test that installed fakes. */
+  restore(): void;
+}
+
+export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
+  const project = opts.project === undefined ? "next-year" : opts.project;
+  const pageCalls: string[] = [];
+  const rec: FakeRecord = {
+    nav: [], steps: [], page: pageCalls, api: [],
+    anchors: () => rec.steps.map((s) => s.anchor),
+    calls: (prefix) => (prefix ? pageCalls.filter((c) => c.startsWith(prefix)) : pageCalls),
+  };
+
+  const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls);
+  const filmPage = new FakeFilmPage(project || "next-year", pageCalls);
+  let current: AnyPageHandles | null = opts.page ?? null;
+
+  const api = <T,>(path: string, body?: unknown, method?: string): Promise<T> => {
+    rec.api.push({ path, body, method });
+    try {
+      if (typeof opts.api === "function") return Promise.resolve(opts.api(path, body) as T);
+      if (opts.api && path in opts.api) return Promise.resolve(opts.api[path] as T);
+      return Promise.resolve(defaultApi(path) as T);
+    } catch (e) { return Promise.reject(e); }
+  };
+
+  const ctx: ActionContext = {
+    signal: new AbortController().signal,
+    project,
+    async nav(to: string) {
+      rec.nav.push(to);
+      // Mimic the router: landing on a shot route mounts the shot page.
+      const m = /^\/p\/([^/]+)\/shot\/([^/?]+)/.exec(to);
+      if (m) {
+        shotPage.sid = m[2];
+        const take = new URLSearchParams(to.split("?")[1] || "").get("take");
+        if (take) shotPage.selected = take;
+        current = shotPage;
+      } else if (/^\/p\/[^/]+(\?|$)/.test(to)) {
+        current = filmPage;
+      }
+    },
+    page: {
+      current: () => current,
+      // Overload-compatible implementation; the contract narrows it for callers.
+      waitFor: ((kind: "shot" | "film", match?: { sid?: string }) => {
+        if (opts.failWaitFor) return Promise.reject(new Error("page did not mount"));
+        if (kind === "shot") {
+          if (match?.sid) shotPage.sid = match.sid;
+          current = shotPage;
+          return Promise.resolve(shotPage);
+        }
+        current = filmPage;
+        return Promise.resolve(filmPage);
+      }) as ActionContext["page"]["waitFor"],
+    },
+    api,
+    resolve: {
+      index: async () => Object.values(FIXTURE_SHOTS),
+      resolve: async (_pid: string, query: string) =>
+        (opts.resolve ?? fakeResolve)(query),
+    },
+    trail: {
+      async step(s) { rec.steps.push(s); },
+      steps: () => rec.steps.map((s, i) => ({ id: String(i), t: i, ...s })),
+      clear: () => { rec.steps.length = 0; },
+    },
+    speed: opts.speed ?? "fast",
+  };
+
+  const settle: AgentDeps["settleJobs"] = async (ids) => {
+    if (typeof opts.settle === "function") return opts.settle(ids);
+    if (opts.settle) return opts.settle;
+    return ids.map((job) => ({
+      job, status: "done",
+      result: { takes: [`renders/out/${job}.png`] },
+      takes: [{ path: `renders/out/${job}.png`, kind: "still" }],
+    }));
+  };
+  const classify: AgentDeps["classifyBackend"] = async (_pid, _lane, explicit) =>
+    opts.backend ?? { backend: explicit || "mock", cost_class: "free" };
+
+  installDeps({ settleJobs: settle, classifyBackend: classify });
+
+  return { ctx, rec, shotPage, filmPage, restore: resetDeps };
+}
+
+/** A paid-backend classifier, for the needs_confirmation paths. */
+export const PAID_BACKEND: BackendChoice = {
+  backend: "openrouter-image", model: "flux-schnell", cost_class: "paid", cost_usd: 0.04,
+};

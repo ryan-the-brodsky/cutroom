@@ -1,0 +1,88 @@
+/**
+ * The tool catalogue (workstream C). One array, in the order of
+ * docs/WEBMCP-PLAN.md §4 — the registry, the WebMCP tool list and the ⌘K
+ * palette are all projections of it.
+ *
+ * Copy deck (descriptions, param descriptions, howTo) lives in
+ * `./descriptions.md`; a unit test keeps both inside the Chrome budgets.
+ */
+import type { ActionDef } from "../contract";
+import { TOOL_NAMES } from "../contract";
+import { synthesizeVo } from "./audio";
+import { deps, installDeps, tryAdoptRealDeps } from "./deps";
+import { applyPlan, directShot } from "./direct";
+import { cutFilm } from "./film";
+import { describeShot, findShots, getContext, listFeatures } from "./find";
+import { generateTakes } from "./generate";
+import { getJobs, waitForJobs } from "./jobs";
+import { freezeTail, trimClip } from "./motion";
+import { openShot, showMe } from "./navigate";
+import { selectTake, setKeeper, setTimelineSource } from "./picks";
+import { setShotTiming } from "./timing";
+
+/**
+ * Defs are individually typed by their own argument shape; the registry takes
+ * them structurally. `any` here is the variance escape hatch, not laziness —
+ * `ActionDef<A>` is invariant in `A` through `where`, `summarize` and `execute`.
+ */
+export type AnyActionDef = ActionDef<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Catalogue order = TOOL_NAMES order = the order agents and the palette see. */
+export const TOOLS: AnyActionDef[] = [
+  findShots,
+  describeShot,
+  getContext,
+  listFeatures,
+  showMe,
+  openShot,
+  generateTakes,
+  freezeTail,
+  trimClip,
+  selectTake,
+  setKeeper,
+  setTimelineSource,
+  setShotTiming,
+  synthesizeVo,
+  directShot,
+  applyPlan,
+  cutFilm,
+  getJobs,
+  waitForJobs,
+];
+
+/** list_features / show_me read the catalogue through deps, so A can widen it. */
+installDeps({ allActions: () => TOOLS as never[] });
+
+export const TOOLS_BY_NAME: Record<string, AnyActionDef> =
+  Object.fromEntries(TOOLS.map((t) => [t.name, t]));
+
+/**
+ * Registers every tool with A's registry, in catalogue order. Idempotent from
+ * the caller's side: it just calls `register` once per def.
+ */
+export function registerAllTools(register: (def: AnyActionDef) => void): AnyActionDef[] {
+  // Prefer A's real settleJobs / classifyBackend when those modules exist.
+  void tryAdoptRealDeps();
+  installDeps({ allActions: () => TOOLS as never[] });
+  for (const def of TOOLS) register(def);
+  return TOOLS;
+}
+
+/** Sanity check used by the contract test and by A's smoke test. */
+export function missingTools(): string[] {
+  const have = new Set(TOOLS.map((t) => t.name));
+  return TOOL_NAMES.filter((n) => !have.has(n));
+}
+
+export { deps, installDeps };
+export * from "./deps";
+export { findShots, describeShot, getContext, listFeatures } from "./find";
+export { openShot, showMe } from "./navigate";
+export { generateTakes } from "./generate";
+export { freezeTail, trimClip } from "./motion";
+export { selectTake, setKeeper, setTimelineSource } from "./picks";
+export { setShotTiming } from "./timing";
+export { synthesizeVo } from "./audio";
+export { directShot, applyPlan } from "./direct";
+export { cutFilm } from "./film";
+export { getJobs, waitForJobs } from "./jobs";
