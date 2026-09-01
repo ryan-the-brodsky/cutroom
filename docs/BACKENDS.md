@@ -96,3 +96,105 @@ pipeline: crop → hosted i2v → composite back onto the plate locally.
 - **claude-cli** — self-host power mode (`CUTROOM_ALLOW_CLAUDE_CLI=1`):
   spawns `claude -p` in the project workspace with the platform API
   documented in its preamble.
+
+## Hosted demo  (`CUTROOM_DEMO=1`)
+
+The public demo runs the same server with real providers, two roles, a
+rate limit and a spend cap. Nothing here changes a self-host: with
+`CUTROOM_DEMO` unset every request is `admin`, no limit applies, and no
+budget is enforced.
+
+### Roles
+
+| token | who | may |
+|---|---|---|
+| `CUTROOM_ADMIN_TOKEN` | the studio owner | everything |
+| `CUTROOM_AUTH_TOKEN` | judges / viewers | everything **creative** |
+
+Both authenticate; which one you present decides your role. `?token=` works
+on GETs, so the judge link is one click. Admin-only (403 with a friendly
+`detail` otherwise): backend create/edit/delete, lane-default edits, project
+create/import, project + server pause, comp delete, and the remote-worker
+routes. `GET /api/system` reports `{demo, role, budget:{spent,limit}}`.
+
+Rate limits per token: **60 job submissions/minute**
+(`CUTROOM_DEMO_JOBS_PER_MIN`) and **12 paid-backend jobs/hour**
+(`CUTROOM_DEMO_PAID_JOBS_PER_HOUR`). Over either → 429 pointing at `mock`.
+
+### Providers wired from the environment
+
+`seed_backends()` creates or updates these at every boot. A key in the env
+enables its backend; without one the row stays a disabled template. The
+configured model applies either way, so pasting a key into Settings is
+enough to go live.
+
+| env key (first non-empty wins) | backend | type | lanes | model env (default) |
+|---|---|---|---|---|
+| `OPENROUTER_API_KEY` / `OPEN_ROUTER_API_KEY` | `openrouter` | openai-chat | direction | `CUTROOM_OPENROUTER_MODEL` (`z-ai/glm-5.3-flash`) |
+| (same key) | `openrouter-image` | openrouter-image | still, i2i | `CUTROOM_OPENROUTER_IMAGE_MODEL` (`google/gemini-2.5-flash-image`) |
+| `FAL_KEY` / `FAL_AI_API_KEY` / `FAL_API_KEY` | `fal` | fal | still, motion | `CUTROOM_FAL_MOTION_MODEL` (`fal-ai/wan/v2.2-a14b/image-to-video/turbo`) |
+| `ELEVEN_LABS_API_KEY` / `ELEVENLABS_API_KEY` | `elevenlabs` | elevenlabs | vo, sfx, music | `options.model` (`eleven_v3`) |
+| `ANTHROPIC_API_KEY` | `anthropic` | anthropic | direction | `options.model` |
+
+Prices at the time of writing: GLM 5.3 Flash **$0.075/M in, $0.25/M out**
+(a planning turn is well under a cent); gemini-2.5-flash-image ≈ **$0.04**
+per image; Wan 2.2 A14B turbo i2v **$0.05 per clip at 480p** (`$0.075` at
+580p, `$0.10` at 720p — the backend seeds `extra_payload.resolution: 480p`).
+
+Per-project lane defaults come from `CUTROOM_LANE_<LANE>=<backend>[:<model>]`
+(`still`, `i2i`, `motion`, `vo`, `sfx`, `music`, `direction`), applied to the
+demo project at boot. Unset lanes fall through to the first enabled backend,
+which on the demo is `mock`. The `direction` lane genuinely routes the
+planner and the director chat, model included.
+
+### Spend cap
+
+Each backend carries `options.cost_usd` — dollars per produced take — seeded
+from `CUTROOM_COST_<BACKEND_ID>` (dashes → underscores) with defaults: mock
+and ComfyUI `0`, `openrouter` `0.001`, `openrouter-image` `0.04`, `fal`
+`0.05`, `elevenlabs` `0.02`. Every recorded take charges the rolling 24h
+ledger (`$CUTROOM_DATA/spend-ledger.json`). When a paid submission would push
+the 24h estimate past `CUTROOM_DEMO_BUDGET_USD` (default `10`), it returns
+**402** with a flat `{detail, spent, budget, estimate, backend}`. `mock`
+never counts and never trips.
+
+### The demo dataset
+
+```bash
+cutroom demo-bundle ~/src/game7 /tmp/bundle.tar.zst   # prints the size
+```
+
+Packs `prompts/{shots,characters}.jsonl`, `renders/curation.json`, the
+`dashboard/state` overrides + comps, the audio cue manifests, and all of
+`renders/**` + `audio/**`, excluding `assembly/` and any media file over
+25 MB. The real film packs to **278 MB** (941 files, 290 MB raw). Falls back
+to `.tar.gz` when `zstd` is not installed.
+
+Attach it to a GitHub Release and point the instance at it:
+
+```bash
+CUTROOM_DEMO_BUNDLE=https://…/bundle.tar.zst
+CUTROOM_DEMO_BUNDLE_TOKEN=<PAT>      # private repo: sent as Bearer, with
+                                     # Accept: application/octet-stream
+CUTROOM_DEMO_PROJECT=next-year       # default
+```
+
+At boot, if the instance has no projects, it downloads to
+`$CUTROOM_DATA/demo-src`, extracts, imports, enables `mock`, applies the
+`CUTROOM_LANE_*` defaults and queues `thumbs.warm` — in a background thread,
+so the API answers while it works. Idempotent; progress in
+`$CUTROOM_DATA/logs/boot.log`. Force it by hand with `cutroom demo-import
+--force`.
+
+### Cast index
+
+The importer reads `prompts/characters.jsonl` into
+`project.settings.cast = [{id, name, aliases[], descriptor}]`, served by
+`GET /api/projects/<p>/cast`. Aliases are the name, its tokens, and the role
+phrase after the em dash plus its head noun — so "David Ross — the veteran
+catcher" answers to `david`, `ross`, `david ross`, `veteran catcher` and
+`catcher`. Refresh an already-imported project without re-copying media:
+
+```bash
+cutroom reimport-cast next-year ~/src/game7
+```

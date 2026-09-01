@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..adapters import build_adapter
 from ..adapters.registry import ADAPTER_TYPES
 from ..db import session_scope
 from ..models import Backend
+from .deps import require_admin
 
 router = APIRouter()
 
@@ -40,7 +41,8 @@ def backend_types():
     return out
 
 
-@router.post("/backends")
+@router.post("/backends",
+             dependencies=[Depends(require_admin("editing backends"))])
 async def upsert_backend(req: Request):
     body = await req.json()
     bid = re.sub(r"[^a-z0-9-]+", "-", str(body.get("id", "")).lower()).strip("-")
@@ -71,7 +73,8 @@ async def upsert_backend(req: Request):
         return b.masked()
 
 
-@router.post("/backends/{bid}/delete")
+@router.post("/backends/{bid}/delete",
+             dependencies=[Depends(require_admin("deleting backends"))])
 def delete_backend(bid: str):
     with session_scope() as s:
         b = s.get(Backend, bid)

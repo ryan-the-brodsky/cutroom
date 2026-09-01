@@ -12,7 +12,7 @@ from ..director import grammar, planner
 from ..director.apply import apply_plan
 from ..director.ops import OPS, PlanError, validate_plan
 from ..engine import ffmpeg as e_ff
-from ..models import Backend, ChatMessage, Shot
+from ..models import Backend, ChatMessage, LaneConfig, Shot
 from ..storage import get_storage
 from .. import film
 from .deps import project_or_404, store_for
@@ -22,9 +22,34 @@ router = APIRouter()
 DIRECTION_TYPES = ("anthropic", "openai-chat", "claude-cli")
 
 
-def _direction_backends(session) -> list[Backend]:
-    return [b for b in session.execute(select(Backend).where(
+def _lane_direction(session, pid: str | None) -> LaneConfig | None:
+    if not pid:
+        return None
+    return session.execute(select(LaneConfig).where(
+        LaneConfig.project_id == pid,
+        LaneConfig.lane == "direction")).scalar_one_or_none()
+
+
+def _direction_backends(session, pid: str | None = None) -> list[Backend]:
+    """Enabled direction providers, the project's `direction` lane default
+    first — that is what makes CUTROOM_LANE_DIRECTION=openrouter:<model>
+    actually route the planner and the director chat."""
+    rows = [b for b in session.execute(select(Backend).where(
         Backend.enabled.is_(True))).scalars() if b.type in DIRECTION_TYPES]
+    lc = _lane_direction(session, pid)
+    if lc and lc.backend_id:
+        rows.sort(key=lambda b: 0 if b.id == lc.backend_id else 1)
+    return rows
+
+
+def _apply_lane_model(backend: Backend, pid: str | None) -> Backend:
+    """Lane-configured model wins over the backend's own default. Call after
+    expunge — the row is detached, so this never writes to the DB."""
+    with session_scope() as s:
+        lc = _lane_direction(s, pid)
+        if lc and lc.backend_id == backend.id and lc.model:
+            backend.options = {**(backend.options or {}), "model": lc.model}
+    return backend
 
 
 def _context(pid: str, shot_sid: str | None, asset: str | None) -> dict:
@@ -80,7 +105,7 @@ async def direct(pid: str, req: Request):
     if plan:
         return {"plan": plan, "source": "grammar", "context": ctx}
     with session_scope() as s:
-        planners = [b for b in _direction_backends(s)
+        planners = [b for b in _direction_backends(s, pid)
                     if b.type in ("anthropic", "openai-chat")]
         if body.get("provider"):
             planners = [b for b in planners if b.id == body["provider"]]
@@ -91,6 +116,7 @@ async def direct(pid: str, req: Request):
                                 "direction backend")
         backend = planners[0]
         s.expunge(backend)
+        _apply_lane_model(backend, pid)
     try:
         plan = await planner.plan(instruction, ctx, backend)
     except (planner.PlannerError, PlanError) as e:
@@ -119,13 +145,14 @@ async def chat(pid: str, req: Request):
     if not message:
         raise HTTPException(400, "need message")
     with session_scope() as s:
-        backends = _direction_backends(s)
+        backends = _direction_backends(s, pid)
         if body.get("provider"):
             backends = [b for b in backends if b.id == body["provider"]]
         if not backends:
             raise HTTPException(422, "no direction backend enabled")
         backend = backends[0]
         s.expunge(backend)
+        _apply_lane_model(backend, pid)
         s.add(ChatMessage(project_id=pid, role="director", text=message,
                           provider=backend.id,
                           context={k: body.get(k) for k in ("shot", "asset")}))

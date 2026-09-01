@@ -8,6 +8,7 @@ from ..db import session_scope
 from ..director.apply import _gen_pool
 from ..jobs.queue import submit_job
 from ..models import Backend
+from .. import budget, demo
 from .deps import project_or_404
 
 router = APIRouter()
@@ -33,6 +34,14 @@ async def generate(pid: str, lane: str, req: Request):
                             f"(know: {sorted(LANE_JOBS)})")
     body = await req.json()
     jtype, pool_lane = LANE_JOBS[lane]
+    # Demo guards: per-token rate limit, then the rolling 24h spend cap. Both
+    # are no-ops off the demo, and free backends (mock, local ComfyUI) never
+    # trip either — the fallback the errors point at always works.
+    takes = max(1, len(body.get("seeds") or []) or int(body.get("count", 1)))
+    paid = budget.is_paid(budget.resolve_backend_id(
+        pid, pool_lane, body.get("backend"))) if pool_lane else False
+    demo.rate_limit(req, paid=paid)
+    budget.check_submission(pid, pool_lane, body.get("backend"), takes)
     if lane == "music":
         body["lane"] = "music"
     payload = {"project": pid, **body}

@@ -20,6 +20,7 @@ from ..adapters import build_adapter
 from ..adapters.base import BackendConfig, GenRequest
 from ..adapters.registry import ADAPTER_TYPES
 from ..config import get_settings
+from .. import budget
 from ..db import session_scope
 from ..engine import assemble as e_asm
 from ..engine import audio as e_audio
@@ -110,6 +111,15 @@ def pick_backend(project_id: str | None, lane: str,
 def record_take(project_id: str, shot_sid: str | None, kind: str, rel: str,
                 *, backend_id=None, model=None, prompt=None, params=None,
                 sources=None, seed=None, job_id=None, meta=None) -> None:
+    # Cost accounting: one produced take = one unit of the backend's
+    # options.cost_usd. This is the single hook the demo spend cap counts —
+    # imported takes carry no backend_id and free backends cost 0, so neither
+    # reaches the ledger.
+    if backend_id:
+        try:
+            budget.charge(backend_id, 1, project_id, job_id)
+        except Exception:                       # ledger must never fail a job
+            pass
     with session_scope() as s:
         s.add(Take(project_id=project_id, shot_sid=shot_sid, kind=kind,
                    path=rel, backend_id=backend_id, model=model,

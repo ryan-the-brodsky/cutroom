@@ -1,0 +1,182 @@
+[
+ {
+  "id": "CHAR-frank",
+  "name": "Frank",
+  "aliases": [
+   "frank",
+   "son at the grave",
+   "son"
+  ],
+  "descriptor": "Frank — the son at the grave"
+ },
+ {
+  "id": "CHAR-father",
+  "name": "The father",
+  "aliases": [
+   "the father",
+   "father"
+  ],
+  "descriptor": "The father (flashback)"
+ },
+ {
+  "id": "CHAR-helen",
+  "name": "Helen",
+  "aliases": [
+   "helen",
+   "grandmother"
+  ],
+  "descriptor": "Helen — the grandmother"
+ },
+ {
+  "id": "CHAR-dana",
+  "name": "Dana",
+  "aliases": [
+   "dana",
+   "daughter"
+  ],
+  "descriptor": "Dana — the daughter"
+ },
+ {
+  "id": "CHAR-mateo",
+  "name": "Mateo",
+  "aliases": [
+   "mateo",
+   "grandson"
+  ],
+  "descriptor": "Mateo — the grandson"
+ },
+ {
+  "id": "CHAR-terri",
+  "name": "Terri",
+  "aliases": [
+   "terri",
+   "bartender"
+  ],
+  "descriptor": "Terri — the bartender"
+ },
+ {
+  "id": "CHAR-milt",
+  "name": "Milt",
+  "aliases": [
+   "milt",
+   "cleveland regular",
+   "regular"
+  ],
+  "descriptor": "Milt — the Cleveland regular"
+ },
+ {
+  "id": "CHAR-ross",
+  "name": "David Ross",
+  "aliases": [
+   "david ross",
+   "david",
+   "ross",
+   "veteran catcher",
+   "catcher"
+  ],
+  "descriptor": "David Ross — the veteran catcher"
+ },
+ {
+  "id": "CHAR-rizzo",
+  "name": "Anthony Rizzo",
+  "aliases": [
+   "anthony rizzo",
+   "anthony",
+   "rizzo",
+   "first baseman",
+   "baseman"
+  ],
+  "descriptor": "Anthony Rizzo — the first baseman"
+ },
+ {
+  "id": "CHAR-bryant",
+  "name": "Kris Bryant",
+  "aliases": [
+   "kris bryant",
+   "kris",
+   "bryant",
+   "third baseman",
+   "baseman"
+  ],
+  "descriptor": "Kris Bryant — the third baseman"
+ },
+ {
+  "id": "CHAR-zobrist",
+  "name": "Ben Zobrist",
+  "aliases": [
+   "ben zobrist",
+   "ben",
+   "zobrist",
+   "left fielder",
+   "fielder"
+  ],
+  "descriptor": "Ben Zobrist — the left fielder"
+ },
+ {
+  "id": "CHAR-schwarber",
+  "name": "Kyle Schwarber",
+  "aliases": [
+   "kyle schwarber",
+   "kyle",
+   "schwarber"
+  ],
+  "descriptor": "Kyle Schwarber — the DH"
+ },
+ {
+  "id": "CHAR-chapman",
+  "name": "Aroldis Chapman",
+  "aliases": [
+   "aroldis chapman",
+   "aroldis",
+   "chapman",
+   "closer"
+  ],
+  "descriptor": "Aroldis Chapman — the closer"
+ },
+ {
+  "id": "CHAR-davis",
+  "name": "Rajai Davis",
+  "aliases": [
+   "rajai davis",
+   "rajai",
+   "davis",
+   "cleveland cf"
+  ],
+  "descriptor": "Rajai Davis — the Cleveland CF"
+ },
+ {
+  "id": "CHAR-kluber",
+  "name": "Corey Kluber",
+  "aliases": [
+   "corey kluber",
+   "corey",
+   "kluber",
+   "cleveland ace",
+   "ace"
+  ],
+  "descriptor": "Corey Kluber — the Cleveland ace"
+ },
+ {
+  "id": "CHAR-fowler",
+  "name": "Dexter Fowler",
+  "aliases": [
+   "dexter fowler",
+   "dexter",
+   "fowler",
+   "leadoff cf"
+  ],
+  "descriptor": "Dexter Fowler — the leadoff CF"
+ },
+ {
+  "id": "CHAR-montgomery",
+  "name": "Mike Montgomery",
+  "aliases": [
+   "mike montgomery",
+   "mike",
+   "montgomery",
+   "final-out closer",
+   "closer"
+  ],
+  "descriptor": "Mike Montgomery — the final-out closer"
+ }
+]

@@ -46,6 +46,102 @@ SCAN_RULES: list[tuple[str, str, str]] = [
 ]
 
 
+# ------------------------------------------------------------------ cast index
+
+DASHES = ("\u2014", "\u2013", " - ")          # em dash, en dash, spaced hyphen
+ARTICLES = ("the ", "a ", "an ")
+PREPOSITIONS = (" at ", " of ", " in ", " on ", " with ", " from ", " for ",
+                " who ", " and ")
+NAME_STOPWORDS = {"the", "a", "an", "and", "flashback", "young", "old"}
+
+
+def _role_aliases(role: str) -> list[str]:
+    """'the veteran catcher' -> ['veteran catcher', 'catcher'];
+    'the son at the grave' -> ['son at the grave', 'son']."""
+    role = role.strip().strip(".").lower()
+    for a in ARTICLES:
+        if role.startswith(a):
+            role = role[len(a):]
+            break
+    if not role:
+        return []
+    out = [role]
+    head = role
+    for prep in PREPOSITIONS:                       # cut trailing qualifiers
+        if prep in head:
+            head = head.split(prep)[0].strip()
+    if head != role and head:
+        out.append(head)
+    last = head.split()[-1] if head.split() else ""
+    if len(last) >= 3 and last != head:
+        out.append(last)
+    elif len(head) >= 3 and head not in out:
+        out.append(head)
+    return out
+
+
+def cast_entry(rec: dict) -> dict | None:
+    """One characters.jsonl row -> {id, name, aliases[], descriptor}."""
+    descriptor = str(rec.get("character") or "").strip()
+    cid = str(rec.get("id") or "").strip()
+    if not descriptor:
+        return None
+    name, role = descriptor, ""
+    for d in DASHES:
+        if d in descriptor:
+            name, role = descriptor.split(d, 1)
+            break
+    name = re.sub(r"\(.*?\)", "", name).strip().strip(",")
+    aliases: list[str] = []
+
+    def add(a: str) -> None:
+        a = a.strip().lower()
+        if len(a) >= 3 and a not in aliases:
+            aliases.append(a)
+
+    if name:
+        add(name)
+        tokens = [w for w in re.split(r"[^A-Za-z0-9'-]+", name) if w]
+        if len(tokens) > 1:
+            for w in tokens:
+                if w.lower() not in NAME_STOPWORDS:
+                    add(w)
+    for a in _role_aliases(role):
+        add(a)
+    if not cid:
+        cid = "CHAR-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+                         or "unknown")
+    return {"id": cid, "name": name or descriptor, "aliases": aliases,
+            "descriptor": descriptor}
+
+
+def build_cast(rows: list[dict]) -> list[dict]:
+    out = []
+    for rec in rows:
+        e = cast_entry(rec)
+        if e:
+            out.append(e)
+    return out
+
+
+def reimport_cast(project_id: str, src_root: str,
+                  log: Callable[[str], None] = print) -> dict:
+    """Refresh project.settings['cast'] from a game7 tree — no media copy."""
+    src = Path(src_root).expanduser().resolve()
+    rows = _read_jsonl(src / "prompts/characters.jsonl")
+    cast = build_cast(rows)
+    with session_scope() as s:
+        proj = s.get(Project, project_id)
+        if proj is None:
+            raise RuntimeError(f"no project {project_id}")
+        settings = dict(proj.settings or {})
+        settings["characters"] = rows
+        settings["cast"] = cast
+        proj.settings = settings
+    log(f"cast: {len(cast)} characters from {src}")
+    return {"cast": len(cast), "characters": [c["id"] for c in cast]}
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     out = []
     if path.exists():
@@ -187,7 +283,9 @@ def import_game7(src_root: str, project_id: str, label: str | None = None,
         proj = s.get(Project, project_id)
         settings = dict(proj.settings or {})
         settings["imported_from"] = str(src)
-        settings["characters"] = _read_jsonl(src / "prompts/characters.jsonl")
+        char_rows = _read_jsonl(src / "prompts/characters.jsonl")
+        settings["characters"] = char_rows
+        settings["cast"] = build_cast(char_rows)
         settings["sfx_cues"] = _read_jsonl(src / "audio/sfx-cues.jsonl")
         settings["music_cues"] = _read_jsonl(src / "audio/music-cues.jsonl")
         settings["mix_overrides"] = _read_jsonl(src / "audio/mix-overrides.jsonl")

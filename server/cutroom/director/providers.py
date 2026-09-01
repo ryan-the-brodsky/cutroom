@@ -192,8 +192,14 @@ async def stream_openai(project: str, message: str, backend,
         async with httpx.AsyncClient(timeout=120) as c:
             r = await c.post(base + "/chat/completions", json=body,
                              headers=headers)
-        text = r.json()["choices"][0]["message"]["content"] if \
-            r.status_code == 200 else f"[provider error {r.status_code}]"
+        if r.status_code == 200:
+            msg = r.json()["choices"][0]["message"]
+            # reasoning models (GLM 5.3 Flash) can spend the whole budget on
+            # thinking and return a null content — say so instead of "null"
+            text = msg.get("content") or msg.get("reasoning") or \
+                "[no content — raise max_tokens on this provider]"
+        else:
+            text = f"[provider error {r.status_code}]"
     except Exception as e:
         text = f"[provider error: {e}]"
     yield {"kind": "text", "text": text}

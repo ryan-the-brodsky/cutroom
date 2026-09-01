@@ -10,22 +10,42 @@ from ..storage import get_storage
 
 async def require_auth(request: Request) -> None:
     """Bearer-token auth when CUTROOM_AUTH_TOKEN is set. GET media/thumbnail
-    requests may pass ?token= (browsers can't set headers on <img>/<video>)."""
-    token = get_settings().auth_token
-    if not token:
+    requests may pass ?token= (browsers can't set headers on <img>/<video>).
+
+    In demo mode there are two accepted tokens: the viewer token judges get
+    in the link, and CUTROOM_ADMIN_TOKEN. Which one you presented decides
+    your role (demo.role_for), not whether you get in."""
+    settings = get_settings()
+    accepted = [t for t in (settings.auth_token, settings.admin_token) if t]
+    if not accepted:
         return
     header = request.headers.get("authorization", "")
-    if header == f"Bearer {token}":
-        return
-    if request.method == "GET" and request.query_params.get("token") == token:
-        return
+    query = request.query_params.get("token")
+    for token in accepted:
+        if header == f"Bearer {token}":
+            return
+        if request.method == "GET" and query == token:
+            return
     raise HTTPException(401, "missing or invalid token")
 
 
+def require_admin(what: str = "this"):
+    """Dependency: 403 for viewers in demo mode. See cutroom/demo.py."""
+    from ..demo import require_admin as _require_admin
+    return _require_admin(what)
+
+
 async def require_worker(request: Request) -> None:
+    """Remote workers claim jobs with CUTROOM_WORKER_TOKEN. On the demo the
+    viewer token must NOT be enough — a judge claiming queued jobs would
+    stall the pools — so the fallback there is the admin token."""
     settings = get_settings()
-    token = settings.worker_token or settings.auth_token
+    fallback = settings.admin_token if settings.demo else settings.auth_token
+    token = settings.worker_token or fallback
     if not token:
+        if settings.demo:
+            raise HTTPException(403, "worker endpoints are closed on the "
+                                     "hosted demo")
         return
     if request.headers.get("authorization") != f"Bearer {token}":
         raise HTTPException(401, "worker token required")

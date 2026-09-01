@@ -3,14 +3,14 @@ from __future__ import annotations
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..db import session_scope
 from ..director.apply import _gen_pool, apply_op
 from ..jobs.queue import submit_job
 from ..models import Comp
-from .deps import project_or_404
+from .deps import project_or_404, require_admin
 
 router = APIRouter()
 
@@ -83,7 +83,8 @@ async def update_comp(pid: str, cid: str, req: Request):
         return _comp_dict(c)
 
 
-@router.post("/projects/{pid}/comps/{cid}/delete")
+@router.post("/projects/{pid}/comps/{cid}/delete",
+             dependencies=[Depends(require_admin("deleting comps"))])
 def delete_comp(pid: str, cid: str):
     with session_scope() as s:
         s.delete(_comp(s, pid, cid))

@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -15,17 +16,49 @@ from fastapi.staticfiles import StaticFiles
 from .api import (backends, comps, deps, direction, generate, jobs, media,
                   projects, separate, system, timeline)
 from .adapters.registry import default_backends
+from .budget import BudgetExceeded, default_cost
 from .config import get_settings
 from .db import init_db, session_scope
 from .jobs.queue import get_queue
 from .models import Backend
 
 
+def _env_any(*names: str) -> str:
+    """First non-empty of several accepted spellings of one key.
+
+    The provider docs, Ryan's ~/.claude/.env and the adapter code do not
+    agree on names (FAL_KEY vs FAL_AI_API_KEY, ELEVEN_LABS_API_KEY vs
+    ELEVENLABS_API_KEY), and a silently-unseeded backend looks exactly like
+    a broken adapter. Accept them all."""
+    for n in names:
+        v = os.environ.get(n, "").strip()
+        if v:
+            return v
+    return ""
+
+
 def seed_backends() -> None:
-    """First-boot defaults: local ComfyUI enabled; hosted templates disabled
-    until keys land; direction providers wired from env when present."""
+    """First-boot defaults plus env-wired hosted providers.
+
+    Keys come from the environment (`OPENROUTER_API_KEY`, `FAL_KEY`,
+    `ELEVEN_LABS_API_KEY`, `ANTHROPIC_API_KEY`); a backend with a key is
+    enabled, one without stays a disabled template. On an existing row the
+    env is authoritative for the api_key and for "enabled because keyed",
+    while model/cost options only fill in when missing — so an admin's
+    Settings edits survive until the next boot, and a redeploy re-asserts
+    what the environment says.
+
+    Every row carries `options.cost_usd` (dollars per produced take) which
+    the spend cap counts; override per backend with
+    `CUTROOM_COST_<BACKEND_ID>` (dashes become underscores).
+    """
+    settings = get_settings()
     rows = list(default_backends())
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    anthropic_key = _env_any("ANTHROPIC_API_KEY")
+    openrouter_key = _env_any("OPENROUTER_API_KEY", "OPEN_ROUTER_API_KEY")
+    fal_key = _env_any("FAL_KEY", "FAL_AI_API_KEY", "FAL_API_KEY")
+    eleven_key = _env_any("ELEVEN_LABS_API_KEY", "ELEVENLABS_API_KEY")
+
     rows += [
         {"id": "anthropic", "type": "anthropic",
          "label": "Claude (hosted director)", "api_key": anthropic_key,
@@ -37,13 +70,73 @@ def seed_backends() -> None:
          "options": {}},
         {"id": "claude-cli", "type": "claude-cli",
          "label": "Claude CLI (self-host, agentic)",
-         "enabled": get_settings().allow_claude_cli,
+         "enabled": settings.allow_claude_cli,
          "options": {"model": "opus"}},
+        # Addendum A: the hosted demo's real providers.
+        {"id": "openrouter", "type": "openai-chat",
+         "label": "OpenRouter (direction)",
+         "base_url": "https://openrouter.ai/api/v1",
+         "api_key": openrouter_key, "enabled": bool(openrouter_key),
+         "options": {"model": settings.openrouter_model}},
     ]
+
+    # env keys land on the templates default_backends() already declares
+    env_keyed = {"openrouter-image": (openrouter_key,
+                                      {"model": settings.openrouter_image_model}),
+                 "fal": (fal_key, {"model": settings.fal_motion_model,
+                                   "models": [settings.fal_motion_model],
+                                   "extra_payload": {"resolution": "480p"}}),
+                 "elevenlabs": (eleven_key, {}),
+                 "openrouter": (openrouter_key,
+                                {"model": settings.openrouter_model}),
+                 "anthropic": (anthropic_key, {})}
+    # options an explicitly-set env var owns outright, on new AND existing
+    # rows — otherwise `CUTROOM_FAL_MOTION_MODEL` would only ever apply to a
+    # virgin database, which is exactly when nobody needs to change it.
+    forced: dict[str, dict] = {}
+    if os.environ.get("CUTROOM_OPENROUTER_MODEL"):
+        forced["openrouter"] = {"model": settings.openrouter_model}
+    if os.environ.get("CUTROOM_OPENROUTER_IMAGE_MODEL"):
+        forced["openrouter-image"] = {"model": settings.openrouter_image_model}
+    if os.environ.get("CUTROOM_FAL_MOTION_MODEL"):
+        forced["fal"] = {"model": settings.fal_motion_model,
+                         "models": [settings.fal_motion_model]}
+    for r in rows:
+        key, opts = env_keyed.get(r["id"], ("", {}))
+        # the configured model is the default whether or not a key is present,
+        # so pasting a key in Settings is all it takes to go live
+        r["options"] = {**r.get("options", {}), **opts}
+        if key:
+            r["api_key"] = key
+            r["enabled"] = True
+        cost_env = "CUTROOM_COST_" + r["id"].upper().replace("-", "_")
+        if os.environ.get(cost_env):
+            forced.setdefault(r["id"], {})["cost_usd"] = \
+                default_cost(r["id"], r["type"])
+        r["options"].setdefault("cost_usd", default_cost(r["id"], r["type"]))
+
+    if settings.demo:
+        for r in rows:
+            if r["id"] == "mock":
+                r["enabled"] = True             # the always-free fallback
+
     with session_scope() as s:
         for r in rows:
-            if not s.get(Backend, r["id"]):
+            row = s.get(Backend, r["id"])
+            if not row:
                 s.add(Backend(**r))
+                continue
+            env_key, _ = env_keyed.get(r["id"], ("", {}))
+            if env_key:
+                row.api_key = env_key
+                row.enabled = True
+            opts = dict(row.options or {})
+            for k, v in r["options"].items():
+                opts.setdefault(k, v)
+            opts.update(forced.get(r["id"], {}))
+            row.options = opts
+            if r["id"] == "mock" and settings.demo:
+                row.enabled = True
 
 
 def create_app() -> FastAPI:
@@ -52,6 +145,14 @@ def create_app() -> FastAPI:
     seed_backends()
 
     app = FastAPI(title="Cutroom", version="0.1.0")
+
+    from fastapi.responses import JSONResponse
+
+    @app.exception_handler(BudgetExceeded)
+    async def _budget_exceeded(_request, exc: BudgetExceeded):
+        # flat body — the WebMCP cost guard relays spent/budget verbatim
+        return JSONResponse(status_code=402, content=exc.body())
+
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins or ["*"],
                        allow_methods=["*"], allow_headers=["*"])
@@ -70,6 +171,10 @@ def create_app() -> FastAPI:
     async def _startup():
         if settings.run_workers:
             get_queue().start()
+        if settings.demo:
+            from . import demo as demo_mod
+            demo_mod.boot_import_async()
+            demo_mod.apply_lane_env(settings.demo_project, log=lambda m: None)
 
     @app.on_event("shutdown")
     async def _shutdown():
@@ -97,15 +202,70 @@ def create_app() -> FastAPI:
     return app
 
 
+def cmd_reimport_cast(args) -> None:
+    """Refresh a project's cast index from a game7 tree (no media copy)."""
+    init_db()
+    from .importer.game7 import reimport_cast
+    out = reimport_cast(args.project, args.src_root)
+    print(json.dumps(out, indent=2))
+
+
+def cmd_demo_bundle(args) -> None:
+    from .demo import build_bundle
+    out = build_bundle(args.src_root, args.out)
+    print(json.dumps(out, indent=2))
+
+
+def cmd_demo_import(args) -> None:
+    init_db()
+    seed_backends()
+    from .demo import boot_import
+    print(json.dumps(boot_import(force=args.force), indent=2))
+
+
+SUBCOMMANDS = {"reimport-cast", "demo-bundle", "demo-import", "serve"}
+
+
 def cli() -> None:
     import argparse
+    import sys
 
     import uvicorn
-    ap = argparse.ArgumentParser(description="Cutroom server")
     settings = get_settings()
-    ap.add_argument("--host", default=settings.host)
-    ap.add_argument("--port", type=int, default=settings.port)
-    args = ap.parse_args()
+    ap = argparse.ArgumentParser(
+        prog="cutroom", description="Cutroom server + maintenance commands")
+    sub = ap.add_subparsers(dest="cmd")
+
+    serve = sub.add_parser("serve", help="serve the API and built SPA")
+    for p in (ap, serve):
+        p.add_argument("--host", default=settings.host)
+        p.add_argument("--port", type=int, default=settings.port)
+
+    rc = sub.add_parser("reimport-cast",
+                        help="rebuild project.settings.cast from a game7 tree")
+    rc.add_argument("project")
+    rc.add_argument("src_root")
+    rc.set_defaults(func=cmd_reimport_cast)
+
+    db_ = sub.add_parser("demo-bundle", help="pack a game7 tree for the demo")
+    db_.add_argument("src_root")
+    db_.add_argument("out", help="path ending .tar.zst (or .tar.gz)")
+    db_.set_defaults(func=cmd_demo_bundle)
+
+    di = sub.add_parser("demo-import",
+                        help="download + import CUTROOM_DEMO_BUNDLE now")
+    di.add_argument("--force", action="store_true")
+    di.set_defaults(func=cmd_demo_import)
+
+    # `cutroom --port 8782` (no subcommand) still serves, as it always has,
+    # while `cutroom --help` lists the maintenance commands.
+    argv = sys.argv[1:]
+    if not argv or (argv[0].startswith("-") and argv[0] not in ("-h", "--help")):
+        argv = ["serve", *argv]
+    args = ap.parse_args(argv)
+    if getattr(args, "func", None):
+        args.func(args)
+        return
     uvicorn.run(create_app(), host=args.host, port=args.port,
                 log_level="info")
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..db import session_scope
@@ -11,7 +11,7 @@ from ..jobs.queue import submit_job
 from ..models import Comp, LaneConfig, Project, Shot, Take
 from ..storage import get_storage
 from .. import film
-from .deps import project_or_404, store_for
+from .deps import project_or_404, require_admin, store_for
 
 router = APIRouter()
 
@@ -26,7 +26,8 @@ def list_projects():
                                    .order_by(Project.created_at)).scalars()]
 
 
-@router.post("/projects")
+@router.post("/projects",
+             dependencies=[Depends(require_admin("creating projects"))])
 async def create_project(req: Request):
     body = await req.json()
     pid = re.sub(r"[^a-z0-9-]+", "-", str(body.get("id", "")).lower()).strip("-")
@@ -40,7 +41,8 @@ async def create_project(req: Request):
     return {"id": pid, "label": body.get("label", pid)}
 
 
-@router.post("/projects/{pid}/import")
+@router.post("/projects/{pid}/import",
+             dependencies=[Depends(require_admin("importing projects"))])
 async def import_project(pid: str, req: Request):
     """Ingest a game7-layout repo. Creates the project row if needed, then
     runs the (long) media copy + index as a job."""
@@ -73,6 +75,23 @@ def get_film(pid: str):
         takes = film.takes_by_shot(s, pid)
         return [film.film_entry(store, sh, takes.get(sh.sid, []))
                 for sh in film.shots_ordered(s, pid)]
+
+
+@router.get("/projects/{pid}/cast")
+def get_cast(pid: str):
+    """The character index the shot resolver matches names against.
+    [{id, name, aliases[], descriptor}] — built by the game7 importer from
+    prompts/characters.jsonl; refresh with `cutroom reimport-cast`."""
+    project_or_404(pid)
+    with session_scope() as s:
+        proj = s.get(Project, pid)
+        settings = dict(proj.settings or {})
+        cast = settings.get("cast")
+        if not cast:
+            # projects imported before the cast index existed
+            from ..importer.game7 import build_cast
+            cast = build_cast(settings.get("characters") or [])
+        return {"cast": cast}
 
 
 @router.get("/projects/{pid}/shots/{sid}")
@@ -194,7 +213,8 @@ def get_lanes(pid: str):
                 for lc in s.query(LaneConfig).filter_by(project_id=pid)}
 
 
-@router.post("/projects/{pid}/lanes")
+@router.post("/projects/{pid}/lanes",
+             dependencies=[Depends(require_admin("editing lane defaults"))])
 async def set_lane(pid: str, req: Request):
     body = await req.json()
     lane = body.get("lane")
@@ -214,7 +234,8 @@ async def set_lane(pid: str, req: Request):
     return {"ok": True}
 
 
-@router.post("/projects/{pid}/pause")
+@router.post("/projects/{pid}/pause",
+             dependencies=[Depends(require_admin("pausing a project"))])
 async def pause_project(pid: str, req: Request):
     body = await req.json()
     with session_scope() as s:

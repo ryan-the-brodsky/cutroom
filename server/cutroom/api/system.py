@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 
 from ..config import get_settings
 from ..db import session_scope
 from ..models import Job, Project
+from .. import budget, demo
+from .deps import require_admin
 
 router = APIRouter()
 
 
 @router.get("/system")
-def system_state():
+def system_state(request: Request):
     settings = get_settings()
     with session_scope() as s:
         counts = dict(s.execute(
@@ -23,10 +25,14 @@ def system_state():
             "data_dir": str(settings.data_dir),
             "auth": bool(settings.auth_token),
             "workers": settings.run_workers,
+            "demo": bool(settings.demo),
+            "role": demo.role_for(request),
+            "budget": budget.state(),
             "version": "0.1.0"}
 
 
-@router.post("/system/pause")
+@router.post("/system/pause",
+             dependencies=[Depends(require_admin("pausing the server"))])
 async def system_pause(req: Request):
     body = await req.json()
     flag = get_settings().data_dir / "PAUSED"
