@@ -77,32 +77,77 @@ challenge work.
 
 ## New for the WebMCP Challenge (2026-09-01 → 2026-09-03)
 
-> **PLACEHOLDER — workstream F completes this section.** Keep the headings; fill
-> in the file list, the commit range, and the line counts from
-> `git diff --stat cebcf93..HEAD`.
+Everything below was written after the submission period opened on 2026-08-25,
+in a sprint that started 2026-09-01 16:00 PDT. Commit range
+`<COMMIT RANGE: cebcf93..HEAD>`; per-commit log and diffstat under "Evidence".
 
-### The agent layer (new files)
+**Why this counts as meaningfully extended:** the WebMCP layer is a new
+subsystem, not a wrapper. It adds an action registry that becomes the single
+source of truth for every feature in the app, <TOOL_COUNT> tools published on
+`document.modelContext`, a natural-language shot resolver that did not exist,
+URL state and page handles that had to be built before any tool could drive the
+UI, and a cost guard that gates real spending. None of it existed in `cebcf93`,
+and the pre-existing app cannot be driven by an agent without it.
 
-<!-- F: final list. Expected, per docs/WEBMCP-PLAN.md §3:
-     web/src/agent/contract.ts     — the action registry contract (G0, b7d04e0)
-     web/src/agent/webmcp.ts       — document.modelContext bridge
-     web/src/agent/presence.tsx    — page handles, anchors, the execution trail
-     web/src/agent/pageHandles.ts
-     web/src/agent/resolve.ts      — shot resolver + cast index
-     web/src/agent/Palette.tsx     — the ⌘K palette and "show me"
-     web/src/agent/jobs.ts         — the async job pattern
-     web/src/agent/guard.ts        — cost and doctrine guard
-     web/src/agent/tools/*         — the v1 tool catalogue
-     web/src/agent/__tests__/*     — unit tests
-     server/cutroom/demo.py        — demo mode + bundle importer
-     evals/journeys.json           — the hero journeys as evals
-     docs/TESTING-WEBMCP.md, docs/SUBMISSION.md
--->
+### The agent layer (new files, `web/src/agent/**`)
+
+| File | What it adds | Commit |
+|---|---|---|
+| `contract.ts` | The `ActionDef` contract: name, description, JSON Schema, annotations, `where` a feature lives in the UI, `howTo` a human performs it, `execute`. Anchor vocabulary and Chrome's budget constants. | `b7d04e0` |
+| `registry.ts` | `register` / `all` / `get` / `perform`. `perform` validates args, stamps the trail, clips output to 1.5K chars, and never throws. | `<COMMIT>` |
+| `webmcp.ts` | The bridge. Reads `document.modelContext` (deprecated `navigator.modelContext` fallback), registers every tool under one `AbortController`, normalizes Chrome's JSON-string input, and resolves errors instead of rejecting. Optional polyfill behind a flag, off by default. | `<COMMIT>` |
+| `pageHandles.ts` | Imperative handles React pages publish on mount, plus `waitFor(page, identity)`. Tools call handlers, not the DOM. | `<COMMIT>` |
+| `presence.tsx` | `data-action` anchors, the `pulse()` ring animation, and the Agent trail drawer that logs and replays every step. | `<COMMIT>` |
+| `resolve.ts` | The shot resolver and cast index: sid, ordinal, beat, act, shot type, cast alias and free-text scoring, returning `best`, `candidates` and a confidence including `ambiguous`. | `<COMMIT>` |
+| `Palette.tsx` | The ⌘K command palette, the human projection of the same registry, plus the `show_me` navigation and teaching path. | `<COMMIT>` |
+| `jobs.ts` | The async pattern: `submitAndSettle` over the existing SSE watch, and the bounded `wait_for_jobs` behaviour. | `<COMMIT>` |
+| `guard.ts` | Cost and doctrine guard. Resolves the effective backend per lane, classifies free versus paid, requires `confirm_cost`, and applies FIRST-SECOND LAW defaults. | `<COMMIT>` |
+| `tools/**` | The v1 catalogue of <TOOL_COUNT> tools (`docs/WEBMCP-PLAN.md` §4), each executing visibly through the UI. | `<COMMIT RANGE>` |
+| `__tests__/**` | Registry contract tests against Chrome's budgets, resolver pins, and tool unit tests with a fake context. | `<COMMIT RANGE>` |
 
 ### Changes to pre-existing files
 
-<!-- F: e.g. App.tsx (registry mount, ?token= intake), main.py / config.py
-     (demo mode, budget cap, env-seeded lanes), the pages that expose anchors. -->
+- **`web/src/pages/ShotPage.tsx`**: URL state for `tab`, `sub`, `take` and
+  `kind`, so `/p/next-year/shot/B10-S2?tab=generate&sub=still` is a real deep
+  link. Page handles registered on mount. `data-action` anchors on every
+  control a tool drives. `<COMMIT RANGE>`
+- **`web/src/pages/FilmEditorPage.tsx`**: URL state for `sel`, `view`, `scope`
+  and `res`; page handles; anchors on the strip, the quick panel and the Cut
+  control. `<COMMIT RANGE>`
+- **`web/src/App.tsx` / `main.tsx`**: registry mount, WebMCP registration at
+  app start, the topbar tools chip, the trail drawer, and `?token=` intake so
+  the judge link is one click. `<COMMIT RANGE>`
+- **`web/src/styles.css`**: the `.agent-pulse` ring, palette and trail styles.
+  `<COMMIT>`
+- **`server/cutroom/importer/game7.py`**: reads `prompts/characters.jsonl` and
+  stores a cast index on the project, which the importer never did before.
+  `<COMMIT>`
+- **`server/cutroom/api/`**: `GET /api/projects/{pid}/cast`, and the demo-mode
+  and budget guards on the generate and system routes. `<COMMIT RANGE>`
+- **`server/cutroom/main.py` / `config.py`**: demo mode, judge and admin token
+  roles, boot-time provider seeding from env (`OPENROUTER_API_KEY`, `FAL_KEY`,
+  `ELEVEN_LABS_API_KEY`), per-lane defaults from `CUTROOM_LANE_<LANE>`, and the
+  rolling 24-hour spend cap `CUTROOM_DEMO_BUDGET_USD`. `<COMMIT RANGE>`
+- **`server/cutroom/demo.py`** (new): demo-mode policy, the bundle download and
+  import at boot, rate limiting, and the reset path. `<COMMIT>`
+- **`server/tests/`**: cast import, demo mode, budget cap and bundle tests
+  added; the pre-existing suite stays green. `<COMMIT RANGE>`
+
+### Test and eval work
+
+- `web/**` vitest suite (the repo had no front-end tests before). `<COMMIT RANGE>`
+- Playwright end-to-end against real Chrome with the native API. `<COMMIT RANGE>`
+- `evals/journeys.json`: the hero journeys from `docs/WEBMCP-PLAN.md` §5 as
+  runnable evals. `<COMMIT RANGE>`
+- `docs/TESTING-WEBMCP.md`: recorded runs and the cross-client checklist.
+  `<COMMIT RANGE>`
+
+### Documentation written for the submission
+
+- `docs/WEBMCP-PLAN.md`: the implementation plan the build followed.
+- `docs/research/webmcp-api-brief.md`, `docs/research/webmcp-challenge-brief.md`.
+- `docs/SUBMISSION.md`, `docs/VIDEO-SCRIPT.md`, `docs/DEMO-RUNBOOK.md`.
+- The README section "Drive Cutroom with an agent (WebMCP)".
 
 ### Infrastructure added for the submission
 
@@ -113,5 +158,14 @@ challenge work.
 
 ### Evidence
 
-<!-- F: paste `git log --format='%h %ad %s' --date=iso cebcf93..HEAD` and the
-     `git diff --shortstat cebcf93..HEAD` line. -->
+```
+<PASTE: git log --format='%h %ad %s' --date=iso cebcf93..HEAD>
+```
+
+```
+<PASTE: git diff --shortstat cebcf93..HEAD>
+```
+
+Summary line to fill at finalization: *<N> commits between 2026-09-01 and
+2026-09-03, <N> files changed, <N> insertions, of which `web/src/agent/**` is
+<N> lines across <N> files, all new.*

@@ -8,19 +8,6 @@
 > **Third-party code:** [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) ·
 > **Prior work vs. new work:** [`docs/PRIOR-WORK.md`](docs/PRIOR-WORK.md)
 
-## Drive it with an agent (WebMCP)
-
-<!-- PLACEHOLDER — workstream F writes the final copy here. Keep the heading. -->
-Cutroom exposes its own editing surface to browser agents through
-[WebMCP](docs/WEBMCP-PLAN.md): a single action registry
-(`web/src/agent/contract.ts`) is published as tools on `document.modelContext`,
-so an agent in ChatGPT's in-app browser or flagged Chrome can direct the film —
-navigate to a shot, generate takes, freeze a tail, cut the animatic — *through
-the real UI*, with every step visible on screen. The same registry backs the
-⌘K palette and the "show me how" affordance, so nothing an agent can do is
-hidden from the human. See [`docs/WEBMCP-PLAN.md`](docs/WEBMCP-PLAN.md) for the
-architecture and [`docs/PRIOR-WORK.md`](docs/PRIOR-WORK.md) for what is new.
-
 The game7 pipeline, refactored into a hosted web application: one server,
 N film projects, M pluggable generation backends. The original `bin/` +
 `dashboard/` components remain untouched in the repo root; this directory is
@@ -82,6 +69,37 @@ Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
 - **Jobs** — DB-backed queue; GPU backends run strictly serial per backend
   (the 16GB discipline, generalized); CPU work runs parallel. Remote workers
   on GPU VMs claim jobs over HTTP (`cutroom-worker`).
+
+## Drive Cutroom with an agent (WebMCP)
+
+Cutroom has about a hundred distinct actions across two rooms, five tabs and
+four generation consoles. Finding any of them means clicking. WebMCP lets the
+page hand an agent the whole list instead.
+
+One **action registry** (`web/src/agent/registry.ts`) is the single source of
+truth for every feature: its name, its JSON Schema, where it lives in the UI,
+how a human performs it by hand, and how to run it. Three surfaces come off
+that one list. WebMCP tools, published on `document.modelContext`. A ⌘K
+command palette for humans. And a "show me" behaviour that navigates to a
+feature and rings its control.
+
+Tools execute **through the UI you are looking at**. `generate_takes` opens
+the Film Editor, walks into the shot, switches to the Generate tab, fills the
+prompt, and presses submit. You learn the app by watching the agent drive it.
+Reads are the only silent calls, an Agent trail drawer logs every step, and
+paid backends refuse to spend without an explicit `confirm_cost`.
+
+Open the app in ChatGPT Desktop's browser (Settings › Browser › Enable site
+tools) or Chrome 149+ with `chrome://flags/#enable-webmcp-testing` on, then
+ask:
+
+> "Make a few more generative cuts of the David Ross close-up."
+> "Keep the first second of the newest one and freeze the rest."
+> "Cut act 1."
+
+Architecture and tool catalogue: [`docs/WEBMCP-PLAN.md`](docs/WEBMCP-PLAN.md).
+Test evidence and the cross-client checklist:
+[`docs/TESTING-WEBMCP.md`](docs/TESTING-WEBMCP.md).
 
 ## Verification status
 
