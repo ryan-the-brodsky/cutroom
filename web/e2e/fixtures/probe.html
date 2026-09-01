@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebMCP native API probe</title>
+<h1 id="h">WebMCP probe</h1>
+<pre id="out">registering…</pre>
+<script>
+window.__probe = { registered: false, error: null, executed: [] };
+(async () => {
+  const mc = document.modelContext || navigator.modelContext;
+  if (!mc) { window.__probe.error = "no modelContext"; document.getElementById("out").textContent = "no modelContext"; return; }
+  try {
+    await mc.registerTool({
+      name: "probe_echo",
+      title: "Echo",
+      description: "Echo back the text you pass, for probing the WebMCP surface.",
+      inputSchema: { type: "object", properties: { text: { type: "string", description: "Text to echo." } }, required: ["text"] },
+      annotations: { readOnlyHint: true },
+      async execute(input) {
+        window.__probe.executed.push(input);
+        document.getElementById("h").textContent = "called: " + JSON.stringify(input);
+        return { ok: true, summary: "echo: " + (input && input.text), typeofInput: typeof input };
+      },
+    });
+    window.__probe.registered = true;
+    document.getElementById("out").textContent = "registered";
+  } catch (e) { window.__probe.error = String(e); document.getElementById("out").textContent = "ERR " + e; }
+})();
+</script>
