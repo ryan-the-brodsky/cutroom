@@ -12,7 +12,21 @@
 import { describe, expect, it, beforeEach } from "vitest";
 
 import castFixture from "./fixtures/next-year.cast.json";
-import filmFixture from "./fixtures/next-year.film.json";
+import sanitizedFilm from "./fixtures/next-year.film.json";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
+
+// The committed fixture is SANITIZED (prompts shortened, dialogue text removed) so the
+// film's script never lands in the public repo. The full recording lives in the private
+// game7 repo (prompts/fixtures/next-year.film.json) or at $CUTROOM_FILM_FIXTURE; the
+// real-data pins below run only when it is present.
+const FULL_PATH = process.env.CUTROOM_FILM_FIXTURE
+  ?? resolvePath(__dirname, "../../../../../prompts/fixtures/next-year.film.json");
+const HAS_FULL = existsSync(FULL_PATH);
+const filmFixture: typeof sanitizedFilm = HAS_FULL
+  ? JSON.parse(readFileSync(FULL_PATH, "utf8"))
+  : sanitizedFilm;
+const itFull = HAS_FULL ? it : it.skip;
 import {
   clearIndexCache, indexShots, makeResolver, normalizeSid, resolveAgainst,
   subjectClause, summarize, type CastMember, type FilmEntry,
@@ -39,7 +53,7 @@ describe("index", () => {
       .toBe("A veteran catcher waits.");
   });
 
-  it("attaches cast from the subject clause and from dialogue speakers", () => {
+  itFull("attaches cast from the subject clause and from dialogue speakers", () => {
     const b10s2 = shots.find((s) => s.sid === "B10-S2")!;
     expect(b10s2.characters).toContain("David Ross");
     const b10s1 = shots.find((s) => s.sid === "B10-S1")!;   // speaker only
@@ -81,7 +95,7 @@ describe("resolve", () => {
     }
   });
 
-  it("'the David Ross close-up' is B10-S2, confidently", () => {
+  itFull("'the David Ross close-up' is B10-S2, confidently", () => {
     const r = ask("the David Ross close-up");
     expect(r.best!.sid).toBe("B10-S2");
     expect(r.confidence).toBe("high");
@@ -89,7 +103,7 @@ describe("resolve", () => {
     expect(r.candidates.length).toBeLessThanOrEqual(8);
   });
 
-  it("the hero sentence resolves the same way", () => {
+  itFull("the hero sentence resolves the same way", () => {
     const r = ask("make a few more generative cuts of the David Ross close-up");
     expect(r.best!.sid).toBe("B10-S2");
   });
@@ -108,7 +122,7 @@ describe("resolve", () => {
     expect(r.candidates.map((c) => c.sid)).toContain("B10-S1");
   });
 
-  it("'dial shot' resolves to B20-S2 (recorded from the real film)", () => {
+  itFull("'dial shot' resolves to B20-S2 (recorded from the real film)", () => {
     // Free text with no sid, ordinal, beat or cast name: pure term overlap.
     // The radio dial is the film's recurring warm accent, so 24 shots mention
     // it; B20-S2 (the rain-delay HERO, "dial" ×13) wins on term frequency
