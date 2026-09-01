@@ -1,0 +1,112 @@
+{
+  "$comment": "Cutroom WebMCP evals — the hero journeys from docs/WEBMCP-PLAN.md §5, in a runnable shape. Run them by hand through chrome-devtools-mcp (docs/TESTING-WEBMCP.md §3), or read them as the spec that j*.spec.ts encodes. Each journey is ONE human utterance; the agent gets only the tool list, never the expected sequence.",
+  "version": 1,
+  "updated": "2026-09-01",
+  "target": {
+    "local": "http://localhost:8785/p/next-year?agent_debug=1&agent_speed=fast",
+    "hosted": "TBD — workstream D fills in the Railway HTTPS domain",
+    "project": "next-year",
+    "mode": "mock backend on every lane; generations return the film's own footage instantly"
+  },
+  "fixture_facts": [
+    "97 shots. B10-S2 is shot #31, a HERO dugout close-up of David Ross.",
+    "B11-S4 is shot #37, a cemetery STILL. 'the David Ross close up, shot 37' therefore names two different shots — the resolver must say so.",
+    "Doctrine: true freezes only, no zooms; mock takes never auto-promote; paid backends need confirm_cost."
+  ],
+  "journeys": [
+    {
+      "id": "J1",
+      "title": "Generate more takes of a shot named in English",
+      "utterance": "Make a few more generative cuts of the David Ross close-up.",
+      "expect_tools": [
+        { "name": "find_shots", "args": { "query": "David Ross close-up" }, "expect": { "confidence": ["exact", "high"], "candidates_include": ["B10-S2"] } },
+        { "name": "generate_takes", "args": { "shot": "B10-S2", "lane": "still", "count": 3 }, "expect": { "ok": true, "jobs_length": 3 } }
+      ],
+      "allow_extra_tools": ["open_shot", "describe_shot", "get_context", "get_jobs", "wait_for_jobs"],
+      "expect_visible": "Film Editor → Shot Editor B10-S2 → Generate → Still. The prompt field fills, three submits fire with distinct seeds, three new stills appear in the takes rail. The agent trail shows ≥4 steps. URL ends /shot/B10-S2?tab=generate&sub=still.",
+      "spec": "web/e2e/j1-generate.spec.ts"
+    },
+    {
+      "id": "J1b",
+      "title": "Ambiguity is surfaced, not guessed",
+      "utterance": "Make a few more generative cuts of the David Ross close up, shot 37.",
+      "expect_tools": [
+        { "name": "find_shots", "args": { "query": "David Ross close up, shot 37" }, "expect": { "confidence": "ambiguous", "candidates_include": ["B10-S2", "B11-S4"] } }
+      ],
+      "forbid_tools": ["generate_takes"],
+      "expect_visible": "Nothing runs. The agent asks which shot is meant, quoting both — B10-S2 (the named close-up) and B11-S4 (the 37th shot, a cemetery still). No jobs, no navigation.",
+      "spec": "web/e2e/j1b-ambiguous.spec.ts"
+    },
+    {
+      "id": "J2",
+      "title": "Freeze the tail of the newest motion take",
+      "utterance": "Keep the first second of the newest one and freeze the rest.",
+      "context": "Run immediately after J1, so 'the newest one' refers to B10-S2.",
+      "expect_tools": [
+        { "name": "select_take", "args": { "shot": "B10-S2", "take": "newest motion" }, "expect": { "ok": true } },
+        { "name": "freeze_tail", "args": { "shot": "B10-S2", "live_seconds": 1 }, "expect": { "ok": true, "job": "truthy" } }
+      ],
+      "expect_visible": "The Motion edits tab opens, the live field reads 1, the ❄ control pulses, and a new frozen take lands in the rail. A true freeze — no drift, no zoom.",
+      "spec": "web/e2e/j2-freeze.spec.ts"
+    },
+    {
+      "id": "J3",
+      "title": "Teach the human the manual path",
+      "utterance": "How do I do that by hand?",
+      "expect_tools": [
+        { "name": "show_me", "args": { "feature": "freeze tail" }, "expect": { "ok": true, "howTo": "truthy" } }
+      ],
+      "expect_visible": "The app navigates to the Motion edits tab and the ❄ control gets the .agent-pulse ring. The reply is the howTo string plus where.label — the agent points, it does not lecture.",
+      "spec": "web/e2e/show-me.spec.ts"
+    },
+    {
+      "id": "J4",
+      "title": "Cut the film",
+      "utterance": "Cut act 1 at 720.",
+      "expect_tools": [
+        { "name": "cut_film", "args": { "scope": "act1", "res": "720" }, "expect": { "ok": true, "job": "truthy" } },
+        { "name": "wait_for_jobs", "args": { "jobs": ["<job from cut_film>"], "timeout_s": 60 }, "repeat_until": "status == done", "note": "≤60 s per call by contract; the assembler is minutes on CPU, so the agent polls." }
+      ],
+      "expect_visible": "The Cut button pulses, the job appears in the topbar, and when it settles the animatic shows up in the Cuts gallery and plays.",
+      "spec": "web/e2e/j4-cut.spec.ts"
+    },
+    {
+      "id": "J5",
+      "title": "Direct in the film's own grammar, preview before applying",
+      "utterance": "Hold his pose for the rest of the line on the dial shot.",
+      "expect_tools": [
+        { "name": "find_shots", "args": { "query": "dial shot" }, "expect": { "candidates_include": ["B04-S3"] } },
+        { "name": "direct_shot", "args": { "shot": "B04-S3", "instruction": "hold his pose for the rest of the line" }, "expect": { "ok": true, "plan": "truthy" } }
+      ],
+      "forbid_tools_before_confirmation": ["apply_plan"],
+      "expect_visible": "The Direct box fills, the grammar compiles, and the PlanPreview appears on screen with the ops spelled out. NOTHING runs until the human clicks apply (or explicitly confirms and the agent calls apply_plan). This two-step is by design.",
+      "spec": "manual — not automated for v1"
+    },
+    {
+      "id": "J6",
+      "title": "Promote a take to keeper and to the timeline",
+      "utterance": "Make this take the keeper and use it in the timeline.",
+      "expect_tools": [
+        { "name": "set_keeper", "args": { "shot": "B10-S2" }, "expect": { "ok": true } },
+        { "name": "set_timeline_source", "args": { "shot": "B10-S2" }, "expect": { "ok": true } }
+      ],
+      "expect_visible": "★ pulses, then ⬆ pulses. The Film Editor's quick panel shows the new 'what plays'. Two atomic tools, not one 'promote' — ★ and ⬆ mean different things in this film.",
+      "spec": "web/e2e/j6-picks.spec.ts"
+    },
+    {
+      "id": "J7",
+      "title": "Discovery — the tool list is the map",
+      "utterance": "What can you do in here?",
+      "expect_tools": [
+        { "name": "list_features", "args": {}, "expect": { "ok": true, "features_min": 16 } }
+      ],
+      "expect_visible": "Nothing changes on screen; the agent can now name features with the UI path for each ('Shot Editor → Generate → Still'), including palette-only ones it cannot itself execute.",
+      "spec": "web/e2e/show-me.spec.ts"
+    }
+  ],
+  "scoring": {
+    "pass": "Every tool in expect_tools was called with the key args, in order, and nothing in forbid_tools was called; the visible result matches.",
+    "partial": "Right outcome, extra or reordered read-only calls (those in allow_extra_tools are always free).",
+    "fail": "A forbidden tool ran, the wrong shot was touched, an ambiguous instruction was guessed, or the agent answered in prose without driving the UI."
+  }
+}
