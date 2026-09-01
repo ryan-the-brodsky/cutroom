@@ -1,0 +1,262 @@
+/**
+ * Cutroom agent layer — the shared contract.
+ *
+ * FROZEN AT G0 (2026-09-01). Every workstream imports from here; nobody edits this file
+ * without the architect. See docs/WEBMCP-PLAN.md §3 for the design and
+ * docs/research/webmcp-api-brief.md for the WebMCP API this targets.
+ *
+ * One registry, three surfaces: WebMCP tools (document.modelContext), the ⌘K palette,
+ * and "show me". Tools execute THROUGH the UI the human is looking at.
+ */
+
+// ---------------------------------------------------------------- budgets (Chrome guidance)
+
+export const BUDGETS = {
+  name: 30,          // tool name length; regex below
+  description: 500,  // tool description chars
+  param: 150,        // per-parameter description chars
+  output: 1500,      // serialized result chars
+} as const;
+
+export const TOOL_NAME_RE = /^[a-z][a-z0-9_]{0,29}$/;
+
+// ---------------------------------------------------------------- JSON schema (minimal)
+
+export type JSONSchema = {
+  type?: "object" | "string" | "number" | "integer" | "boolean" | "array";
+  description?: string;
+  properties?: Record<string, JSONSchema>;
+  required?: string[];
+  enum?: (string | number)[];
+  items?: JSONSchema;
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  default?: unknown;
+  additionalProperties?: boolean;
+};
+
+// ---------------------------------------------------------------- where a feature lives
+
+export type Anchor = string; // a data-action value, see ANCHORS
+
+export interface Where {
+  route: string;                        // "/p/:pid/shot/:sid" (":pid"/":sid" substituted)
+  query?: Record<string, string>;       // { tab: "generate", sub: "still" }
+  anchor?: Anchor;                      // control to pulse when we arrive
+  label: string;                        // "Shot Editor → Generate → Still"
+}
+
+// ---------------------------------------------------------------- results
+
+export type ToolOk = { ok: true; summary: string; [k: string]: unknown };
+export type ToolErr = {
+  ok: false;
+  error: string;                        // short machine-ish reason, e.g. "needs_confirmation"
+  hint?: string;                        // what the agent should do next
+  candidates?: unknown[];               // for ambiguity
+  [k: string]: unknown;
+};
+export type ToolResult = ToolOk | ToolErr;
+
+// ---------------------------------------------------------------- page handles
+
+export type ShotTab = "compose" | "generate" | "motion" | "audio" | "script";
+export type GenSub = "still" | "restyle" | "animate" | "chain";
+export type KindFilter = "all" | "stills" | "i2i" | "motion" | "fx" | "crops";
+export type GenField =
+  | "prompt" | "negative" | "seeds" | "denoise" | "frames" | "steps" | "cfg"
+  | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats";
+export type VoField = "text" | "voice" | "backend" | "futz";
+
+export interface TakeLite {
+  path: string; kind: string; created?: string; seed?: number | null;
+  duration?: number | null; job?: string | null; mock?: boolean;
+}
+
+export interface ShotPageHandles {
+  kind: "shot";
+  pid: string;
+  sid: string;
+  getState(): {
+    tab: ShotTab; sub: GenSub; kindFilter: KindFilter;
+    selected: string | null; activeSource: string | null; keeper: string | null;
+    takes: TakeLite[];
+  };
+  setTab(tab: ShotTab): void;
+  setSub(sub: GenSub): void;
+  setKindFilter(kind: KindFilter): void;
+  selectTake(path: string | null): void;
+  setGenField(sub: GenSub, field: GenField, value: unknown): void;
+  /** Same handler the ▶ button calls. Resolves with the submitted job. */
+  submitGenerate(sub: GenSub): Promise<{ job: string; pool?: string }>;
+  setLive(seconds: number): void;
+  submitFreeze(): Promise<{ job: string }>;
+  submitTrim(endSeconds: number): Promise<{ job: string }>;
+  setVoField(field: VoField, value: unknown): void;
+  submitVo(): Promise<{ job: string }>;
+  setKeeper(path: string, note?: string): Promise<void>;
+  setSource(path: string | null): Promise<void>;
+  setOverride(patch: Record<string, unknown>): Promise<void>;
+  /** Types into the Direct box and compiles; shows the PlanPreview. Never applies. */
+  direct(instruction: string): Promise<{ plan?: unknown; error?: string }>;
+  applyPlan(plan: unknown): Promise<{ results: unknown[]; note?: string }>;
+  refresh(): Promise<void>;
+}
+
+export interface FilmShotLite {
+  sid: string; ordinal: number; beat?: string; act?: number; type?: string;
+  seconds?: number; keeper?: string | null; active_source?: string | null;
+}
+
+export interface FilmPageHandles {
+  kind: "film";
+  pid: string;
+  getState(): { selected: string | null; scope: string; res: string; shots: FilmShotLite[] };
+  selectShot(sid: string | null): void;
+  setScope(scope: string): void;
+  setRes(res: "720" | "1080"): void;
+  cutFilm(): Promise<{ job: string }>;
+  setOverride(sid: string, patch: Record<string, unknown>): Promise<void>;
+  refresh(): Promise<void>;
+}
+
+export type AnyPageHandles = ShotPageHandles | FilmPageHandles;
+
+export interface PageHandles {
+  current(): AnyPageHandles | null;
+  waitFor(kind: "shot", match: { sid: string }, timeoutMs?: number): Promise<ShotPageHandles>;
+  waitFor(kind: "film", match?: Record<string, never>, timeoutMs?: number): Promise<FilmPageHandles>;
+}
+
+// ---------------------------------------------------------------- resolver
+
+export interface ResolvedShot {
+  sid: string; ordinal: number; beat: string; act: number | null; type: string;
+  seconds: number | null; summary: string; characters: string[];
+  has_keeper: boolean; has_motion: boolean; plays: string | null;
+}
+export type Confidence = "exact" | "high" | "ambiguous" | "none";
+export interface Candidate extends ResolvedShot { score: number; why: string }
+export interface Resolution { best: ResolvedShot | null; candidates: Candidate[]; confidence: Confidence }
+
+export interface ShotResolver {
+  index(pid: string, opts?: { force?: boolean }): Promise<ResolvedShot[]>;
+  resolve(pid: string, query: string): Promise<Resolution>;
+}
+
+// ---------------------------------------------------------------- trail (visible execution)
+
+export interface TrailStep {
+  id: string; t: number; tool: string; title: string;
+  anchor?: Anchor; detail?: string; job?: string;
+}
+export interface Trail {
+  /** Records a step, pulses the anchor (if any), and paces by ctx.speed. */
+  step(s: Omit<TrailStep, "id" | "t">): Promise<void>;
+  steps(): TrailStep[];
+  clear(): void;
+}
+
+// ---------------------------------------------------------------- action definition
+
+export type Speed = "watch" | "fast";
+
+export interface ActionContext {
+  signal: AbortSignal;
+  project: string | null;
+  nav(to: string): Promise<void>;                 // router navigate + await route mount
+  page: PageHandles;
+  api: <T = unknown>(path: string, body?: unknown, method?: string) => Promise<T>;
+  resolve: ShotResolver;
+  trail: Trail;
+  speed: Speed;
+}
+
+export interface ActionDef<A = Record<string, unknown>> {
+  name: string;                                   // TOOL_NAME_RE, ≤ BUDGETS.name
+  title: string;                                  // palette label
+  description: string;                            // ≤ BUDGETS.description, verb-first
+  inputSchema: JSONSchema;                        // param descriptions ≤ BUDGETS.param
+  annotations?: { readOnlyHint?: boolean; consequentialHint?: boolean; untrustedContentHint?: boolean };
+  where: Where | ((args: Partial<A>) => Where);
+  keywords?: string[];
+  howTo?: string;                                 // how a human does this by hand (1–2 sentences)
+  surfaces?: { agent?: boolean; palette?: boolean };  // default both true
+  summarize?: (args: A) => string;
+  execute(args: A, ctx: ActionContext): Promise<ToolResult>;
+}
+
+// ---------------------------------------------------------------- tool names (v1)
+
+export const TOOL_NAMES = [
+  "find_shots", "describe_shot", "get_context", "list_features", "show_me", "open_shot",
+  "generate_takes", "freeze_tail", "trim_clip", "select_take", "set_keeper",
+  "set_timeline_source", "set_shot_timing", "synthesize_vo", "direct_shot", "apply_plan",
+  "cut_film", "get_jobs", "wait_for_jobs",
+] as const;
+export type ToolName = (typeof TOOL_NAMES)[number];
+
+// ---------------------------------------------------------------- anchors (data-action values)
+
+/** Use `anchor(ANCHORS.shotTake, { path })` for parameterised anchors. */
+export const ANCHORS = {
+  // app shell
+  navProjects: "app.nav.projects", navFilm: "app.nav.film", navTimeline: "app.nav.timeline",
+  navChat: "app.nav.chat", navJobs: "app.nav.jobs", navSettings: "app.nav.settings",
+  pause: "app.pause",
+  // film editor
+  filmCut: "film.cut", filmScope: "film.scope", filmRes: "film.res",
+  filmShot: "film.shot",                       // + data-sid
+  quickSeconds: "film.quick.seconds", quickVoOffset: "film.quick.vo_offset",
+  quickMute: "film.quick.mute", quickOpen: "film.quick.open",
+  quickSource: "film.quick.source",            // + data-path
+  // shot editor
+  shotTab: "shot.tab",                         // "shot.tab.<tab>"
+  directInput: "shot.direct.input", directSubmit: "shot.direct.submit", planApply: "shot.plan.apply",
+  takesFilter: "shot.takes.filter",            // + data-kind
+  shotTake: "shot.take",                       // + data-path
+  takeKeeper: "shot.take.keeper", takeSource: "shot.take.source",
+  takeFreeze: "shot.take.freeze", takeCompose: "shot.take.compose",
+  genSub: "shot.gen.sub",                      // "shot.gen.sub.<sub>"
+  gen: "shot.gen",                             // "shot.gen.<sub>.<field|submit>"
+  genModel: "shot.gen.model",
+  motionLive: "shot.motion.live", motionFreeze: "shot.motion.freeze", motionTrim: "shot.motion.trim",
+  audioText: "shot.audio.text", audioVoice: "shot.audio.voice", audioFutz: "shot.audio.futz",
+  audioSubmit: "shot.audio.submit", audioVoOffset: "shot.audio.vo_offset", audioMute: "shot.audio.mute",
+  // timeline / settings
+  timelineRender: "timeline.render", timelineScope: "timeline.scope",
+  settingsBackend: "settings.backend",         // + data-id, then ".enable|.health|.save|.delete"
+} as const;
+
+export const shotTabAnchor = (tab: ShotTab) => `${ANCHORS.shotTab}.${tab}`;
+export const genSubAnchor = (sub: GenSub) => `${ANCHORS.genSub}.${sub}`;
+export const genFieldAnchor = (sub: GenSub, field: GenField | "submit") => `${ANCHORS.gen}.${sub}.${field}`;
+
+/** CSS selector for an anchor, optionally narrowed by a data attribute. */
+export function anchorSelector(anchor: Anchor, data?: Record<string, string>): string {
+  const extra = data ? Object.entries(data).map(([k, v]) => `[data-${k}="${CSS.escape(v)}"]`).join("") : "";
+  return `[data-action="${anchor}"]${extra}`;
+}
+
+// ---------------------------------------------------------------- helpers shared by all
+
+/** Keep any result under BUDGETS.output chars: shrink arrays first, then strings. */
+export function clip<T>(value: T, limit = BUDGETS.output): T {
+  const size = (v: unknown) => JSON.stringify(v)?.length ?? 0;
+  if (size(value) <= limit) return value;
+  const shrink = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.slice(0, Math.max(1, Math.floor(v.length / 2))).map(shrink);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, shrink(x)]));
+    if (typeof v === "string" && v.length > 200) return v.slice(0, 200) + "…";
+    return v;
+  };
+  let out: unknown = value;
+  for (let i = 0; i < 6 && size(out) > limit; i++) out = shrink(out);
+  if (size(out) > limit) out = { ok: (value as { ok?: boolean })?.ok ?? true, summary: "result truncated", truncated: true };
+  return out as T;
+}
+
+export const err = (error: string, extra: Omit<ToolErr, "ok" | "error"> = {}): ToolErr => ({ ok: false, error, ...extra });
+export const ok = (summary: string, extra: Record<string, unknown> = {}): ToolOk => ({ ok: true, summary, ...extra });
