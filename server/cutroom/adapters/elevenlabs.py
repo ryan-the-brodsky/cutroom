@@ -32,6 +32,15 @@ class ElevenLabsAdapter(Adapter):
         try:
             async with httpx.AsyncClient(timeout=20) as c:
                 r = await c.get(self.base + "/v1/user", headers=self._headers())
+            if r.status_code in (401, 403):
+                # Restricted keys (generation-only scopes) cannot read the account;
+                # probe something they can: the voice list.
+                async with httpx.AsyncClient(timeout=20) as c:
+                    v = await c.get(self.base + "/v1/voices", headers=self._headers())
+                if v.status_code == 200:
+                    return {"up": True, "tier": "restricted key",
+                            "note": "key cannot read account usage; generation works"}
+                return {"up": False, "error": f"HTTP {r.status_code} (/v1/user), HTTP {v.status_code} (/v1/voices)"}
             if r.status_code != 200:
                 return {"up": False, "error": f"HTTP {r.status_code}"}
             sub = r.json().get("subscription", {})
