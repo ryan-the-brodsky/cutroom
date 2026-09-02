@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ANCHORS, genFieldAnchor, genSubAnchor, shotTabAnchor } from "../../contract";
+import { ANCHORS, TOOL_NAMES, genFieldAnchor, genSubAnchor, shotTabAnchor } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
 import {
   FIXTURE_DETAIL, PAID_BACKEND, makeFakeContext, type FakeContext,
@@ -74,7 +74,7 @@ describe("get_context", () => {
 describe("list_features", () => {
   it("lists the registry and filters by query", async () => {
     const all = asOk(await listFeatures.execute({}, f.ctx));
-    expect(all.total).toBe(19);
+    expect(all.total).toBe(TOOL_NAMES.length);
     const one = asOk(await listFeatures.execute({ query: "freeze" }, f.ctx));
     expect((one.features as { name: string }[]).some((x) => x.name === "freeze_tail")).toBe(true);
     expect(one.total as number).toBeLessThan(19);

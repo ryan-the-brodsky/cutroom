@@ -29,11 +29,11 @@ describe("tool catalogue", () => {
     expect(TOOLS.map((t) => t.name)).toEqual([...TOOL_NAMES]);
   });
 
-  it("registers all 19 tools through registerAllTools", () => {
+  it("registers every tool through registerAllTools", () => {
     const seen: string[] = [];
     registerAllTools((d) => seen.push(d.name));
     expect(seen).toEqual([...TOOL_NAMES]);
-    expect(seen.length).toBe(19);
+    expect(seen.length).toBe(TOOL_NAMES.length);
   });
 
   it("has unique names that match the WebMCP name regex", () => {
@@ -88,9 +88,10 @@ describe("registry metadata", () => {
 
   it("marks read-only tools readOnlyHint and mutating tools consequentialHint", () => {
     const readOnly = ["find_shots", "describe_shot", "get_context", "list_features",
-      "direct_shot", "get_jobs", "wait_for_jobs"];
+      "direct_shot", "get_jobs", "wait_for_jobs", "list_cues"];
     const consequential = ["generate_takes", "freeze_tail", "trim_clip", "set_keeper",
-      "set_timeline_source", "set_shot_timing", "synthesize_vo", "apply_plan", "cut_film"];
+      "set_timeline_source", "set_shot_timing", "synthesize_vo", "apply_plan", "cut_film",
+      "generate_music", "generate_sfx", "place_cue"];
     for (const n of readOnly) {
       expect(TOOLS_BY_NAME[n].annotations?.readOnlyHint, n).toBe(true);
       expect(TOOLS_BY_NAME[n].annotations?.consequentialHint, n).toBeFalsy();
@@ -137,6 +138,10 @@ const ARGS: Record<string, Record<string, unknown>> = {
   cut_film: { scope: "act1", res: "720" },
   get_jobs: { jobs: ["job-still-1", "job-still-2"] },
   wait_for_jobs: { jobs: ["job-still-1"], timeout_s: 1 },
+  generate_music: { prompt: "slow upright bass, elegiac", seconds: 30, instrumental: true },
+  generate_sfx: { shot: "B10-S2", prompt: "a wooden bat cracking", seconds: 3 },
+  place_cue: { kind: "music", take: "audio/music/theme.mp3", start: 0, gain: -16 },
+  list_cues: {},
 };
 
 describe("outputs stay under 1.5K chars", () => {

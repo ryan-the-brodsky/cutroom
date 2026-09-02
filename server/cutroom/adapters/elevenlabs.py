@@ -76,17 +76,34 @@ class ElevenLabsAdapter(Adapter):
             url = f"{self.base}/v1/text-to-speech/{voice}"
             out_name = f"vo_{uuid.uuid4().hex[:8]}.mp3"
         elif req.lane == "sfx":
+            # /v1/sound-generation: 0.5–30 s, prompt_influence 0–1 (higher
+            # follows the words more literally, lower is more inventive).
             payload = {"text": req.prompt}
             if req.duration:
-                payload["duration_seconds"] = float(req.duration)
-            if req.params.get("influence") is not None:
-                payload["prompt_influence"] = float(req.params["influence"])
+                payload["duration_seconds"] = max(0.5, min(
+                    30.0, float(req.duration)))
+            influence = (req.params.get("influence")
+                         if req.params.get("influence") is not None
+                         else req.params.get("prompt_influence"))
+            if influence is not None:
+                payload["prompt_influence"] = max(0.0, min(1.0,
+                                                           float(influence)))
+            if req.params.get("loop"):
+                payload["loop"] = True
             url = f"{self.base}/v1/sound-generation"
             out_name = f"sfx_{uuid.uuid4().hex[:8]}.mp3"
         elif req.lane == "music":
+            # /v1/music: 10 s–5 min, billed by length. `instrumental` keeps
+            # the vocal generator out of a score that sits under dialogue.
             payload = {"prompt": req.prompt}
             if req.duration:
-                payload["music_length_ms"] = int(req.duration * 1000)
+                payload["music_length_ms"] = int(
+                    max(10.0, min(300.0, float(req.duration))) * 1000)
+            if req.params.get("instrumental"):
+                payload["force_instrumental"] = True
+            music_model = req.model or self.opt("music_model")
+            if music_model:
+                payload["model_id"] = music_model
             url = f"{self.base}/v1/music"
             out_name = f"music_{uuid.uuid4().hex[:8]}.mp3"
         else:

@@ -21,6 +21,7 @@ from ..adapters.base import BackendConfig, GenRequest
 from ..adapters.registry import ADAPTER_TYPES
 from ..config import get_settings
 from .. import budget
+from .. import cues as c_cues
 from ..db import session_scope
 from ..engine import assemble as e_asm
 from ..engine import audio as e_audio
@@ -428,23 +429,34 @@ async def gen_sfx(ctx, p: dict) -> dict:
     project = p["project"]
     store = get_storage().project(project)
     lane = p.get("lane", "sfx")
-    choice = pick_backend(project, lane, p.get("backend"))
+    choice = pick_backend(project, lane, p.get("backend"), p.get("model"))
     adapter = build_adapter(choice.cfg)
     name = _slug(p.get("name") or lane)
+    text = p.get("text") or p.get("prompt") or ""
+    if not text:
+        raise RuntimeError(f"{lane} needs `prompt` — describe the sound")
+    seconds = p.get("duration", p.get("seconds"))
+    # Flat body keys are the agent-facing spelling; params is the escape
+    # hatch. Both end up in the adapter's params dict.
+    flat = {k: p[k] for k in ("instrumental", "prompt_influence", "influence",
+                              "loop") if p.get(k) is not None}
     wd = _workdir(ctx)
     try:
-        req = GenRequest(lane=lane, workdir=wd, prompt=p["text"],
-                         duration=p.get("duration"),
-                         params={**(p.get("params") or {}),
-                                 "_project": project}, log=ctx.log)
+        req = GenRequest(lane=lane, workdir=wd, prompt=text,
+                         duration=float(seconds) if seconds else None,
+                         model=choice.model,
+                         params={**choice.params, **(p.get("params") or {}),
+                                 **flat, "_project": project}, log=ctx.log)
         res = await adapter.generate(req)
         f = res.files[0]
         rel = store.unique_rel(f"audio/{lane}/{name}{f.suffix}")
         store.copy_in(f, rel)
         record_take(project, p.get("shot"), lane, rel,
-                    backend_id=choice.cfg.id, prompt=p["text"],
-                    job_id=ctx.job_id)
-        return {"take": rel}
+                    backend_id=choice.cfg.id, model=choice.model, prompt=text,
+                    job_id=ctx.job_id,
+                    params={"seconds": seconds, **flat},
+                    meta=choice.take_meta({"lane": lane}))
+        return {"take": rel, "lane": lane}
     finally:
         _cleanup(wd)
 
@@ -661,12 +673,33 @@ async def animatic_assemble(ctx, p: dict) -> dict:
     if not entries:
         raise RuntimeError(f"no shots in scope {scope}")
 
+    # Cue sheet: the job payload wins when it names one, otherwise the
+    # project's own music_cues / sfx_cues (what the Cues API and the importer
+    # write) are mixed into the cut.
+    raw_cues = p.get("cues")
+    if raw_cues is None:
+        sheet = c_cues.read_all(project)
+        raw_cues = [{**c, "kind": kind}
+                    for kind in c_cues.KINDS for c in sheet[kind]]
     cues = []
-    for c in (p.get("cues") or []):
-        if store.exists(c["path"]):
-            cues.append(e_asm.AudioCue(path=store.resolve(c["path"]),
-                                       start=float(c["start"]),
-                                       gain_db=float(c.get("gain_db", -14))))
+    for c in (raw_cues or []):
+        rel = c_cues.cue_path(c)
+        if not rel or not store.exists(rel):
+            if rel:
+                ctx.log(f"[warn] cue file missing, skipped: {rel}")
+            continue
+        kind = c.get("kind") or ("music" if "/music/" in rel else "sfx")
+        cues.append(e_asm.AudioCue(
+            path=store.resolve(rel),
+            start=float(c.get("start") or 0.0),
+            gain_db=float(c["gain_db"]) if c.get("gain_db") is not None
+            else c_cues.cue_gain_db(c, kind),
+            duration=c_cues.cue_duration(c),
+            shot=c_cues.cue_anchor(c) if c.get("start") is None else None,
+            offset=float(c.get("offset") or 0.0),
+            fade_in=float(c.get("fade_in") or 0.0),
+            fade_out=float(c.get("fade_out") or 0.0),
+            loop=bool(c.get("loop"))))
     out_rel = store.unique_rel(f"assembly/animatic-{scope}-{res}p.mp4")
     info = await asyncio.to_thread(
         e_asm.build_animatic, entries, store.resolve(out_rel), dims, 24, 0.3,
@@ -674,8 +707,9 @@ async def animatic_assemble(ctx, p: dict) -> dict:
     record_take(project, None, "animatic", out_rel,
                 params={"scope": scope, "res": res}, job_id=ctx.job_id,
                 meta={"total": info["total"], "shots": info["shots"]})
-    return {"take": out_rel, **{k: info[k] for k in
-                                ("total", "shots", "audio_items", "edl")}}
+    return {"take": out_rel, "cues": len(cues),
+            **{k: info[k] for k in
+               ("total", "shots", "audio_items", "edl")}}
 
 
 # ===================================================================== import

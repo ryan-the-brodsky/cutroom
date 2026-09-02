@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, mediaUrl, thumbUrl } from "../api";
-import { ANCHORS, type FilmShotLite } from "../agent/contract";
+import {
+  ANCHORS,
+  type CuePlacement, type CueRecord, type FilmShotLite,
+} from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
 import { pick, useQueryState } from "../agent/urlState";
 import Player from "../components/Player";
@@ -26,6 +29,9 @@ export default function FilmEditorPage() {
     usePoll<FilmEntry[]>(`/api/projects/${pid}/film`, 12000);
   const { data: animatics, refresh: refreshCuts } =
     usePoll<Take[]>(`/api/projects/${pid}/takes?kind=animatic&limit=10`, 0);
+  const { data: cueSheet, refresh: refreshCues } =
+    usePoll<{ music: CueRecord[]; sfx: CueRecord[] }>(
+      `/api/projects/${pid}/cues`, 0);
   const [q, setQ] = useQueryState();
   const sel = q.get("sel");
   const view = pick(q, "view", VIEWS, "board");
@@ -61,6 +67,23 @@ export default function FilmEditorPage() {
     return d;
   };
 
+  /** The whole cue sheet, music then SFX, in film order. */
+  const cues: CueRecord[] = useMemo(() => {
+    const rows = [...(cueSheet?.music || []), ...(cueSheet?.sfx || [])];
+    return rows.sort((a, b) => (a.at ?? 1e9) - (b.at ?? 1e9));
+  }, [cueSheet]);
+
+  const addCue = async (c: CuePlacement): Promise<CueRecord> => {
+    const d = await api<{ cue: CueRecord; at: number | null }>(
+      `/api/projects/${pid}/cues`, c);
+    refreshCues();
+    return { ...d.cue, at: d.at };
+  };
+  const removeCue = async (id: string) => {
+    await api(`/api/projects/${pid}/cues/${id}/delete`, {});
+    refreshCues();
+  };
+
   const shotsLite: FilmShotLite[] = useMemo(() => (film || []).map((s, i) => ({
     sid: s.sid, ordinal: i + 1, beat: s.beat, act: s.act, type: s.type,
     seconds: s.seconds, keeper: s.keeper ?? null, active_source: s.active_source ?? null,
@@ -68,13 +91,15 @@ export default function FilmEditorPage() {
 
   usePageHandles({
     kind: "film", pid,
-    getState: () => ({ selected: sel, scope, res, shots: shotsLite }),
+    getState: () => ({ selected: sel, scope, res, shots: shotsLite, cues }),
     selectShot: setSel,
     setScope,
     setRes,
     cutFilm,
     setOverride,
-    refresh: async () => { refresh(); refreshCuts(); },
+    addCue,
+    removeCue,
+    refresh: async () => { refresh(); refreshCuts(); refreshCues(); },
   });
 
   return (
@@ -271,6 +296,36 @@ export default function FilmEditorPage() {
         ))}
         {(animatics || []).length === 0 && (
           <div className="muted">no cuts yet — press “cut the film”</div>)}
+      </div>
+
+      {/* --------------------------------------------------- cue strip */}
+      <h3>Cues <span className="muted small">— the audio bed the cut mixes
+        in; gain is dB, 0 is unity</span></h3>
+      <div className="col" data-action={ANCHORS.filmCues}>
+        {cues.map((c) => (
+          <div className="row" key={c.id}
+               style={{ borderBottom: "1px solid var(--line)", padding: "2px 0" }}>
+            <code className="small" style={{ width: 56, textAlign: "right" }}>
+              {c.at == null ? "—" : `${Math.floor(c.at / 60)}:${
+                String(Math.floor(c.at % 60)).padStart(2, "0")}`}</code>
+            <span className="badge cel">{c.kind}</span>
+            <code className="small" style={{ flex: 1 }}>
+              {c.path.split("/").pop()}</code>
+            {c.shot && (
+              <button className="small" title="the shot this cue rides"
+                data-action={ANCHORS.filmShot} data-sid={c.shot}
+                onClick={() => setSel(c.shot!)}>{c.shot}</button>)}
+            <span className="muted small">
+              {c.duration ? `${c.duration}s · ` : ""}{c.gain}dB
+              {c.exists === false ? " · missing" : ""}</span>
+            <button className="small" title="remove this cue"
+              data-action={ANCHORS.filmCueRemove} data-id={c.id}
+              onClick={() => fire(removeCue(c.id))}>✕</button>
+          </div>
+        ))}
+        {cues.length === 0 && (
+          <div className="muted">no cues — score a stretch from any shot’s
+            Audio tab, or ask the agent for music</div>)}
       </div>
     </div>
   );

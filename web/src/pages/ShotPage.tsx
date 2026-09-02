@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, thumbUrl } from "../api";
 import {
   ANCHORS, genFieldAnchor, genSubAnchor, shotTabAnchor,
+  type CueField, type CueKind, type CuePlacement, type CueRecord,
   type GenField, type GenSub, type KindFilter, type ShotTab, type TakeLite, type VoField,
 } from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
@@ -60,6 +61,14 @@ export default function ShotPage() {
     freeze_after: "", region: null as number[] | null, fullFrame: false,
     voice: "", text: "", futz: false, beats:
       '[{"prompt": "", "live": 1.0, "breath": 0.4}]' });
+  // The Music & SFX console (Audio tab). Kept apart from `gen` so a VO
+  // backend pick can't leak into a music submission.
+  const [cue, setCue] = useState<any>({
+    music: { prompt: "", seconds: 30, instrumental: true, gain: -16 },
+    sfx: { prompt: "", seconds: 3, influence: "", gain: -8 } });
+  const { data: cueSheet, refresh: refreshCues } =
+    usePoll<{ music: CueRecord[]; sfx: CueRecord[] }>(
+      `/api/projects/${pid}/cues`, 0);
 
   const selected = sel || shot?.active_source || null;
   const plate = shot?.keeper || shot?.stills[0] || null;
@@ -145,6 +154,33 @@ export default function ShotPage() {
     text: gen.text || shot?.radio, voice: gen.voice || undefined,
     backend: gen.backend || undefined, futz: gen.futz, name: `${sid}_call` });
 
+  // --- music & SFX: generate, then place what came back as a cue ---------
+  const submitMusic = () => submitGen("music", {
+    prompt: cue.music.prompt, seconds: Number(cue.music.seconds) || 30,
+    instrumental: !!cue.music.instrumental,
+    backend: gen.backend || undefined, name: `${sid}-music` });
+  const submitSfx = () => submitGen("sfx", {
+    prompt: cue.sfx.prompt, seconds: Number(cue.sfx.seconds) || 3,
+    prompt_influence: cue.sfx.influence === "" ? undefined
+      : Number(cue.sfx.influence),
+    backend: gen.backend || undefined, name: `${sid}-sfx` });
+
+  const addCue = async (c: CuePlacement): Promise<CueRecord> => {
+    const d = await api<{ cue: CueRecord; at: number | null }>(
+      `/api/projects/${pid}/cues`, c);
+    refreshCues();
+    return { ...d.cue, at: d.at };
+  };
+  const removeCue = async (id: string) => {
+    await api(`/api/projects/${pid}/cues/${id}/delete`, {});
+    refreshCues();
+  };
+  /** The cues that fire on THIS shot — what the audio tab lists. */
+  const shotCues: CueRecord[] = useMemo(() => {
+    const rows = [...(cueSheet?.music || []), ...(cueSheet?.sfx || [])];
+    return rows.filter((c) => c.shot === sid);
+  }, [cueSheet, sid]);
+
   const setOverride = (patch: Record<string, unknown>) =>
     api(`/api/projects/${pid}/shots/${sid}/override`, patch).then(() => refresh());
   const setKeeperPath = (path: string, note?: string) =>
@@ -204,12 +240,18 @@ export default function ShotPage() {
     setVoField: (field: VoField, value: unknown) =>
       setGen((g: any) => ({ ...g, [field]: value })),
     submitVo: () => submitVo(),
+    setCueField: (kind: CueKind, field: CueField, value: unknown) =>
+      setCue((c: any) => ({ ...c, [kind]: { ...c[kind], [field]: value } })),
+    submitMusic: () => submitMusic(),
+    submitSfx: () => submitSfx(),
+    addCue,
+    removeCue,
     setKeeper: (path: string, note?: string) => setKeeperPath(path, note),
     setSource: (path: string | null) => setOverride({ source: path }),
     setOverride,
     direct: directHandle,
     applyPlan: applyPlanHandle,
-    refresh: async () => { refresh(); },
+    refresh: async () => { refresh(); refreshCues(); },
   });
 
   if (!shot) return <div className="muted">loading…</div>;
@@ -572,6 +614,77 @@ export default function ShotPage() {
                   use in timeline</button>
               </div>
             ))}
+
+            {/* ------------------------------------------ music & SFX */}
+            <hr style={{ width: "100%", borderColor: "var(--line)",
+                         opacity: 0.4 }} />
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <b>Music &amp; SFX</b>
+              <span className="muted small">generated audio is placed as a
+                cue — music at this shot, SFX pinned to it</span>
+            </div>
+            <label className="field">music
+              <textarea rows={2} placeholder="slow upright bass and brushed snare, elegiac"
+                        data-action={ANCHORS.musicPrompt}
+                        value={cue.music.prompt}
+                        onChange={(e) => setCue({ ...cue,
+                          music: { ...cue.music, prompt: e.target.value } })} />
+            </label>
+            <div className="row">
+              <label className="field">seconds
+                <input type="number" min={5} max={120} step={5} style={{ width: 76 }}
+                       data-action={ANCHORS.musicSeconds}
+                       value={cue.music.seconds}
+                       onChange={(e) => setCue({ ...cue,
+                         music: { ...cue.music, seconds: e.target.value } })} /></label>
+              <label className="field">instrumental
+                <input type="checkbox" data-action={ANCHORS.musicInstrumental}
+                       title="no vocals — the right default under dialogue"
+                       checked={!!cue.music.instrumental}
+                       onChange={(e) => setCue({ ...cue,
+                         music: { ...cue.music, instrumental: e.target.checked } })} /></label>
+              <button className="primary" disabled={busy || !cue.music.prompt}
+                data-action={ANCHORS.musicSubmit}
+                onClick={() => fire(submitMusic())}>▶ music</button>
+            </div>
+            <label className="field">sfx
+              <textarea rows={2} placeholder="chalk scraping on brick, close, dry room"
+                        data-action={ANCHORS.sfxPrompt}
+                        value={cue.sfx.prompt}
+                        onChange={(e) => setCue({ ...cue,
+                          sfx: { ...cue.sfx, prompt: e.target.value } })} />
+            </label>
+            <div className="row">
+              <label className="field">seconds
+                <input type="number" min={1} max={10} step={0.5} style={{ width: 76 }}
+                       data-action={ANCHORS.sfxSeconds}
+                       value={cue.sfx.seconds}
+                       onChange={(e) => setCue({ ...cue,
+                         sfx: { ...cue.sfx, seconds: e.target.value } })} /></label>
+              <button className="primary" disabled={busy || !cue.sfx.prompt}
+                data-action={ANCHORS.sfxSubmit}
+                onClick={() => fire(submitSfx())}>▶ sfx</button>
+            </div>
+            <div className="col" data-action={ANCHORS.shotCues}>
+              <div className="muted small">cues on {sid} — gain is dB, 0 is
+                unity:</div>
+              {shotCues.map((c) => (
+                <div className="row" key={c.id}>
+                  <span className="badge cel">{c.kind}</span>
+                  <button className="small" onClick={() => setSel(c.path)}>▶</button>
+                  <code className="small" style={{ flex: 1 }}>
+                    {c.path.split("/").pop()}</code>
+                  <span className="muted small">
+                    +{c.offset || 0}s · {c.gain}dB
+                    {c.exists === false ? " · missing" : ""}</span>
+                  <button className="small" title="remove this cue"
+                    data-action={ANCHORS.shotCueRemove} data-id={c.id}
+                    onClick={() => fire(removeCue(c.id))}>✕</button>
+                </div>
+              ))}
+              {shotCues.length === 0 && (
+                <div className="muted small">none yet</div>)}
+            </div>
           </div>}
 
           {tab === "script" && <div className="col small">

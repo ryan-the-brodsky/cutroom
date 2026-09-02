@@ -297,9 +297,16 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 17 | `cut_film` | consequential | `scope` enum full/act1..4, `res` enum 720/1080 | Film Editor → Cut the film | job; on settle: animatic path + duration |
 | 18 | `get_jobs` | readOnly | `jobs?` (ids) | none | status, log tail, result paths |
 | 19 | `wait_for_jobs` | readOnly | `jobs`, `timeout_s` ≤60 | none (progress visible in topbar/Jobs) | statuses, take paths |
+| 20 | `generate_music` | consequential | `prompt`, `seconds?` (5–120, default 30), `instrumental?`, `shot?`, `start?`, `gain?` (dB), `fade_in?`, `fade_out?`, `place?`, `backend?`, `confirm_cost?` | Shot Editor → Audio → Music & SFX; fills the music console; ▶ music; then the cue lands on the shot's cue list and the Film Editor cue strip | job, take, backend, cost_class, the placed cue (id, film time, gain) |
+| 21 | `generate_sfx` | consequential | `shot`, `prompt`, `seconds?` (1–10, default 3), `offset?`, `gain?` (dB), `prompt_influence?`, `place?`, `backend?`, `confirm_cost?` | Shot Editor → Audio → Music & SFX; ▶ sfx; cue pinned to the shot | job, take, the placed cue |
+| 22 | `place_cue` | consequential | `kind?` (inferred from the path), `take`\|`path`, `shot`\|`start`, `offset?`, `duration?`, `gain?`, `fade_in?`, `fade_out?`, `loop?`, `label?` | Film Editor → cue strip | the cue with its id and resolved film time |
+| 23 | `list_cues` | readOnly | `kind?`, `scope?` | none | the cue sheet: film time, file, shot, gain in dB, length; ids for removal |
 
 (19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
-"16" was the working count — the number is not load-bearing. Stay under ~25 for v1.)
+"16" was the working count — the number is not load-bearing. Stay under ~25 for v1.
+Rows 20–23 are workstream H's music/SFX set, appended 2026-09-01 — 23 tools total.
+Gain is decibels in every cue argument; cues live in `settings.music_cues` /
+`sfx_cues` and the assembler mixes them into the cut. See docs/BACKENDS.md.)
 
 **Descriptions** are written by workstream C to the budgets, in the verb-first house style,
 e.g. `generate_takes`: "Generate new takes for a shot in Cutroom — stills, restyles of an

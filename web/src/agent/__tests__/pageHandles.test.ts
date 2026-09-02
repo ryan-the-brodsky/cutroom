@@ -16,6 +16,11 @@ const shot = (sid: string): ShotPageHandles => ({
   submitTrim: async () => ({ job: "j3" }),
   setVoField: () => {},
   submitVo: async () => ({ job: "j4" }),
+  setCueField: () => {},
+  submitMusic: async () => ({ job: "j5" }),
+  submitSfx: async () => ({ job: "j6" }),
+  addCue: async (c) => ({ ...c, id: "cue_1", at: 0 }),
+  removeCue: async () => {},
   setKeeper: async () => {}, setSource: async () => {}, setOverride: async () => {},
   direct: async () => ({}), applyPlan: async () => ({ results: [] }),
   refresh: async () => {},
@@ -23,10 +28,13 @@ const shot = (sid: string): ShotPageHandles => ({
 
 const film = (): FilmPageHandles => ({
   kind: "film", pid: "next-year",
-  getState: () => ({ selected: null, scope: "full", res: "720", shots: [] }),
+  getState: () => ({ selected: null, scope: "full", res: "720", shots: [], cues: [] }),
   selectShot: () => {}, setScope: () => {}, setRes: () => {},
   cutFilm: async () => ({ job: "c1" }),
-  setOverride: async () => {}, refresh: async () => {},
+  setOverride: async () => {},
+  addCue: async (c) => ({ ...c, id: "cue_1", at: 0 }),
+  removeCue: async () => {},
+  refresh: async () => {},
 });
 
 describe("pageHandles", () => {

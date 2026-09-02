@@ -16,6 +16,7 @@ import { describeShot, findShots, getContext, listFeatures } from "./find";
 import { generateTakes } from "./generate";
 import { getJobs, waitForJobs } from "./jobs";
 import { freezeTail, trimClip } from "./motion";
+import { generateMusic, generateSfx, listCues, placeCue } from "./music";
 import { openShot, showMe } from "./navigate";
 import { selectTake, setKeeper, setTimelineSource } from "./picks";
 import { setShotTiming } from "./timing";
@@ -48,6 +49,10 @@ export const TOOLS: AnyActionDef[] = [
   cutFilm,
   getJobs,
   waitForJobs,
+  generateMusic,
+  generateSfx,
+  placeCue,
+  listCues,
 ];
 
 /** list_features / show_me read the catalogue through deps, so A can widen it. */
@@ -86,3 +91,4 @@ export { synthesizeVo } from "./audio";
 export { directShot, applyPlan } from "./direct";
 export { cutFilm } from "./film";
 export { getJobs, waitForJobs } from "./jobs";
+export { generateMusic, generateSfx, placeCue, listCues } from "./music";

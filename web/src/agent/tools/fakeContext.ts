@@ -7,7 +7,8 @@
  * against the frozen contract — which is the whole point.
  */
 import type {
-  ActionContext, AnyPageHandles, Candidate, Confidence, FilmPageHandles,
+  ActionContext, AnyPageHandles, Candidate, Confidence, CueField, CueKind,
+  CuePlacement, CueRecord, FilmPageHandles,
   FilmShotLite, GenField, GenSub, KindFilter, ResolvedShot, Resolution,
   ShotPageHandles, ShotTab, TakeLite, TrailStep, VoField,
 } from "../contract";
@@ -94,6 +95,52 @@ export interface FakeRecord {
   calls: (prefix?: string) => string[];
 }
 
+// ---------------------------------------------------------------- cue store
+
+/**
+ * The cue sheet both fake pages share, standing in for
+ * `POST /api/projects/{pid}/cues`. `at` is resolved the way the server does:
+ * a shot anchor becomes that shot's start (4s per fixture shot, in order).
+ */
+export class FakeCueStore {
+  rows: CueRecord[] = [];
+  private seq = 0;
+
+  starts(): Record<string, number> {
+    let t = 0;
+    const out: Record<string, number> = {};
+    for (const s of Object.values(FIXTURE_SHOTS).sort((a, b) => a.ordinal - b.ordinal)) {
+      out[s.sid] = t;
+      t += s.seconds ?? 4;
+    }
+    return out;
+  }
+
+  add(cue: CuePlacement): CueRecord {
+    const starts = this.starts();
+    const base = cue.shot ? starts[cue.shot] : (cue.start ?? 0);
+    const row: CueRecord = {
+      ...cue,
+      id: `cue_fake${++this.seq}`,
+      at: base === undefined ? null : base + (cue.offset ?? 0),
+      exists: true,
+    };
+    this.rows.push(row);
+    return row;
+  }
+
+  remove(id: string): void {
+    this.rows = this.rows.filter((r) => r.id !== id);
+  }
+
+  sheet(): { music: CueRecord[]; sfx: CueRecord[] } {
+    return {
+      music: this.rows.filter((r) => r.kind === "music"),
+      sfx: this.rows.filter((r) => r.kind === "sfx"),
+    };
+  }
+}
+
 // ---------------------------------------------------------------- page fakes
 
 export class FakeShotPage implements ShotPageHandles {
@@ -113,7 +160,8 @@ export class FakeShotPage implements ShotPageHandles {
   applyResult: { results: unknown[]; note?: string } =
     { results: [{ op: "freeze_tail", job: "job-apply-1" }], note: "applied" };
 
-  constructor(public pid: string, public sid: string, private rec: string[]) {}
+  constructor(public pid: string, public sid: string, private rec: string[],
+              private cues: FakeCueStore = new FakeCueStore()) {}
 
   private log(s: string) { this.rec.push(s); }
 
@@ -162,6 +210,33 @@ export class FakeShotPage implements ShotPageHandles {
     if (this.failSubmit) throw new Error(this.failSubmit);
     return { job: `job-vo-${++this.jobSeq}` };
   }
+  cue: Record<string, unknown> = {};
+  setCueField(kind: CueKind, field: CueField, value: unknown) {
+    this.cue[`${kind}.${field}`] = value;
+    this.log(`setCueField(${kind},${field},${JSON.stringify(value)})`);
+  }
+  async submitMusic() {
+    this.log("submitMusic()");
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-music-${++this.jobSeq}` };
+  }
+  async submitSfx() {
+    this.log("submitSfx()");
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-sfx-${++this.jobSeq}` };
+  }
+  async addCue(cue: CuePlacement) {
+    this.log(`addCue(${cue.kind},${cue.shot ?? cue.start ?? 0})`);
+    if (this.failCue) throw new Error(this.failCue);
+    return this.cues.add(cue);
+  }
+  async removeCue(id: string) {
+    this.log(`removeCue(${id})`);
+    this.cues.remove(id);
+  }
+  /** Set to a message to make the next addCue throw. */
+  failCue: string | null = null;
+
   async setKeeper(path: string, note?: string) {
     this.log(`setKeeper(${path}${note ? `,${note}` : ""})`);
   }
@@ -188,8 +263,11 @@ export class FakeFilmPage implements FilmPageHandles {
   jobSeq = 0;
   failCut: string | null = null;
 
-  constructor(public pid: string, private rec: string[]) {}
+  constructor(public pid: string, private rec: string[],
+              private cues: FakeCueStore = new FakeCueStore()) {}
   private log(s: string) { this.rec.push(s); }
+  /** Set to a message to make the next addCue throw. */
+  failCue: string | null = null;
 
   getState() {
     const shots: FilmShotLite[] = Object.values(FIXTURE_SHOTS).map((s) => ({
@@ -198,7 +276,17 @@ export class FakeFilmPage implements FilmPageHandles {
       keeper: s.has_keeper ? "renders/keeper.png" : null,
       active_source: s.plays,
     }));
-    return { selected: this.selected, scope: this.scope, res: this.res, shots };
+    return { selected: this.selected, scope: this.scope, res: this.res, shots,
+             cues: this.cues.rows };
+  }
+  async addCue(cue: CuePlacement) {
+    this.log(`addCue(${cue.kind},${cue.shot ?? cue.start ?? 0})`);
+    if (this.failCue) throw new Error(this.failCue);
+    return this.cues.add(cue);
+  }
+  async removeCue(id: string) {
+    this.log(`removeCue(${id})`);
+    this.cues.remove(id);
   }
   selectShot(sid: string | null) { this.selected = sid; this.log(`selectShot(${sid})`); }
   setScope(scope: string) { this.scope = scope; this.log(`setScope(${scope})`); }
@@ -277,6 +365,8 @@ function defaultApi(path: string): unknown {
       i2i: [{ id: "mock", type: "mock", enabled: true }],
       motion: [{ id: "mock", type: "mock", enabled: true }],
       vo: [{ id: "mock", type: "mock", enabled: true }],
+      sfx: [{ id: "mock", type: "mock", enabled: true }],
+      music: [{ id: "mock", type: "mock", enabled: true }],
     };
   }
   if (/\/api\/projects\/[^/]+\/lanes$/.test(path)) {
@@ -296,6 +386,8 @@ export interface FakeOptions {
   resolve?: (query: string) => Resolution;
   /** Make waitFor reject, to exercise the page_did_not_mount envelope. */
   failWaitFor?: boolean;
+  /** Share a cue store across contexts, or pre-seed one. */
+  cues?: FakeCueStore;
   settle?: SettledJob[] | ((ids: string[]) => SettledJob[]);
   backend?: BackendChoice;
 }
@@ -305,6 +397,7 @@ export interface FakeContext {
   rec: FakeRecord;
   shotPage: FakeShotPage;
   filmPage: FakeFilmPage;
+  cues: FakeCueStore;
   /** Restore the real deps after a test that installed fakes. */
   restore(): void;
 }
@@ -318,12 +411,16 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     calls: (prefix) => (prefix ? pageCalls.filter((c) => c.startsWith(prefix)) : pageCalls),
   };
 
-  const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls);
-  const filmPage = new FakeFilmPage(project || "next-year", pageCalls);
+  const cues = opts.cues ?? new FakeCueStore();
+  const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls, cues);
+  const filmPage = new FakeFilmPage(project || "next-year", pageCalls, cues);
   let current: AnyPageHandles | null = opts.page ?? null;
 
   const api = <T,>(path: string, body?: unknown, method?: string): Promise<T> => {
     rec.api.push({ path, body, method });
+    if (/\/api\/projects\/[^/]+\/cues(\?|$)/.test(path)) {
+      return Promise.resolve(cues.sheet() as T);
+    }
     try {
       if (typeof opts.api === "function") return Promise.resolve(opts.api(path, body) as T);
       if (opts.api && path in opts.api) return Promise.resolve(opts.api[path] as T);
@@ -389,7 +486,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
 
   installDeps({ settleJobs: settle, classifyBackend: classify });
 
-  return { ctx, rec, shotPage, filmPage, restore: resetDeps };
+  return { ctx, rec, shotPage, filmPage, cues, restore: resetDeps };
 }
 
 /** A paid-backend classifier, for the needs_confirmation paths. */

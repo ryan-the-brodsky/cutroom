@@ -70,6 +70,37 @@ export type GenField =
   | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats";
 export type VoField = "text" | "voice" | "backend" | "futz";
 
+// ---------------------------------------------------------------- cues (music & SFX)
+
+export type CueKind = "music" | "sfx";
+/** Fields of the Audio tab's "Music & SFX" console. */
+export type CueField = "prompt" | "seconds" | "instrumental" | "influence" | "gain";
+
+/**
+ * A cue placed on the film's audio bed. Anchor it absolutely (`start`, film
+ * seconds) or to a shot (`shot`, which follows the shot when timing changes).
+ * `gain` is DECIBELS: 0 is unity, negative rides under the VO.
+ */
+export interface CuePlacement {
+  kind: CueKind;
+  path: string;                       // project-relative, e.g. audio/music/theme.mp3
+  start?: number;                     // absolute film seconds
+  shot?: string;                      // sid anchor (wins over start)
+  offset?: number;                    // seconds added to the anchor
+  duration?: number;
+  gain?: number;                      // dB
+  fade_in?: number;
+  fade_out?: number;
+  loop?: boolean;
+  label?: string;
+}
+
+export interface CueRecord extends CuePlacement {
+  id: string;
+  at?: number | null;                 // resolved film seconds (null = out of scope)
+  exists?: boolean;
+}
+
 export interface TakeLite {
   path: string; kind: string; created?: string; seed?: number | null;
   duration?: number | null; job?: string | null; mock?: boolean;
@@ -96,6 +127,13 @@ export interface ShotPageHandles {
   submitTrim(endSeconds: number): Promise<{ job: string }>;
   setVoField(field: VoField, value: unknown): void;
   submitVo(): Promise<{ job: string }>;
+  /** The Music & SFX console: same fields the two ▶ buttons read. */
+  setCueField(kind: CueKind, field: CueField, value: unknown): void;
+  submitMusic(): Promise<{ job: string }>;
+  submitSfx(): Promise<{ job: string }>;
+  /** Place a cue on the film (the shot's cue list), and remove one by id. */
+  addCue(cue: CuePlacement): Promise<CueRecord>;
+  removeCue(id: string): Promise<void>;
   setKeeper(path: string, note?: string): Promise<void>;
   setSource(path: string | null): Promise<void>;
   setOverride(patch: Record<string, unknown>): Promise<void>;
@@ -113,12 +151,17 @@ export interface FilmShotLite {
 export interface FilmPageHandles {
   kind: "film";
   pid: string;
-  getState(): { selected: string | null; scope: string; res: string; shots: FilmShotLite[] };
+  getState(): {
+    selected: string | null; scope: string; res: string;
+    shots: FilmShotLite[]; cues: CueRecord[];
+  };
   selectShot(sid: string | null): void;
   setScope(scope: string): void;
   setRes(res: "720" | "1080"): void;
   cutFilm(): Promise<{ job: string }>;
   setOverride(sid: string, patch: Record<string, unknown>): Promise<void>;
+  addCue(cue: CuePlacement): Promise<CueRecord>;
+  removeCue(id: string): Promise<void>;
   refresh(): Promise<void>;
 }
 
@@ -195,6 +238,8 @@ export const TOOL_NAMES = [
   "generate_takes", "freeze_tail", "trim_clip", "select_take", "set_keeper",
   "set_timeline_source", "set_shot_timing", "synthesize_vo", "direct_shot", "apply_plan",
   "cut_film", "get_jobs", "wait_for_jobs",
+  // workstream H — music & SFX (appended; never renumber the rows above)
+  "generate_music", "generate_sfx", "place_cue", "list_cues",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -225,6 +270,14 @@ export const ANCHORS = {
   motionLive: "shot.motion.live", motionFreeze: "shot.motion.freeze", motionTrim: "shot.motion.trim",
   audioText: "shot.audio.text", audioVoice: "shot.audio.voice", audioFutz: "shot.audio.futz",
   audioSubmit: "shot.audio.submit", audioVoOffset: "shot.audio.vo_offset", audioMute: "shot.audio.mute",
+  // music & SFX (the Audio tab's second section)
+  musicPrompt: "shot.audio.music.prompt", musicSeconds: "shot.audio.music.seconds",
+  musicInstrumental: "shot.audio.music.instrumental", musicSubmit: "shot.audio.music.submit",
+  sfxPrompt: "shot.audio.sfx.prompt", sfxSeconds: "shot.audio.sfx.seconds",
+  sfxSubmit: "shot.audio.sfx.submit",
+  shotCues: "shot.audio.cues", shotCueRemove: "shot.audio.cues.remove",
+  // film cue strip (under the Cuts gallery)
+  filmCues: "film.cues", filmCueRemove: "film.cues.remove",
   // timeline / settings
   timelineRender: "timeline.render", timelineScope: "timeline.scope",
   settingsBackend: "settings.backend",         // + data-id, then ".enable|.health|.save|.delete"

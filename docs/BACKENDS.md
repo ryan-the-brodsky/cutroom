@@ -62,6 +62,65 @@ Per-line direction: `stability`, `style`, `similarity`, `speed`, `seed` in
 request params. `futz: true` on a vo generation chains the radio-futz
 (bandpass 300–3400Hz + grit + static bed — the film's audio geography).
 
+### Music & SFX
+
+The same backend serves two more lanes, both through `gen.sfx`:
+
+```bash
+POST /api/projects/<p>/generate/music   {"prompt", "seconds", "instrumental"}
+POST /api/projects/<p>/generate/sfx     {"shot", "prompt", "seconds",
+                                         "prompt_influence"}
+```
+
+`music` → `/v1/music` (`music_length_ms`; `instrumental: true` sends
+`force_instrumental`, the right default under dialogue; the model's floor is
+10 s and its ceiling 5 min, and the adapter clamps to that). `sfx` →
+`/v1/sound-generation` (`duration_seconds` 0.5–30, `prompt_influence` 0–1 —
+higher follows the words literally, lower is more inventive). Takes land as
+kind `music` / `sfx` under `audio/music/` and `audio/sfx/`. Lane defaults
+follow the usual precedence (explicit `backend` > project `LaneConfig` >
+first enabled backend serving the lane), so `CUTROOM_LANE_MUSIC=elevenlabs`
+and `CUTROOM_LANE_SFX=elevenlabs` pin them on a hosted instance.
+
+Note: a **restricted** ElevenLabs key can generate while `/v1/user` 401s, so
+the Settings health probe reads "down" on a key that works. Judge the lane by
+a generation, not by the health dot.
+
+### Cues — the film's audio bed
+
+Audio only reaches the cut through the **cue sheet**, stored on the project as
+`settings.music_cues` / `settings.sfx_cues` (the same two keys the game7
+importer writes from `audio/*-cues.jsonl`). The assembler mixes it; the
+timeline compiler puts it on the MUSIC / SFX tracks.
+
+```bash
+GET  /api/projects/<p>/cues[?scope=act2]   → {music:[…], sfx:[…]}
+POST /api/projects/<p>/cues                → the stored cue + its id
+POST /api/projects/<p>/cues/<id>/delete
+```
+
+A cue record:
+
+```jsonc
+{"id": "cue_a1b2c3d4", "kind": "music",       // or "sfx"
+ "path": "audio/music/opening.mp3",           // project-relative
+ "start": 12.5,                               // absolute film seconds, OR
+ "shot": "B10-S2",                            // ride that shot's start
+ "offset": 0.3,                               // added to whichever anchor won
+ "duration": 20, "gain": -16,                 // GAIN IS DECIBELS
+ "fade_in": 0.5, "fade_out": 1.5, "loop": false, "label": "main theme"}
+```
+
+**Gain is always dB** — `0` is unity (as loud as the file), negative rides
+under the VO. Defaults: music `-16` (a bed), SFX `-8` (an accent). The
+importer's free-text `gain-hint` ("-16dB under narration") is parsed for its
+number. A shot-anchored cue is resolved against the *finished* EDL, so it
+moves with its shot when audio-fit stretches the picture; a cue whose shot is
+outside an `actN` cut is skipped with a warning, never a failure. `loop`
+requires a `duration` to fill. These endpoints are **not** admin-gated — a
+demo viewer (or an agent driving the page for them) can place cues, because
+it only writes JSON and costs nothing.
+
 ## openai-images / openrouter-image  (lanes: still / still+i2i)
 
 The two adapters the old dashboard had, generalized. `openrouter-image`
