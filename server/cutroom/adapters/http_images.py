@@ -75,6 +75,13 @@ class OpenRouterImageAdapter(Adapter):
         payload = {"model": model,
                    "messages": [{"role": "user", "content": content}],
                    "modalities": ["image", "text"]}
+        # Film frames are widescreen: ask for it (OpenRouter forwards image_config to
+        # Gemini-class models; verified 2026-09-01 → 1344x768 for "16:9"). Per-request
+        # params win, then the backend option, then 16:9.
+        aspect = (getattr(req, "params", None) or {}).get("aspect_ratio") \
+            or self.opt("aspect_ratio", default="16:9")
+        if aspect:
+            payload["image_config"] = {"aspect_ratio": str(aspect)}
         async with httpx.AsyncClient(timeout=300) as c:
             r = await c.post(base + "/chat/completions", json=payload,
                              headers={"Authorization": f"Bearer {self.cfg.api_key}"})
