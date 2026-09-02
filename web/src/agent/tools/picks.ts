@@ -117,7 +117,10 @@ export const setKeeper: ActionDef<KeeperArgs> = {
     try { detail = await fetchShot(ctx, pid, shot.sid); }
     catch (e) { return asError(e, "shot_fetch_failed", "Could not read the shot"); }
 
-    const hit = await pickTake(ctx, pid, detail, args?.take, { prefer: "image" });
+    // "Defaults to the selected take": honour the monitor selection when this shot is open.
+    const cur = ctx.page.current();
+    const curSel = cur && cur.kind === "shot" && cur.sid === shot.sid ? safeState(cur).selected : null;
+    const hit = await pickTake(ctx, pid, detail, args?.take, { prefer: "image", selected: curSel });
     if (!hit) {
       return err("take_not_found", {
         hint: `No still on ${shot.sid} matches “${cut(args?.take ?? "the selection", 30)}”. Generate one first, or pass a path.`,
@@ -215,7 +218,8 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
       });
     }
 
-    const hit = await pickTake(ctx, pid, detail, args?.take, {});
+    // Defaults to what is on the monitor, else the newest clip (a motion pick is the common case).
+    const hit = await pickTake(ctx, pid, detail, args?.take, { selected: safeState(page).selected, prefer: "clip" });
     if (!hit) {
       return err("take_not_found", {
         hint: `No take on ${shot.sid} matches “${cut(args?.take ?? "the selection", 30)}”. ${TAKE_WORDS}`,

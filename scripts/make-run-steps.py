@@ -32,10 +32,9 @@ for r in rows:
             {"tool": "wait_for_jobs", "args": {"jobs": "$prev.jobs", "timeout_s": 60}, "note": f"{sid} wait motion ({k+1})", "allowFail": True}
             for k in range(a.motion_waits)
         ] + [
-            {"tool": "select_take", "args": {"shot": sid, "take": "newest motion"}, "note": f"{sid} select newest motion", "allowFail": True},
-            {"tool": "freeze_tail", "args": {"shot": sid, "live_seconds": 1.5}, "note": f"{sid} FIRST-SECOND LAW freeze", "allowFail": True},
-            {"tool": "wait_for_jobs", "args": {"jobs": "$prev.jobs", "timeout_s": 60}, "note": f"{sid} wait freeze", "allowFail": True},
-            {"tool": "select_take", "args": {"shot": sid, "take": "newest motion"}, "note": f"{sid} select frozen clip", "allowFail": True},
+            # generate_takes(animate) already applies the doctrine freeze (freeze_after 1.0s),
+            # so the newest motion take IS the frozen clip — no second freeze_tail.
+            {"tool": "select_take", "args": {"shot": sid, "take": "newest motion"}, "note": f"{sid} select the frozen clip", "allowFail": True},
             {"tool": "set_timeline_source", "args": {"shot": sid}, "note": f"{sid} plays the frozen clip", "allowFail": True},
         ]
     if not a.no_vo and r.get("radio"):
