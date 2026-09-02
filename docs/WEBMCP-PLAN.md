@@ -625,3 +625,6 @@ at low cost, with Ryan able to toggle providers without redeploying.
   section on the Audio tab and a cue strip under the Cuts gallery. ElevenLabs live: 10 s music
   in 4 s, 3 s SFX in 2.4 s. Restricted keys now pass the health probe. Score run on the hosted
   *Two Claudes* in flight (120 s bed + 3 SFX + cut 4).
+- **Cut 4, scored (Tue 20:40 PT)** — `generate_music` (120 s instrumental bed, -18 dB, fades)
+  + three `generate_sfx` cues anchored to shots + `cut_film`: 13 tool calls, zero failures,
+  through native WebMCP on the hosted demo. ElevenLabs music for 120 s returned in 17 s.
