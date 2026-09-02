@@ -53,6 +53,40 @@ def session_scope() -> Session:
 def init_db() -> None:
     from . import models  # noqa: F401  (register tables)
     models.Base.metadata.create_all(get_engine())
+    migrate_db()
+
+
+#: Columns renamed since a shipped release: (table, old name, new name, type).
+#: The old column is left in place so a rollback still reads its data; the new
+#: one is added and filled once, on boot.
+RENAMES = [("shots", "radio", "narration", "TEXT")]
+
+
+def migrate_db() -> None:
+    """Bring an existing database up to the current model.
+
+    `create_all` only ever creates missing tables, so a column added after a
+    release would silently be absent on every database that already exists.
+    This is the whole migration story: additive, idempotent, and cheap enough
+    to run on every boot.
+    """
+    from sqlalchemy import inspect, text
+
+    engine = get_engine()
+    with engine.begin() as conn:
+        insp = inspect(conn)
+        tables = set(insp.get_table_names())
+        for table, old, new, coltype in RENAMES:
+            if table not in tables:
+                continue
+            cols = {c["name"] for c in insp.get_columns(table)}
+            if new not in cols:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {new} {coltype}"))
+                cols.add(new)
+            if old in cols:
+                conn.execute(text(
+                    f"UPDATE {table} SET {new} = {old} "
+                    f"WHERE {new} IS NULL AND {old} IS NOT NULL"))
 
 
 def reset_db() -> None:

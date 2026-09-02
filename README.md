@@ -76,6 +76,10 @@ Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
   Director chat gives Claude hosted-safe *function tools* (inspect the film,
   run plans) — no shell in hosted mode; `claude-cli` power mode exists for
   self-hosts (`CUTROOM_ALLOW_CLAUDE_CLI=1`).
+- **Voice, treated or clean** — a shot's `narration` line (plus its in-scene
+  `dialogue`) goes to the voice lane; `treatment` names what it is heard
+  through — radio, phone, megaphone, a room — and defaults to none, because the
+  platform has no house sound. The untreated take is always kept.
 - **Panel screens** — the Ping Pong/Dezaki grammar as a render job
   (spec JSON → mp4 + SFX cue sidecar).
 - **Cut the film** — the assembler builds the animatic from current state

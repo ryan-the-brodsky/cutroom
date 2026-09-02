@@ -223,16 +223,25 @@ def get_shot(pid: str, sid: str):
         return entry
 
 
+def narration_alias(row: dict) -> dict:
+    """`radio` was this field's name while Cutroom only knew one film, whose
+    narration was a broadcast. Accept it as a synonym for `narration` for one
+    release so old clients and old script files keep writing."""
+    if isinstance(row, dict) and "narration" not in row and "radio" in row:
+        return {**row, "narration": row["radio"]}
+    return row
+
+
 @router.post("/projects/{pid}/shots")
 async def upsert_shot(pid: str, req: Request):
     """Script editing: create or update a shot row."""
-    body = await req.json()
+    body = narration_alias(await req.json())
     sid = body.get("sid", "")
     if not sid:
         raise HTTPException(400, "need sid")
     fields = ("beat", "act", "type", "seconds", "register", "image_prompt",
-              "negative", "motion_prompt", "pan", "radio", "dialogue", "sfx",
-              "ambient", "cut", "render_notes", "order_idx")
+              "negative", "motion_prompt", "pan", "narration", "dialogue",
+              "sfx", "ambient", "cut", "render_notes", "order_idx")
     with session_scope() as s:
         project_or_404(pid)
         shot = s.execute(select(Shot).where(
@@ -250,8 +259,8 @@ async def upsert_shot(pid: str, req: Request):
 SID_RE = re.compile(r"^B\d\d-S\d+$")
 BEAT_RE = re.compile(r"^B\d\d$")
 SHOT_FIELDS = ("beat", "act", "type", "seconds", "register", "image_prompt",
-               "negative", "motion_prompt", "pan", "radio", "dialogue", "sfx",
-               "ambient", "cut", "render_notes")
+               "negative", "motion_prompt", "pan", "narration", "dialogue",
+               "sfx", "ambient", "cut", "render_notes")
 MAX_BATCH_SHOTS = 40
 MAX_BATCH_SECONDS = 300.0
 MIN_SECONDS, MAX_SECONDS, DEFAULT_SECONDS = 2.0, 20.0, 6.0
@@ -296,6 +305,7 @@ async def upsert_shots(pid: str, req: Request):
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
             raise HTTPException(400, f"shot {i + 1} is not an object")
+        row = narration_alias(row)
         try:
             act = int(float(row.get("act") or 1))
         except (TypeError, ValueError):

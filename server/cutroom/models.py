@@ -26,7 +26,7 @@ class Project(Base):
     label: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[float] = mapped_column(Float, default=now)
     paused: Mapped[bool] = mapped_column(Boolean, default=False)
-    # e.g. {"futz_registers": ["R1","R4","R5"], "fps": 24, "style_suffix": "..."}
+    # e.g. {"fps": 24, "style": {...}, "cast": [...], "characters": [...]}
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
@@ -47,7 +47,10 @@ class Shot(Base):
     negative: Mapped[str] = mapped_column(Text, default="")
     motion_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     pan: Mapped[str | None] = mapped_column(Text, nullable=True)
-    radio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The narration lane: what a voice says over the shot, as written.
+    # Called `radio` before Cutroom knew more than one film; the API still
+    # reads and writes that spelling for one release.
+    narration: Mapped[str | None] = mapped_column(Text, nullable=True)
     dialogue: Mapped[list] = mapped_column(JSON, default=list)
     sfx: Mapped[str | None] = mapped_column(Text, nullable=True)
     ambient: Mapped[str | None] = mapped_column(Text, nullable=True)

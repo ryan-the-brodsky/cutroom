@@ -160,7 +160,9 @@ export async function lookupShot(ctx: ActionContext, query: unknown): Promise<Sh
 export interface ShotDetail {
   sid: string; beat?: string; act?: number; type?: string; register?: string;
   seconds?: number; image_prompt?: string; negative?: string;
-  motion_prompt?: string | null; radio?: string | null;
+  motion_prompt?: string | null; narration?: string | null;
+  /** @deprecated the pre-rename spelling of `narration`. */
+  radio?: string | null;
   dialogue?: { character: string; line: string }[];
   keeper?: string | null; active_source?: string | null;
   override?: Record<string, unknown>;

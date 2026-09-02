@@ -81,7 +81,11 @@ def film_entry(store: ProjectStore, shot: Shot, takes: list[Take]) -> dict:
         "scripted_seconds": shot.seconds,
         "image_prompt": shot.image_prompt, "negative": shot.negative,
         "motion_prompt": shot.motion_prompt, "pan": shot.pan,
-        "radio": shot.radio, "dialogue": shot.dialogue, "sfx": shot.sfx,
+        "narration": shot.narration,
+        # `radio` is what narration was called when the platform knew one
+        # film. Still emitted, so an older client keeps reading. Drop next release.
+        "radio": shot.narration,
+        "dialogue": shot.dialogue, "sfx": shot.sfx,
         "ambient": shot.ambient, "cut": shot.cut,
         "render_notes": shot.render_notes,
         "keeper": shot.keeper, "curation_note": shot.curation_note,

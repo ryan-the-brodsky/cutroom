@@ -8,11 +8,14 @@ import {
   SHOT_ROUTE, asError, costGate, cut, fetchShot, lookupShot, openShotPage,
 } from "./util";
 
+/** What a line can be heard through. Mirrors `engine.audio.TREATMENT_NAMES`. */
+const VO_TREATMENTS = ["none", "radio", "phone", "megaphone", "hall"];
+
 interface VoArgs {
   shot: string;
   text?: string;
   voice?: string;
-  futz?: boolean;
+  treatment?: string;
   backend?: string;
   confirm_cost?: boolean;
 }
@@ -22,18 +25,21 @@ export const synthesizeVo: ActionDef<VoArgs> = {
   title: "Synthesize a voice-over",
   description:
     "Record a voice-over line for a shot. Opens the shot's Audio tab, fills the " +
-    "line, voice and radio-futz switch, and presses ▶ synthesize. Defaults to the " +
-    "line the script already gives the shot — its radio line or first piece of " +
-    "dialogue — so you usually only pass the shot. Set futz true for an in-scene " +
-    "radio sound (bandpass, grit, static bed). ElevenLabs v3 tags in the text pass " +
-    "through. Paid voice backends require confirm_cost. Returns the job and the take.",
+    "line, voice and treatment, and presses ▶ synthesize. Defaults to the line the " +
+    "script already gives the shot — its narration or first piece of dialogue — so " +
+    "you usually only pass the shot. `treatment` is what the line is heard " +
+    "through: none (default), radio, phone, megaphone or hall. ElevenLabs v3 tags " +
+    "pass through. Paid voice backends require confirm_cost. Returns job and take.",
   inputSchema: {
     type: "object",
     properties: {
       shot: { type: "string", description: "The shot: a sid (B10-S2), its number in the cut, a beat, or a description." },
-      text: { type: "string", description: "The line to speak. Omit to use the shot's own radio line or first dialogue line as written." },
+      text: { type: "string", description: "The line to speak. Omit to use the shot's own narration or first dialogue line as written." },
       voice: { type: "string", description: "Voice id on the VO backend. Omit for the project's default voice." },
-      futz: { type: "boolean", description: "True applies the in-scene radio treatment: bandpass, grit and a static bed." },
+      treatment: {
+        type: "string", enum: VO_TREATMENTS,
+        description: "What the line is heard through: none (default), radio, phone, megaphone or hall.",
+      },
       backend: { type: "string", description: "Force a specific VO backend id instead of the project's lane default." },
       confirm_cost: { type: "boolean", description: "Set true to approve a paid voice backend. Required whenever the VO lane bills money." },
     },
@@ -45,12 +51,20 @@ export const synthesizeVo: ActionDef<VoArgs> = {
     route: SHOT_ROUTE, query: { tab: "audio" },
     anchor: ANCHORS.audioSubmit, label: "Shot Editor → Audio → ▶ synthesize",
   },
-  keywords: ["vo", "voice", "voice over", "line", "dialogue", "radio", "speak", "tts", "audio", "futz"],
+  keywords: ["vo", "voice", "voice over", "line", "narration", "dialogue", "speak", "tts", "audio", "treatment", "radio", "phone", "megaphone", "hall"],
   howTo:
-    "Open the shot's Audio tab, check the line in the text box, pick a voice, tick " +
-    "radio futz if it is an in-scene radio, then press ▶ synthesize.",
+    "Open the shot's Audio tab, check the line in the text box, pick a voice, pick " +
+    "a treatment if the line is heard through something, then press ▶ synthesize.",
   summarize: (a) => `Synthesize VO for ${cut(a?.shot, 26)}`,
   async execute(args, ctx): Promise<ToolResult> {
+    const treatment = String(args?.treatment ?? "none").toLowerCase();
+    if (!VO_TREATMENTS.includes(treatment)) {
+      return err("unknown_treatment", {
+        treatment, known: VO_TREATMENTS,
+        hint: `No voice treatment called "${treatment}". Pick one of ${VO_TREATMENTS.join(", ")}.`,
+      });
+    }
+
     const found = await lookupShot(ctx, args?.shot);
     if (!found.ok) return found.res;
     const { pid, shot } = found;
@@ -67,7 +81,7 @@ export const synthesizeVo: ActionDef<VoArgs> = {
     try { detail = await fetchShot(ctx, pid, shot.sid); }
     catch (e) { return asError(e, "shot_fetch_failed", "Could not read the shot"); }
 
-    const scripted = detail.radio || detail.dialogue?.[0]?.line || "";
+    const scripted = detail.narration ?? detail.radio ?? detail.dialogue?.[0]?.line ?? "";
     const text = String(args?.text ?? "").trim() || scripted;
     if (!text) {
       return err("needs_text", {
@@ -96,11 +110,11 @@ export const synthesizeVo: ActionDef<VoArgs> = {
       tool: "synthesize_vo", title: "Fill the line", anchor: ANCHORS.audioText,
       detail: cut(text, 120),
     });
-    if (typeof args?.futz === "boolean") {
-      page.setVoField("futz", args.futz);
+    if (treatment !== "none") {
+      page.setVoField("treatment", treatment);
       await ctx.trail.step({
-        tool: "synthesize_vo", title: args.futz ? "Radio futz on" : "Radio futz off",
-        anchor: ANCHORS.audioFutz,
+        tool: "synthesize_vo", title: `Treatment ${treatment}`,
+        anchor: ANCHORS.audioTreatment,
       });
     }
 
@@ -135,7 +149,7 @@ export const synthesizeVo: ActionDef<VoArgs> = {
         backend: backendId,
         cost_class: choice.cost_class,
         text: cut(text, 140),
-        futz: !!args?.futz,
+        treatment,
         status: s0?.status ?? "queued",
         take: take ? cut(take, 64) : null,
         ...(s0?.error ? { error_detail: cut(s0.error, 90) } : {}),

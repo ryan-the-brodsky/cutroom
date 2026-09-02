@@ -41,8 +41,11 @@ n = 0
 for i, s in enumerate(shots):
     body = {"sid": s["id"], "order_idx": i}
     for f in ("beat", "act", "type", "seconds", "register", "image_prompt", "negative",
-              "motion_prompt", "pan", "radio", "dialogue", "sfx", "ambient", "cut", "render_notes"):
+              "motion_prompt", "pan", "narration", "dialogue", "sfx", "ambient", "cut",
+              "render_notes"):
         if f in s: body[f] = s[f]
+    # a shots.jsonl written before the rename says `radio`; the API takes either
+    if "narration" not in body and "radio" in s: body["radio"] = s["radio"]
     st, r = call(f"/api/projects/{a.project}/shots", body)
     if st != 200: sys.exit(f"shot {s['id']} failed: {st} {r}")
     n += 1

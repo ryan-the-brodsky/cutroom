@@ -8,7 +8,10 @@ export interface FilmEntry {
   seconds: number; scripted_seconds: number;
   image_prompt: string; negative: string;
   motion_prompt: string | null; pan: string | null;
-  radio: string | null; dialogue: { character: string; line: string }[];
+  narration: string | null;
+  /** @deprecated the pre-rename spelling of `narration`; server still sends it. */
+  radio?: string | null;
+  dialogue: { character: string; line: string }[];
   sfx: string | null; ambient: string | null; cut: string | null;
   render_notes: string | null;
   keeper: string | null; curation_note: string | null;

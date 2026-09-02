@@ -21,7 +21,7 @@
 | 11 | `set_keeper` | 418 | 3 | consequential |
 | 12 | `set_timeline_source` | 422 | 3 | consequential |
 | 13 | `set_shot_timing` | 416 | 4 | consequential |
-| 14 | `synthesize_vo` | 460 | 6 | consequential |
+| 14 | `synthesize_vo` | 455 | 6 | consequential |
 | 15 | `direct_shot` | 473 | 2 | readOnly |
 | 16 | `apply_plan` | 382 | 2 | consequential |
 | 17 | `cut_film` | 460 | 2 | consequential |
@@ -268,22 +268,22 @@
 
 **where** `/p/:pid/shot/:sid` `?tab=audio` · anchor `shot.audio.submit` · **“Shot Editor → Audio → ▶ synthesize”**
 
-**description** (460/500)
+**description** (455/500)
 
-> Record a voice-over line for a shot. Opens the shot's Audio tab, fills the line, voice and radio-futz switch, and presses ▶ synthesize. Defaults to the line the script already gives the shot — its radio line or first piece of dialogue — so you usually only pass the shot. Set futz true for an in-scene radio sound (bandpass, grit, static bed). ElevenLabs v3 tags in the text pass through. Paid voice backends require confirm_cost. Returns the job and the take.
+> Record a voice-over line for a shot. Opens the shot's Audio tab, fills the line, voice and treatment, and presses ▶ synthesize. Defaults to the line the script already gives the shot — its narration or first piece of dialogue — so you usually only pass the shot. `treatment` is what the line is heard through: none (default), radio, phone, megaphone or hall. ElevenLabs v3 tags pass through. Paid voice backends require confirm_cost. Returns job and take.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
 | `shot` | • | string | 74/150 | The shot: a sid (B10-S2), its number in the cut, a beat, or a description. |
-| `text` |  | string | 91/150 | The line to speak. Omit to use the shot's own radio line or first dialogue line as written. |
+| `text` |  | string | 90/150 | The line to speak. Omit to use the shot's own narration or first dialogue line as written. |
 | `voice` |  | string | 65/150 | Voice id on the VO backend. Omit for the project's default voice. |
-| `futz` |  | boolean | 75/150 | True applies the in-scene radio treatment: bandpass, grit and a static bed. |
+| `treatment` |  | string | 80/150 | What the line is heard through: none (default), radio, phone, megaphone or hall. |
 | `backend` |  | string | 69/150 | Force a specific VO backend id instead of the project's lane default. |
 | `confirm_cost` |  | boolean | 84/150 | Set true to approve a paid voice backend. Required whenever the VO lane bills money. |
 
-**howTo** (141) — Open the shot's Audio tab, check the line in the text box, pick a voice, tick radio futz if it is an in-scene radio, then press ▶ synthesize.
+**howTo** (154) — Open the shot's Audio tab, check the line in the text box, pick a voice, pick a treatment if the line is heard through something, then press ▶ synthesize.
 
-**keywords** — `vo` `voice` `voice over` `line` `dialogue` `radio` `speak` `tts` `audio` `futz`
+**keywords** — `vo` `voice` `voice over` `line` `narration` `dialogue` `speak` `tts` `audio` `treatment` `radio` `phone` `megaphone` `hall`
 
 ## 15. `direct_shot` — Direct this shot
 

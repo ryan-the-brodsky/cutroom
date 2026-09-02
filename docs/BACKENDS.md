@@ -59,8 +59,24 @@ CUTROOM_DATA=/shared/data cutroom-worker \
 The vo "model picker" lists your account's voices live. v3 inline tags
 (`[whispers]`, `<break time="1.6s"/>`, CAPS) pass through untouched.
 Per-line direction: `stability`, `style`, `similarity`, `speed`, `seed` in
-request params. `futz: true` on a vo generation chains the radio-futz
-(bandpass 300–3400Hz + grit + static bed — the film's audio geography).
+request params.
+
+**Voice treatments.** `treatment` on a vo generation names what the line is
+heard *through*. The clean take is always kept; the treated one is recorded
+next to it as a second vo take.
+
+| `treatment` | chain |
+|---|---|
+| `none` (default) | nothing — the line as recorded |
+| `radio` | bandpass 300–3400Hz, speaker resonance, saturation, AGC, wow/flutter, band-matched static bed |
+| `phone` | bandpass 400–2800Hz, mid lift, a little grit, no bed |
+| `megaphone` | bandpass 500–3800Hz, hard 2.2kHz honk, hard clip |
+| `hall` | the dry line plus damped early reflections |
+
+Nothing defaults to a treatment: a platform has no house sound. `futz: true`
+was the single-film spelling of `treatment: "radio"` and still works for one
+release. The chains live in `cutroom.engine.audio` as plain functions over
+numpy; a new one is a new recipe over the primitives already there.
 
 ### Music & SFX
 

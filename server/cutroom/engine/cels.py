@@ -13,7 +13,7 @@ comp = {
   "background_media": {"loop": "hold", "speed": 1.0},      # clip backgrounds
   "width": 1920, "height": 1080, "duration": 4.0,          # omit → longest layer
   "layers": [
-    {"id": "hand", "clip": "renders/motion/tests/B04-S3-dial-crop.webm",
+    {"id": "hand", "clip": "renders/motion/tests/B04-S3-hand-crop.webm",
      "region": [384, 96, 960, 416],       # px on the SOURCE plate (or 0..1)
      "feather": 24, "matte": "window",    # window | figure
      "media": {"loop": "hold", "speed": 1.0, "start": 0},

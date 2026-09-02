@@ -129,7 +129,7 @@ def test_batch_carries_every_script_field_and_defaults_seconds(demo_client, film
     r = batch(demo_client, film, [shot(
         sid="B01-S1", type="hero", register="R2", seconds=9,
         negative="text, watermark", motion_prompt="the wig trembles",
-        radio="A bad week for the aristocracy.",
+        narration="A bad week for the aristocracy.",
         dialogue=[{"character": "BAKER", "line": "Bread first."}],
         sfx="a distant crowd", ambient="street noise", cut="hard",
         render_notes="no visible faces"), shot(sid="B01-S2")])
@@ -139,7 +139,7 @@ def test_batch_carries_every_script_field_and_defaults_seconds(demo_client, film
                           headers=VIEWER).json()
     assert got["type"] == "HERO" and got["register"] == "R2"
     assert got["seconds"] == 9
-    assert got["radio"].startswith("A bad week")
+    assert got["narration"].startswith("A bad week")
     assert got["dialogue"][0]["character"] == "BAKER"
     assert got["render_notes"] == "no visible faces"
 
@@ -192,3 +192,100 @@ def test_a_viewer_may_set_the_cast_of_a_film_they_wrote(demo_client, film):
     stored = demo_client.get(f"/api/projects/{film}/cast",
                              headers=VIEWER).json()["cast"]
     assert stored[0]["id"] == "CHAR-baker"
+
+
+# --------------------------------------------------- the narration rename
+
+def test_narration_still_answers_to_its_old_name(demo_client, film):
+    """`radio` was the field's name while the platform knew one film, whose
+    narration was a broadcast. It writes and reads for one more release."""
+    line = "Paris woke up hungry."
+    r = batch(demo_client, film, [shot(sid="B01-S1", radio=line)])
+    assert r.status_code == 200, r.text
+    got = demo_client.get(f"/api/projects/{film}/shots/B01-S1",
+                          headers=VIEWER).json()
+    assert got["narration"] == line
+    assert got["radio"] == line          # the alias reads back too
+
+
+def test_narration_wins_when_a_caller_sends_both(demo_client, film):
+    batch(demo_client, film, [shot(sid="B01-S1", radio="the old name",
+                                   narration="the field's real name")])
+    got = demo_client.get(f"/api/projects/{film}/shots/B01-S1",
+                          headers=VIEWER).json()
+    assert got["narration"] == "the field's real name"
+
+
+def test_single_shot_upsert_takes_either_spelling(demo_client, film):
+    batch(demo_client, film, [shot(sid="B01-S1")])
+    demo_client.post(f"/api/projects/{film}/shots", headers=VIEWER,
+                     json={"sid": "B01-S1", "radio": "written the old way"})
+    got = demo_client.get(f"/api/projects/{film}/shots/B01-S1",
+                          headers=VIEWER).json()
+    assert got["narration"] == "written the old way"
+    demo_client.post(f"/api/projects/{film}/shots", headers=VIEWER,
+                     json={"sid": "B01-S1", "narration": "written the new way"})
+    got = demo_client.get(f"/api/projects/{film}/shots/B01-S1",
+                          headers=VIEWER).json()
+    assert got["narration"] == "written the new way"
+
+
+# ------------------------------------------------------- voice treatments
+
+@pytest.fixture()
+def vo_client(data_dir, monkeypatch):
+    """The demo app with the free mock lane on, so a vo submission gets as far
+    as the queue and we can read what was actually queued."""
+    monkeypatch.setenv("CUTROOM_DEMO", "1")
+    monkeypatch.setenv("CUTROOM_DEMO_MOCK", "1")
+    monkeypatch.setenv("CUTROOM_AUTH_TOKEN", "judge")
+    monkeypatch.setenv("CUTROOM_ADMIN_TOKEN", "boss")
+    from cutroom import config
+    config.reset_settings()
+    demo.reset_rate_limits()
+    from fastapi.testclient import TestClient
+    from cutroom.main import create_app
+    with TestClient(create_app()) as c:
+        assert c.post("/api/projects", json={"id": "fr"},
+                      headers=VIEWER).status_code == 200
+        yield c
+    demo.reset_rate_limits()
+    config.reset_settings()
+
+
+def submit_vo(client, **body):
+    return client.post("/api/projects/fr/generate/vo", headers=VIEWER,
+                       json={"text": "Bread first.", **body})
+
+
+def payload_of(jid: str) -> dict:
+    """What the API actually queued — the job row, not the HTTP echo."""
+    from cutroom.db import session_scope
+    from cutroom.models import Job
+    with session_scope() as s:
+        return dict(s.get(Job, jid).payload)
+
+
+def test_vo_defaults_to_no_treatment(vo_client):
+    r = submit_vo(vo_client)
+    assert r.status_code == 200, r.text
+    assert payload_of(r.json()["job"]).get("treatment") is None
+
+
+def test_vo_takes_a_named_treatment(vo_client):
+    r = submit_vo(vo_client, treatment="MEGAPHONE")
+    assert r.status_code == 200, r.text
+    assert payload_of(r.json()["job"])["treatment"] == "megaphone"
+
+
+def test_vo_refuses_a_treatment_it_does_not_have(vo_client):
+    r = submit_vo(vo_client, treatment="underwater")
+    assert r.status_code == 400
+    assert "megaphone" in r.text
+
+
+def test_futz_is_the_old_spelling_of_the_radio_treatment(vo_client):
+    r = submit_vo(vo_client, futz=True)
+    assert r.status_code == 200, r.text
+    p = payload_of(r.json()["job"])
+    assert p["treatment"] == "radio" and "futz" not in p

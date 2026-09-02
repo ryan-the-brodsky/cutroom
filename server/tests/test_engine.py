@@ -191,10 +191,10 @@ def test_chain_assembler(tmp_path):
     assert abs(ffmpeg.probe_duration(tmp_path / "chain.mp4") - 30 / 24) < 0.1
 
 
-def test_radio_futz_bandlimits(tmp_path):
+def test_radio_treatment_bandlimits(tmp_path):
     src = make_wav(tmp_path / "vo.wav", seconds=1.0, freq=200.0)
-    out = tmp_path / "futz.wav"
-    audio.futz_file(src, out)
+    out = tmp_path / "radio.wav"
+    audio.treat_file("radio", src, out)
     assert out.exists()
     x = ffmpeg.decode_audio(out)
     # 200 Hz fundamental sits below the 300 Hz corner: energy must drop hard
@@ -205,6 +205,51 @@ def test_radio_futz_bandlimits(tmp_path):
     low_band = spec[(freqs > 50) & (freqs < 150)].mean()
     voice_band = spec[(freqs > 500) & (freqs < 3000)].mean()
     assert voice_band > low_band
+
+
+def band_profile(x: np.ndarray) -> dict:
+    """Share of the total power in low / voice / air, so two takes of the same
+    line can be compared whatever their level."""
+    spec = np.abs(np.fft.rfft(x)) ** 2
+    freqs = np.fft.rfftfreq(len(x), 1 / audio.SR)
+    total = spec.sum() + 1e-12
+    return {"low": spec[freqs < 250].sum() / total,
+            "voice": spec[(freqs >= 250) & (freqs < 4000)].sum() / total,
+            "air": spec[freqs >= 4000].sum() / total}
+
+
+def test_every_treatment_changes_the_sound(tmp_path):
+    """Each named chain has to actually do something, and something different
+    from the others. Broadband noise in, so every band is lit to begin with."""
+    src = tmp_path / "noise.wav"
+    ffmpeg.encode_audio(
+        np.random.default_rng(3).standard_normal(audio.SR).astype(np.float32)
+        * 0.2, src)
+    dry = band_profile(ffmpeg.decode_audio(src))
+
+    profiles = {}
+    for name in audio.TREATMENTS:
+        out = tmp_path / f"{name}.wav"
+        audio.treat_file(name, src, out)
+        assert out.exists()
+        prof = band_profile(ffmpeg.decode_audio(out))
+        shift = max(abs(prof[b] - dry[b]) for b in dry)
+        assert shift > 0.02, f"{name} left the spectrum where it found it"
+        profiles[name] = prof
+
+    # the three band-limited chains kill the air; hall keeps the dry line and
+    # adds a damped tail, so it tilts the other way
+    for name in ("radio", "phone", "megaphone"):
+        assert profiles[name]["air"] < dry["air"] / 2
+    assert profiles["hall"]["voice"] > dry["voice"]
+    assert profiles["phone"]["voice"] != profiles["radio"]["voice"]
+
+
+def test_unknown_treatment_says_what_it_knows(tmp_path):
+    src = make_wav(tmp_path / "vo.wav", seconds=0.2)
+    with pytest.raises(ValueError) as e:
+        audio.treat_file("underwater", src, tmp_path / "out.wav")
+    assert "megaphone" in str(e.value)
 
 
 def test_assembler_builds_edl(tmp_path):

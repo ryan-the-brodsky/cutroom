@@ -98,12 +98,12 @@ returns result metadata. Ported from the proven `bin/` code:
 - `engine.panels` — the Ping Pong/Dezaki panel grammar (from the skill's
   `panel_engine.py`): trapezoid panels, rhythmic entries, video-in-panel,
   speed-line fields, collapse — driven by a JSON spec
-- `engine.audio` — radio futz chain (bandpass + saturation + static bed),
-  VO placement math
+- `engine.audio` — voice treatments (named chains a line is heard through:
+  radio, phone, megaphone, hall; none by default), VO placement math
 - `engine.assemble` — the animatic assembler re-implemented on ffmpeg:
   timeline (shots × overrides × curation) → V track (still holds are TRUE
   freezes; motion/fx/comp sources; per-shot seconds) + A tracks (VO w/ offset &
-  futz, music/sfx cues) → 720p/1080p H.264
+  treatment, music/sfx cues) → 720p/1080p H.264
 - `engine.ffmpeg` / `engine.images` — probe, encode, thumbnails, cover-fit
 
 Doctrine is encoded as defaults: no zoompan anywhere, boil never auto-selected,
@@ -239,6 +239,16 @@ Project ── Shot (script row: prompts, register, audio fields, order)
         └─ LaneConfig (lane → backend/model/params defaults)
 ```
 
+A Shot's audio fields are `narration` (what a voice says over the shot),
+`dialogue` (in-scene lines), `sfx` and `ambient`. None of them presumes a
+genre: `narration` carried the name `radio` while Cutroom was extracted from
+one film whose narration happened to be a broadcast, and the API still accepts
+and returns that spelling for one release. The rename is applied by
+`db.migrate_db()`, which runs on every boot: it adds the new column, copies the
+old one into it once, and leaves the old column in place so a rollback still
+reads. That function is the whole migration story — additive and idempotent,
+because `create_all` only ever creates missing *tables*.
+
 Media lives in per-project directories following the **studio folder layout**
 (below) under `CUTROOM_DATA/projects/<slug>/` — which makes the **importer**
 almost a copy: point it at an existing studio folder and it ingests shots.jsonl,
@@ -309,7 +319,7 @@ cutroom/
 ## 4. What is deliberately NOT ported
 
 - `anime-fx.py`'s full 40-effect catalog — the engine ports the load-bearing
-  primitives (cel composite, freeze, panels, futz); the rest remain runnable
+  primitives (cel composite, freeze, panels, voice treatments); the rest remain runnable
   in-place via the self-host claude-cli direction mode.
 - Kokoro/mlx local TTS lanes — the adapter seam exists (`elevenlabs` shows the
   shape); local TTS is a backend type to add when needed.

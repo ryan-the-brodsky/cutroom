@@ -395,14 +395,29 @@ describe("set_shot_timing", () => {
 
 describe("synthesize_vo", () => {
   it("fills the Audio tab from the scripted line and submits", async () => {
-    const r = asOk(await synthesizeVo.execute({ shot: "B11-S4", futz: true }, f.ctx));
+    const r = asOk(await synthesizeVo.execute({ shot: "B11-S4", treatment: "radio" }, f.ctx));
     expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/shot/B11-S4?tab=audio`);
-    expect(f.shotPage.vo.text).toBe(FIXTURE_DETAIL["B11-S4"].radio);
-    expect(f.shotPage.vo.futz).toBe(true);
+    expect(f.shotPage.vo.text).toBe(FIXTURE_DETAIL["B11-S4"].narration);
+    expect(f.shotPage.vo.treatment).toBe("radio");
     expect(f.rec.calls()).toContain("submitVo()");
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
-      shotTabAnchor("audio"), ANCHORS.audioText, ANCHORS.audioFutz, ANCHORS.audioSubmit]));
+      shotTabAnchor("audio"), ANCHORS.audioText, ANCHORS.audioTreatment, ANCHORS.audioSubmit]));
     expect(r.job).toBeTruthy();
+  });
+
+  it("leaves the line untreated unless a treatment is asked for", async () => {
+    const r = asOk(await synthesizeVo.execute({ shot: "B11-S4" }, f.ctx));
+    expect(f.shotPage.vo.treatment).toBeUndefined();
+    expect(r.treatment).toBe("none");
+    expect(f.rec.anchors()).not.toContain(ANCHORS.audioTreatment);
+  });
+
+  it("refuses a treatment it does not have, before navigating", async () => {
+    const g = makeFakeContext();
+    const r = asErr(await synthesizeVo.execute(
+      { shot: "B11-S4", treatment: "underwater" }, g.ctx));
+    expect(r.error).toBe("unknown_treatment");
+    expect(g.rec.nav).toEqual([]);
   });
 
   it("guards a paid voice backend before navigating", async () => {

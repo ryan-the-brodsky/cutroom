@@ -37,9 +37,10 @@ for r in rows:
             {"tool": "select_take", "args": {"shot": sid, "take": "newest motion"}, "note": f"{sid} select the frozen clip", "allowFail": True},
             {"tool": "set_timeline_source", "args": {"shot": sid}, "note": f"{sid} plays the frozen clip", "allowFail": True},
         ]
-    if not a.no_vo and r.get("radio"):
+    line = r.get("narration") or r.get("radio")   # `radio` is the pre-rename name
+    if not a.no_vo and line:
         steps += [
-            {"tool": "synthesize_vo", "args": {"shot": sid, "text": r["radio"], "confirm_cost": True}, "note": f"{sid} VO"},
+            {"tool": "synthesize_vo", "args": {"shot": sid, "text": line, "confirm_cost": True}, "note": f"{sid} VO"},
             {"tool": "wait_for_jobs", "args": {"jobs": "$prev.jobs", "timeout_s": 60}, "note": f"{sid} wait VO", "allowFail": True},
         ]
 if not a.no_cut:

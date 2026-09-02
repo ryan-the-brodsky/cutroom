@@ -63,7 +63,8 @@ OPS: dict[str, dict[str, tuple[bool, str]]] = {
     "gen_vo": {
         "text": (True, "line text; ElevenLabs v3 tags pass through"),
         "voice": (False, "voice id"),
-        "futz": (False, "true → radio-futz the result (in-scene radio)"),
+        "treatment": (False, "voice chain the line is heard through: "
+                      "radio|phone|megaphone|hall (default none)"),
         "shot": (False, ""), "name": (False, ""),
         "backend": (False, ""),
         "stability": (False, ""), "style": (False, ""), "speed": (False, ""),

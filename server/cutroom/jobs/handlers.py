@@ -476,15 +476,21 @@ async def gen_vo(ctx, p: dict) -> dict:
                     prompt=p["text"], params=req.params, job_id=ctx.job_id,
                     meta={"chars": res.meta.get("chars")})
         result = {"take": rel}
-        if p.get("futz"):
-            futz_rel = store.unique_rel(f"audio/generated/{name}-futz.wav")
-            await asyncio.to_thread(e_audio.futz_file, store.resolve(rel),
-                                    store.resolve(futz_rel))
-            record_take(project, p.get("shot"), "vo", futz_rel,
+        # A treatment is the sound the line is heard through (radio, phone,
+        # megaphone, hall). Nothing is applied unless the caller names one, and
+        # the clean take above always stays.
+        treatment = str(p.get("treatment") or "none").lower()
+        if treatment != "none":
+            t_rel = store.unique_rel(
+                f"audio/generated/{name}-{treatment}.wav")
+            await asyncio.to_thread(e_audio.treat_file, treatment,
+                                    store.resolve(rel), store.resolve(t_rel))
+            record_take(project, p.get("shot"), "vo", t_rel,
                         sources=[rel], job_id=ctx.job_id,
-                        meta={"futz": True})
-            result["futz"] = futz_rel
-            ctx.log(f"radio futz -> {futz_rel}")
+                        meta={"treatment": treatment})
+            result["treatment"] = treatment
+            result["treated"] = t_rel
+            ctx.log(f"{treatment} treatment -> {t_rel}")
         return result
     finally:
         _cleanup(wd)

@@ -195,7 +195,7 @@ export const addCelLayer: ActionDef<AddArgs> = {
   description:
     "Animate one region of a shot as a cel layer over a background that stays " +
     "put — the ink-first grammar: name only what moves (\"only the hand turns " +
-    "the dial\"), and the rest of the frame never boils. Draws the region on the " +
+    "the key\"), and the rest of the frame never boils. Draws the region on the " +
     "cel workbench, fills the motion prompt and submits. Creates the comp from " +
     "the keeper plate (or `background`, which may be a clip) when the shot has " +
     "none. Regions are background pixels, snapped to /32. Paid backends need confirm_cost.",
@@ -228,7 +228,7 @@ export const addCelLayer: ActionDef<AddArgs> = {
 
     const prompt = String(args?.prompt ?? "").trim();
     if (!prompt) {
-      return err("needs_prompt", { hint: "Say what moves, e.g. \"only the hand turns the dial\"." });
+      return err("needs_prompt", { hint: "Say what moves, e.g. \"only the hand turns the key\"." });
     }
     const region = Array.isArray(args?.region) ? args.region : [];
     if (region.length !== 4) {

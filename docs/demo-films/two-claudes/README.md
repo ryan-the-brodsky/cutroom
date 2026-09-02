@@ -84,7 +84,12 @@ commits listed in [`docs/PRIOR-WORK.md`](../../PRIOR-WORK.md).
 
 ## Narration script
 
-Read straight through, this is the VO lane, roughly two minutes at a normal radio pace.
+Read straight through, this is the VO lane, roughly two minutes at a normal
+reading pace.
+
+`shots.jsonl` in this folder still spells the narration field `radio`, the name
+it carried while Cutroom was extracted from a single film. The importer maps it
+onto `narration`, so the file imports unchanged.
 
 A student in Michigan spent a weekend on a small idea. Take one chatbot. Wire it to another copy of itself. Then watch.
 

@@ -36,6 +36,9 @@ const TAB_IDS = WORK_TABS.map((t) => t.id) as ShotTab[];
 const GEN_SUBS: GenSub[] = ["still", "restyle", "animate", "chain"];
 const KIND_FILTERS: KindFilter[] = ["all", "stills", "i2i", "motion", "fx", "crops"];
 const IS_CLIP = (p: string | null) => !!p && /\.(mp4|webm|mov)$/i.test(p);
+/** What a line can be heard through. Mirrors `engine.audio.TREATMENT_NAMES`;
+ *  `none` is the default because the platform has no house sound. */
+const VO_TREATMENTS = ["none", "radio", "phone", "megaphone", "hall"];
 
 export default function ShotPage() {
   const { pid, sid } = useParams() as { pid: string; sid: string };
@@ -63,7 +66,7 @@ export default function ShotPage() {
   const [gen, setGen] = useState<any>({ backend: "", model: "", seeds: "",
     prompt: "", denoise: 0.85, frames: 97, steps: "", cfg: "", live: 1.0,
     freeze_after: "", region: null as number[] | null, fullFrame: false,
-    voice: "", text: "", futz: false, beats:
+    voice: "", text: "", treatment: "none", beats:
       '[{"prompt": "", "live": 1.0, "breath": 0.4}]' });
   // The Music & SFX console (Audio tab). Kept apart from `gen` so a VO
   // backend pick can't leak into a music submission.
@@ -155,8 +158,9 @@ export default function ShotPage() {
   const submitFreeze = () => submitGen("freeze", { source: selected, live: gen.live });
   const submitTrim = (end: number) => submitGen("trim", { source: selected, end });
   const submitVo = () => submitGen("vo", {
-    text: gen.text || shot?.radio, voice: gen.voice || undefined,
-    backend: gen.backend || undefined, futz: gen.futz, name: `${sid}_call` });
+    text: gen.text || shot?.narration, voice: gen.voice || undefined,
+    backend: gen.backend || undefined, treatment: gen.treatment,
+    name: `${sid}_vo` });
 
   // --- music & SFX: generate, then place what came back as a cue ---------
   const submitMusic = () => submitGen("music", {
@@ -594,19 +598,22 @@ export default function ShotPage() {
                 onChange={(b, v) => setGen({ ...gen, backend: b, voice: v })} />
             </div>
             <label className="field">line (v3 tags pass through)
-              <textarea value={gen.text || shot.radio || ""}
+              <textarea value={gen.text || shot.narration || ""}
                         data-action={ANCHORS.audioText}
                         onChange={(e) =>
                           setGen({ ...gen, text: e.target.value })} /></label>
             <div className="row">
-              <label className="field">radio futz
-                <input type="checkbox" checked={gen.futz}
-                       data-action={ANCHORS.audioFutz}
-                       title="in-scene radio: bandpass + grit + static bed"
-                       onChange={(e) =>
-                         setGen({ ...gen, futz: e.target.checked })} /></label>
+              <label className="field">treatment
+                <select value={gen.treatment}
+                        data-action={ANCHORS.audioTreatment}
+                        title="what the line is heard through — none keeps it clean"
+                        onChange={(e) =>
+                          setGen({ ...gen, treatment: e.target.value })}>
+                  {VO_TREATMENTS.map((name) => (
+                    <option key={name} value={name}>{name}</option>))}
+                </select></label>
               <button className="primary"
-                disabled={busy || !(gen.text || shot.radio)}
+                disabled={busy || !(gen.text || shot.narration)}
                 data-action={ANCHORS.audioSubmit}
                 onClick={() => fire(submitVo())}>
                 ▶ synthesize</button>
@@ -722,7 +729,8 @@ export default function ShotPage() {
             {shot.motion_prompt && <label className="field">motion prompt
               <textarea readOnly value={shot.motion_prompt} /></label>}
             {shot.pan && <div className="muted">pan: {shot.pan}</div>}
-            {shot.radio && <div><b>radio:</b> {shot.radio}</div>}
+            {shot.narration && (
+              <div><b>narration:</b> {shot.narration}</div>)}
             {shot.dialogue?.map((d, i) => (
               <div key={i}><b>{d.character}:</b> {d.line}</div>
             ))}

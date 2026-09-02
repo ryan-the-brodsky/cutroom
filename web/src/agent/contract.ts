@@ -68,7 +68,7 @@ export type KindFilter = "all" | "stills" | "i2i" | "motion" | "fx" | "crops";
 export type GenField =
   | "prompt" | "negative" | "seeds" | "denoise" | "frames" | "steps" | "cfg"
   | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats";
-export type VoField = "text" | "voice" | "backend" | "futz";
+export type VoField = "text" | "voice" | "backend" | "treatment";
 
 // ---------------------------------------------------------------- cues (music & SFX)
 
@@ -430,7 +430,8 @@ export const ANCHORS = {
   gen: "shot.gen",                             // "shot.gen.<sub>.<field|submit>"
   genModel: "shot.gen.model",
   motionLive: "shot.motion.live", motionFreeze: "shot.motion.freeze", motionTrim: "shot.motion.trim",
-  audioText: "shot.audio.text", audioVoice: "shot.audio.voice", audioFutz: "shot.audio.futz",
+  audioText: "shot.audio.text", audioVoice: "shot.audio.voice",
+  audioTreatment: "shot.audio.treatment",
   audioSubmit: "shot.audio.submit", audioVoOffset: "shot.audio.vo_offset", audioMute: "shot.audio.mute",
   // music & SFX (the Audio tab's second section)
   musicPrompt: "shot.audio.music.prompt", musicSeconds: "shot.audio.music.seconds",

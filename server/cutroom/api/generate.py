@@ -8,6 +8,7 @@ from ..adapters import motion_profiles as mprof
 from ..adapters.registry import ADAPTER_TYPES, pool_for
 from ..db import session_scope
 from ..director.apply import _gen_pool
+from ..engine.audio import TREATMENT_NAMES
 from ..jobs.queue import submit_job
 from ..models import Backend
 from .. import budget, demo
@@ -62,6 +63,25 @@ def apply_motion_profile(pid: str, lane: str, body: dict) -> dict:
     return body
 
 
+def apply_vo_treatment(body: dict) -> dict:
+    """Normalise the voice treatment: a named chain the line is heard through.
+
+    Default is `none` — the platform has no house sound. `futz: true` was the
+    single-film spelling of `treatment: "radio"`; it still works for one
+    release."""
+    name = body.pop("treatment", None)
+    legacy = body.pop("futz", None)
+    if name is None and legacy:
+        name = "radio"
+    name = str(name or "none").strip().lower()
+    if name not in TREATMENT_NAMES:
+        raise HTTPException(400, f"no voice treatment {name!r} "
+                                 f"(know: {', '.join(TREATMENT_NAMES)})")
+    if name != "none":
+        body["treatment"] = name
+    return body
+
+
 @router.post("/projects/{pid}/generate/{lane}")
 async def generate(pid: str, lane: str, req: Request):
     project_or_404(pid)
@@ -80,6 +100,8 @@ async def generate(pid: str, lane: str, req: Request):
     budget.check_submission(pid, pool_lane, body.get("backend"), takes)
     if lane == "music":
         body["lane"] = "music"
+    if lane == "vo":
+        body = apply_vo_treatment(body)
     body = apply_motion_profile(pid, lane, body)
     payload = {"project": pid, **body}
     if pool_lane is None:

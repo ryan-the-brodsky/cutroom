@@ -154,7 +154,7 @@ def apply_op(project: str, op: dict) -> dict:
                        None, f"motion: {op.get('name') or op.get('shot', '')}"),
         "gen_vo": ("gen.vo",
                    {"text": op.get("text"), "voice": op.get("voice"),
-                    "futz": op.get("futz"), "shot": op.get("shot"),
+                    "treatment": op.get("treatment"), "shot": op.get("shot"),
                     "name": op.get("name"), "backend": op.get("backend"),
                     **{k: op.get(k) for k in ("stability", "style", "speed")}},
                    None, f"vo: {op.get('shot') or ''}"),
