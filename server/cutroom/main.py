@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .api import (admin, audio, backends, comps, cues, deps, direction, generate,
-                  jobs, media, projects, separate, system, timeline)
+                  jobs, media, projects, public, separate, system, timeline)
 from .adapters.motion_profiles import default_profile_for_row, env_profile
 from .adapters.registry import ADAPTER_TYPES, default_backends
 from .budget import BudgetExceeded, default_cost
@@ -208,6 +208,13 @@ def create_app() -> FastAPI:
               timeline.router, separate.router, cues.router, audio.router,
               admin.router):
         app.include_router(r, prefix="/api", dependencies=auth)
+
+    # The one router that is NOT behind `auth`: the studio is invite-only, but
+    # the film and the request-access link are public. See api/public.py — it is
+    # read-only and reaches only the demo project's newest cut. Registered before
+    # the SPA catch-all below, which is what keeps `/api/public/film.mp4` from
+    # being answered with index.html.
+    app.include_router(public.router, prefix="/api")
 
     @app.get("/api/health")
     def health():

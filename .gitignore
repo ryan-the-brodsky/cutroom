@@ -10,3 +10,4 @@ server/cutroom.egg-info/
 server/.pytest_cache/
 web/e2e-results/
 web/playwright-report/
+node_modules/

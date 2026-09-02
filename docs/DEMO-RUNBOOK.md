@@ -424,6 +424,23 @@ If a run goes wrong and you need to re-record a block:
 
 ## 6. After recording
 
+- [ ] **Publish the video and the access form.** The public page reads both from
+      `GET /api/public` at page load, so these are Railway variables and nothing
+      is rebuilt or redeployed by hand — Railway restarts the service on a
+      variable change and the next visitor has them:
+      ```bash
+      railway variables --set "CUTROOM_DEMO_VIDEO_URL=https://youtu.be/<id>"
+      railway variables --set "CUTROOM_ACCESS_FORM_URL=https://forms.gle/<id>"
+      curl -s https://gengastudio.com/api/public | python3 -m json.tool
+      ```
+      `CUTROOM_DEMO_VIDEO_URL` is the plain YouTube watch link (the page derives
+      the `youtube-nocookie` embed itself; `youtu.be`, `watch?v=`, `/shorts/` and
+      `/embed/` all work). `CUTROOM_ACCESS_FORM_URL` is a Google Form asking for
+      an email and what the person would make with the studio — that form is the
+      only way a stranger gets a token, so the judge link stays specific. Until
+      each is set the page simply omits that control; it never renders a dead
+      button. The film at `/api/public/film.mp4` needs neither: it is public as
+      soon as the demo project (`CUTROOM_DEMO_PROJECT`) holds an assembled cut.
 - [ ] Note the session spend against the budget (`GET /api/system`).
 - [ ] Decide the cap for judging week deliberately. Judges will generate; that
       is expected and budgeted.

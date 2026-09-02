@@ -90,6 +90,8 @@ Data lives in `~/.cutroom` (override with `CUTROOM_DATA`). The server binds
 | `CUTROOM_CPU_POOL_SIZE` | `2` | parallel CPU jobs (comps/freezes/assembly) |
 | `CUTROOM_ENCODER_THREADS` | `4` | x264 threads for streaming renders (comps). Each thread holds a frame buffer, so this is the dial that keeps a memory-capped container alive; `0` means all cores |
 | `CUTROOM_ALLOW_CLAUDE_CLI` | `0` | enable the `claude -p` direction provider |
+| `CUTROOM_ACCESS_FORM_URL` | *(none)* | request-access form (a Google Form) linked from `/` and the access gate. Unset = no button, never a dead one |
+| `CUTROOM_DEMO_VIDEO_URL` | *(none)* | YouTube walkthrough embedded on `/` (privacy-enhanced `youtube-nocookie`). Unset = no embed |
 | `ANTHROPIC_API_KEY` | — | seeds the hosted-director backend at first boot |
 | `ELEVEN_LABS_API_KEY` | — | seeds the voice backend at first boot |
 
@@ -300,7 +302,17 @@ Bind and demo policy:
 | `CUTROOM_RUN_WORKERS` | `1` | in-process workers |
 | `CUTROOM_CPU_POOL_SIZE` | `2` | parallel CPU jobs |
 | `CUTROOM_ALLOW_CLAUDE_CLI` | `0` | no shell on a public host |
+| `CUTROOM_ACCESS_FORM_URL` | *(a Google Form URL)* | the "Request access" button on `/` and on the access gate. Unset = the button is not rendered |
+| `CUTROOM_DEMO_VIDEO_URL` | *(a YouTube watch URL)* | the walkthrough embedded on `/`. Unset = no embed |
 | `RAILWAY_DOCKERFILE_PATH` | `deploy/Dockerfile` | only used if source builds are restored |
+
+The public page (`/`) reads both of those from `GET /api/public`, the one
+unauthenticated route (`server/cutroom/api/public.py`), so they are host
+variables and not build args — setting one takes effect on the next page load,
+with no rebuild of the SPA. That endpoint also streams the demo project's
+newest cut at `/api/public/film.mp4` (Range-capable, read-only, and hard-wired
+to `CUTROOM_DEMO_PROJECT`), which is what lets a visitor with no invite watch
+the film while the studio itself stays token-gated.
 
 Secrets (**never** commit these; generated with `openssl rand -hex`):
 

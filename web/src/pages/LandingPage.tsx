@@ -14,6 +14,7 @@ import { Link } from "react-router-dom";
 import { api, mediaUrl } from "../api";
 import { TOOL_NAMES } from "../agent/contract";
 import { subscribeAgentStatus } from "../agent/webmcp";
+import { publicConfig, usePublicConfig, youtubeEmbed } from "../publicConfig";
 import { APP_BASE } from "../routes";
 import "../styles/landing.css";
 
@@ -23,11 +24,12 @@ const FILM_DOC = `${REPO}/blob/main/docs/demo-films/two-claudes/README.md`;
 /**
  * "Watch the film" plays a real cut, and nothing is bundled to make that true.
  *
- * In order: `?demo=<url>` wins, then the newest animatic the demo project actually holds
- * (this is a hosted app; the film is already sitting in its media store), then a static
- * mp4 at `web/public/landing/two-claudes.mp4` if someone drops one there. With none of
- * the three, the button links to the film's page in the repo instead of opening an empty
- * player.
+ * In order: `?demo=<url>` wins, then `/api/public`'s film — the demo project's newest cut,
+ * streamed with no token, which is what lets a stranger watch the whole thing — then the
+ * authed lookup (a self-host with auth off, or a visitor who already holds an invite, where
+ * the media store is readable directly), then a static mp4 at
+ * `web/public/landing/two-claudes.mp4` if someone drops one there. With none of the four,
+ * the button links to the film's page in the repo instead of opening an empty player.
  */
 const LOCAL_CUT = "/landing/two-claudes.mp4";
 const PREFERRED_PID = "two-claudes";
@@ -130,7 +132,11 @@ function useCut(): Cut | null {
     const q = new URLSearchParams(window.location.search).get("demo");
     if (q && q !== "" && q !== "1") { setCut({ url: q, label: FILM_TITLE }); return; }
     void (async () => {
-      let found: Cut | null = await newestCut();
+      const pub = await publicConfig();
+      let found: Cut | null = pub.film
+        ? { url: pub.film.url, label: pub.film.label || FILM_TITLE }
+        : null;
+      if (!found) found = await newestCut();
       if (!found && await isVideo(LOCAL_CUT)) found = { url: LOCAL_CUT, label: FILM_TITLE };
       if (live && found) setCut(found);
     })();
@@ -163,6 +169,7 @@ function Player({ cut, onClose }: { cut: Cut; onClose: () => void }) {
 export default function LandingPage() {
   const tools = useToolCount();
   const cut = useCut();
+  const pub = usePublicConfig();
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
@@ -176,6 +183,18 @@ export default function LandingPage() {
     : <a className="lp-btn lp-btn-ghost" href={FILM_DOC} target="_blank" rel="noreferrer">
         Read how the film was made
       </a>;
+
+  /**
+   * Both links are owner-configured and both are absent until they are set: an unset
+   * variable renders nothing at all, never a button that goes to "". The form is where
+   * an invite actually comes from, so it sits beside "Open the studio" rather than in a
+   * footer — the studio is the one thing on this page a stranger cannot have.
+   */
+  const requestAccess = pub.access_form_url
+    ? <a className="lp-btn lp-btn-ghost" href={pub.access_form_url}
+         target="_blank" rel="noreferrer">Request access</a>
+    : null;
+  const embed = youtubeEmbed(pub.video_url);
 
   return (
     <div className="lp">
@@ -221,7 +240,23 @@ export default function LandingPage() {
           <div className="lp-hero-actions">
             <Link className="lp-btn lp-btn-primary" to={APP_BASE}>Open the studio</Link>
             {watch}
+            {requestAccess}
           </div>
+          <p className="lp-access-note">
+            The film plays here for everyone. The studio itself is invite-only while the
+            demo is live{requestAccess ? <>, so{" "}
+              <a href={pub.access_form_url} target="_blank" rel="noreferrer">
+                ask for a key
+              </a>{" "}and say who you are and what you would make with it.
+            </> : "."}
+          </p>
+          {pub.video_url && (
+            <p className="lp-hero-links">
+              <a href={pub.video_url} target="_blank" rel="noreferrer">
+                <span aria-hidden>▶</span> Watch the 3-minute demo
+              </a>
+            </p>
+          )}
           <div className="lp-stats">
             <span><b>15</b> shots</span>
             <span><b>257</b> tool calls</span>
@@ -262,6 +297,30 @@ export default function LandingPage() {
             below is from the finished cut.
           </p>
         </div>
+        {embed && (
+          /* youtube-nocookie: the walkthrough plays without YouTube setting a
+             tracking cookie on a first-time visitor to the front page. */
+          <figure className="lp-embed">
+            <div className="lp-embed-frame">
+              <iframe
+                src={embed}
+                title="Genga Studio · the three-minute walkthrough"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                loading="lazy" allowFullScreen />
+            </div>
+            <figcaption>
+              the walkthrough · an agent driving the studio by sentence, start to cut
+            </figcaption>
+          </figure>
+        )}
+        {!embed && pub.video_url && (
+          <p className="lp-note">
+            <a href={pub.video_url} target="_blank" rel="noreferrer">
+              Watch the 3-minute walkthrough
+            </a>
+          </p>
+        )}
         <div className="lp-strip">
           <div className="lp-strip-grid">
             {FRAMES.map((f) => (
@@ -439,10 +498,19 @@ export default function LandingPage() {
 
       {/* ---------------------------------------------------------------- close */}
       <section className="lp-close">
-        <h2>The studio is one click away.</h2>
-        <p>No signup. The demo ships with two films and every tool live.</p>
+        <h2>{requestAccess ? "Ask for a key." : "The studio is one click away."}</h2>
+        <p>
+          {requestAccess
+            ? <>The hosted studio runs on real paid lanes, so it is invite-only for now.
+                Tell me your email and what you would make, and I will send an access
+                link. The film above needs nothing.</>
+            : <>No signup. The demo ships with two films and every tool live.</>}
+        </p>
         <div className="lp-hero-actions">
-          <Link className="lp-btn lp-btn-primary" to={APP_BASE}>Open the studio</Link>
+          {requestAccess
+            ? <a className="lp-btn lp-btn-primary" href={pub.access_form_url}
+                 target="_blank" rel="noreferrer">Request access</a>
+            : <Link className="lp-btn lp-btn-primary" to={APP_BASE}>Open the studio</Link>}
           <a className="lp-btn lp-btn-ghost" href={REPO} target="_blank" rel="noreferrer">
             Read the source
           </a>
@@ -455,6 +523,11 @@ export default function LandingPage() {
           <a href={`${REPO}/blob/main/LICENSE`} target="_blank" rel="noreferrer">MIT</a>
           <a href={FILM_DOC} target="_blank" rel="noreferrer">Two Claudes</a>
           <Link to={APP_BASE}>Studio</Link>
+          {pub.access_form_url && (
+            <a href={pub.access_form_url} target="_blank" rel="noreferrer">
+              Request access
+            </a>
+          )}
         </div>
         <p>Genga Studio · gengastudio.com · built for the WebMCP Challenge.</p>
       </footer>
