@@ -82,6 +82,20 @@ export const resetReferences = (): void => {
   for (const k of Object.keys(FIXTURE_REFS)) delete FIXTURE_REFS[k];
 };
 
+/**
+ * The keeper the fixtures start with. `setKeeper` MOVES the fixture's keeper,
+ * the way the server does — a fake that only logged the call is what let a
+ * tool claim "the keeper is now X" while every motion job kept starting from
+ * the old plate.
+ */
+const FIXTURE_KEEPERS: Record<string, unknown> = Object.fromEntries(
+  Object.entries(FIXTURE_DETAIL).map(([sid, d]) => [sid, d.keeper]));
+export const resetKeepers = (): void => {
+  for (const [sid, keeper] of Object.entries(FIXTURE_KEEPERS)) {
+    FIXTURE_DETAIL[sid].keeper = keeper;
+  }
+};
+
 const takeRows = (sid: string) => {
   const d = FIXTURE_DETAIL[sid] || {};
   const rows: { path: string; kind: string; created_at: number }[] = [];
@@ -277,6 +291,8 @@ export class FakeShotPage implements ShotPageHandles {
 
   async setKeeper(path: string, note?: string) {
     this.log(`setKeeper(${path}${note ? `,${note}` : ""})`);
+    const d = FIXTURE_DETAIL[this.sid];
+    if (d) d.keeper = path;                       // the server stores the pick
   }
   async setSource(path: string | null) { this.log(`setSource(${path})`); }
   async setOverride(patch: Record<string, unknown>) {
@@ -769,6 +785,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
   };
 
   resetReferences();
+  resetKeepers();
   const cues = opts.cues ?? new FakeCueStore();
   const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls, cues);
   const filmPage = new FakeFilmPage(project || "next-year", pageCalls, cues);

@@ -6,14 +6,15 @@ import type { ActionDef, GenSub, ToolResult } from "../contract";
 import { ANCHORS, err, genFieldAnchor, genSubAnchor, ok } from "../contract";
 import { deps, type BackendChoice } from "./deps";
 import {
-  clampSeconds, framesForSeconds, motionModels, motionProfile, unfaithfulHint,
+  ANIME_CLAUSE, clampSeconds, framesForSeconds, motionGuidance, motionModels,
+  motionProfile, withAnimeClause,
   type MotionModel, type MotionProfile,
 } from "./plan";
 import { imageModels, textHint, wantsText, type ImageModel } from "./images";
 import { resolveRefImage, roleOf } from "./references";
 import {
-  SHOT_ROUTE, asError, costGate, cut, fetchShot, freshSeeds, lookupShot, maybeNum,
-  normalizeCount, openShotPage, pickTake, plateOf, safeState,
+  IS_IMAGE, SHOT_ROUTE, asError, costGate, cut, fetchShot, freshSeeds, lookupShot,
+  maybeNum, normalizeCount, openShotPage, pickTake, plateOf, safeState, stripFor,
 } from "./util";
 
 export type Lane = "still" | "restyle" | "animate";
@@ -24,6 +25,7 @@ interface GenArgs {
   count?: number | string;
   prompt?: string;
   prompt_mode?: "replace" | "append";
+  source?: string;
   source_take?: string;
   denoise?: number;
   region?: number[];
@@ -71,11 +73,11 @@ export const generateTakes: ActionDef<GenArgs> = {
   description:
     "Generate new takes for a shot — stills, restyles of an existing take, or " +
     "animated cel clips. Opens the Generate console, fills it, and submits one " +
-    "job per take with a fresh seed. Count 1–4 (default 3); the prompt defaults " +
-    "to the shot's own; clips play in full; paid backends need confirm_cost. " +
-    "Text that must be readable (signs, screens, titles) needs model:\"pro\"; " +
-    "the cheap default misspells past one string. attach_reference pins a face " +
-    "or place to an image; restyle edits a frame.",
+    "job per take with a fresh seed. Count 1–4 (default 3); paid backends need " +
+    "confirm_cost. ANIMATE STARTS FROM THE KEEPER STILL — to animate another, " +
+    "pass source (a path or \"selected\"). Readable text needs model:\"pro\"; " +
+    "attach_reference pins a face or place, restyle edits a frame. Motion " +
+    "results carry situational guidance.",
   inputSchema: {
     type: "object",
     properties: {
@@ -84,7 +86,8 @@ export const generateTakes: ActionDef<GenArgs> = {
       count: { type: "integer", minimum: 1, maximum: 4, default: 3, description: "How many takes to submit, 1–4. Words like \"a few\" (3) or \"a couple\" (2) are accepted too." },
       prompt: { type: "string", description: "Prompt text. Omit to use the shot's written image or motion prompt exactly as the director wrote it." },
       prompt_mode: { type: "string", enum: ["replace", "append"], description: "replace = use only your prompt (default) · append = add yours to the shot's own prompt." },
-      source_take: { type: "string", description: "For restyle: the take to restyle. A path, or \"latest\", \"newest still\", \"keeper\". Defaults to the selected take." },
+      source: { type: "string", description: "Which image to start FROM: a take path, \"selected\", \"third still\" or \"keeper\". Animate defaults to the keeper; restyle to the selected take." },
+      source_take: { type: "string", description: "For restyle: the take to restyle. A path, or \"latest\", \"newest still\", \"keeper\". Defaults to the selected take. Same as source." },
       denoise: { type: "number", description: "Restyle strength, 0.35–0.95. 0.55 keeps the layout, 0.85 restyles. Default 0.85." },
       region: { type: "array", items: { type: "number" }, description: "For animate: the cel region as [left, top, right, bottom]. Omit to animate the full frame." },
       seconds: { type: "number", description: "For animate: clip length in seconds. Defaults to the backend's own clip length and is clamped to what it supports." },
@@ -158,6 +161,13 @@ export const generateTakes: ActionDef<GenArgs> = {
     const prompt = !typed ? base
       : args?.prompt_mode === "append" && base ? `${base}, ${typed}`
         : typed;
+    // An i2v model reads an anime plate as a photograph unless the sentence
+    // says otherwise: it will add photoreal faces, daylight and props nobody
+    // asked for. The clause goes on quietly, behind the director's own words,
+    // and the result says it happened.
+    const animeFix = lane === "animate" ? withAnimeClause(prompt)
+      : { prompt, added: false };
+    const sendPrompt = animeFix.prompt;
     if (!prompt) {
       return err("needs_prompt", {
         hint: lane === "animate"
@@ -167,20 +177,54 @@ export const generateTakes: ActionDef<GenArgs> = {
     }
 
     // ---- 4. lane preconditions (cheap failures before we move the view)
-    let source: string | null = null;
+    // WHICH IMAGE this starts from. Read the strip BEFORE navigating: opening
+    // the shot page without ?take= resets the monitor to the shot's default,
+    // so "selected" has to be resolved against what the director is looking at
+    // right now.
+    const strip = stripFor(ctx, shot.sid, detail);
+    const wantSource = String(args?.source ?? "").trim();
+    let source: string | null = null;          // restyle: the frame to edit
+    let plate: string | null = null;           // animate/chain: the plate
+    let sourceExplicit = false;
+
     if (lane === "restyle") {
-      const hit = await pickTake(ctx, pid, detail, args?.source_take, { prefer: "image" });
+      const hit = await pickTake(ctx, pid, detail, args?.source_take ?? args?.source,
+                                 { prefer: "image", ...strip });
       if (!hit) {
         return err("needs_source_take", {
-          hint: "Restyle needs a source image — select a take, set a keeper, or pass source_take.",
+          hint: "Restyle needs a source image — select a take, set a keeper, or pass source.",
         });
       }
       source = hit.path;
+      sourceExplicit = Boolean(args?.source_take || wantSource);
     }
-    if (lane === "animate" && !plateOf(detail)) {
-      return err("needs_plate", {
-        hint: "Animate needs an approved plate — set a keeper still on this shot first (set_keeper).",
-      });
+    if (lane === "animate") {
+      if (!wantSource || /^keeper$/i.test(wantSource)) {
+        plate = plateOf(detail);
+        if (!plate) {
+          return err("needs_plate", {
+            hint: "Animate starts from the keeper still, and this shot has none — " +
+                  "call set_keeper on a still first, or pass source with a take path.",
+          });
+        }
+      } else {
+        const hit = await pickTake(ctx, pid, detail, wantSource, { prefer: "image", ...strip });
+        if (!hit) {
+          return err("source_not_found", {
+            source: cut(wantSource, 40),
+            hint: `No still on ${shot.sid} matches “${cut(wantSource, 30)}”. Pass a take ` +
+                  "path, \"selected\", a position like \"third still\", or \"keeper\".",
+          });
+        }
+        if (!IS_IMAGE(hit.path)) {
+          return err("source_must_be_a_still", {
+            source: cut(hit.path, 60),
+            hint: "Motion animates a still. To reuse a clip, freeze or trim it instead.",
+          });
+        }
+        plate = hit.path;
+        sourceExplicit = true;
+      }
     }
 
     // ---- 4a. legibility is a model property. A shot whose prompt asks for
@@ -212,8 +256,13 @@ export const generateTakes: ActionDef<GenArgs> = {
     // ---- 5. drive the UI
     // `take` goes in the URL too: the restyle submit reads the page's selected
     // take, and the query param is applied before the page hands back handles.
+    const startFrom = lane === "restyle" ? source : plate;
+    // Put the source on the monitor when the caller named one (and always for
+    // restyle, which has always shown what it edits) — but do not yank the view
+    // to the keeper on a plain "animate this shot".
+    const show = lane === "restyle" ? source : sourceExplicit ? plate : null;
     const opened = await openShotPage(ctx, "generate_takes", pid, shot.sid,
-      { tab: "generate", sub, ...(source ? { take: source } : {}) });
+      { tab: "generate", sub, ...(show ? { take: show } : {}) });
     if (!opened.ok) return opened.res;
     const page = opened.page;
 
@@ -235,12 +284,12 @@ export const generateTakes: ActionDef<GenArgs> = {
       });
     }
 
-    page.setGenField(sub, "prompt", prompt);
+    page.setGenField(sub, "prompt", sendPrompt);
     await ctx.trail.step({
       tool: "generate_takes",
       title: args?.prompt_mode === "append" && typed ? "Append to the shot's prompt" : "Fill the prompt",
       anchor: genFieldAnchor(sub, "prompt"),
-      detail: cut(prompt, 140),
+      detail: cut(sendPrompt, 140),
     });
 
     if (oneOff.length) {
@@ -250,6 +299,20 @@ export const generateTakes: ActionDef<GenArgs> = {
         title: `${oneOff.length} reference${oneOff.length === 1 ? "" : "s"} — ` +
           oneOff.map((r) => r.role).join(", "),
         anchor: ANCHORS.genRefs,
+      });
+    }
+
+    // The console reads this field on submit, so the lane starts from the image
+    // the tool resolved — not from whatever the keeper happens to be.
+    if (startFrom) {
+      page.setGenField(sub, "source", startFrom);
+      await ctx.trail.step({
+        tool: "generate_takes",
+        title: `${lane === "animate" ? "Animate" : "Restyle"} from ` +
+          `${cut(startFrom.split("/").pop(), 30)}` +
+          (startFrom === detail.keeper ? " (the keeper)" : ""),
+        anchor: genFieldAnchor(sub, "source"),
+        detail: startFrom,
       });
     }
 
@@ -353,6 +416,12 @@ export const generateTakes: ActionDef<GenArgs> = {
         jobs,
         backend: backendId,
         cost_class: choice.cost_class,
+        // Which image these takes actually started from — the answer to
+        // "did it animate the still I picked?".
+        ...(startFrom
+          ? { source_image: cut(startFrom, 70),
+              source_is_keeper: startFrom === detail.keeper }
+          : {}),
         ...(lane === "animate"
           ? { seconds, motion_profile: {
                 seconds_default: profile.seconds_default,
@@ -361,8 +430,18 @@ export const generateTakes: ActionDef<GenArgs> = {
                 holds_seconds: profile.live_seconds_default,
               } }
           : {}),
-        ...(lane === "animate" && unfaithfulHint(models, args?.model)
-          ? { next_if_unfaithful: unfaithfulHint(models, args?.model) }
+        // Situational guidance, at the moment it can be acted on — what this
+        // plate and this model will do wrong, and the fix, in two to four lines.
+        ...(lane === "animate"
+          ? {
+              ...(animeFix.added ? { prompt_clause_added: ANIME_CLAUSE } : {}),
+              guidance: motionGuidance({
+                models, model: args?.model,
+                imagePrompt: detail.image_prompt,
+                motionPrompt: prompt,
+                clauseAdded: animeFix.added,
+              }),
+            }
           : {}),
         seeds,
         takes,

@@ -5,8 +5,9 @@ import { type Timeline, clipsOnTrack, orderedTracks } from "../timeline/model";
 import { PreviewImage, PreviewText, PreviewVideo } from "./PreviewClip";
 
 /** A live, scrubbable preview of the timeline — the lifted FreeCut player
- * (clock + layout) compositing our URL-served media. Video tracks only
- * (audio/VO preview is a later pass; scrub preview is visual). */
+ * (clock + layout) compositing our URL-served media. Picture only, by design:
+ * the audio tracks are played by `preview/timelineAudio.ts`, which follows this
+ * player's clock rather than being composited frame by frame. */
 export const PreviewStage = forwardRef<PlayerRef, {
   pid: string;
   tl: Timeline;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, thumbUrl } from "../api";
 import {
@@ -7,9 +7,10 @@ import {
 } from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
 import { pick, useQueryState } from "../agent/urlState";
+import CutFilm, { useCutFilm } from "../components/CutFilm";
 import Player from "../components/Player";
 import * as screen from "../screen/store";
-import { pushToast, useAsync, useJobWatch, usePoll } from "../hooks";
+import { usePoll } from "../hooks";
 import type { FilmEntry, Take } from "../types";
 
 /** FILM EDITOR — the arrangement room. Grab what exists, order and time it,
@@ -47,14 +48,10 @@ export default function FilmEditorPage() {
   const setView = (v: (typeof VIEWS)[number]) => setQ({ view: v });
   const setScope = (s: string) => setQ({ scope: s });
   const setRes = (r: "720" | "1080") => setQ({ res: r });
-  const [cutJob, setCutJob] = useState<string | null>(null);
-  const { busy, error, run } = useAsync();
-
-  useJobWatch(cutJob, (ok) => {
-    setCutJob(null);
-    pushToast({ text: ok ? "✓ the cut is ready" : "✗ cut failed (see Jobs)" });
-    refreshCuts();
-  });
+  // The cut and its job, in one place: the button below, the inline status
+  // beside it and the `cut_film` tool all drive this one state machine.
+  const cut = useCutFilm({ pid, params: { scope, res },
+                           onDone: () => refreshCuts() });
 
   const selected = film?.find((s) => s.sid === sel);
   const total = (film || []).reduce((a, s) => a + (s.seconds || 0), 0);
@@ -62,15 +59,6 @@ export default function FilmEditorPage() {
   const setOverride = (sid: string, patch: any) =>
     api(`/api/projects/${pid}/shots/${sid}/override`, patch).then(() => refresh());
   const fire = (p: Promise<unknown>) => { void p.catch(() => {}); };
-
-  /** The same handler "🎞 cut the film" calls. */
-  const cutFilm = async () => {
-    const d = await run(
-      () => api<{ job: string }>(`/api/projects/${pid}/animatic`, { res, scope }),
-      (v: any) => { setCutJob(v.job); pushToast({ text: "cutting…", job: v.job }); });
-    if (!d?.job) throw new Error("the cut did not queue — see the error above");
-    return d;
-  };
 
   /** The whole cue sheet, music then SFX, in film order. */
   const cues: CueRecord[] = useMemo(() => {
@@ -100,7 +88,8 @@ export default function FilmEditorPage() {
     selectShot: setSel,
     setScope,
     setRes,
-    cutFilm,
+    /** The same submit the 🎞 button fires, so an agent cut shows the same status. */
+    cutFilm: cut.start,
     setOverride,
     addCue,
     removeCue,
@@ -138,14 +127,9 @@ export default function FilmEditorPage() {
                 style={{ fontSize: 12, whiteSpace: "nowrap" }}>
             🎨 {styleReg?.style?.name || "anime-cel"}
           </span>
-          <button className="primary" disabled={busy || !!cutJob}
-            data-action={ANCHORS.filmCut}
-            onClick={() => fire(cutFilm())}>
-            {cutJob ? "⏳ cutting…" : "🎞 cut the film"}
-          </button>
+          <CutFilm cut={cut} anchor={ANCHORS.filmCut} />
         </div>
       </div>
-      {error && <div className="error">{error}</div>}
 
       {/* ---------------------------------------------------- the strip */}
       <div className="timeline">

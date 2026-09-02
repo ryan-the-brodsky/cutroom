@@ -39,7 +39,7 @@ test.describe("J6 — keeper and timeline source", () => {
     expect(String(source.plays ?? "")).toContain(leaf);
 
     // And so does the Film Editor.
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     // The shot appears in both the strip and the board, hence .first().
     const strip = page.locator(`[data-action="film.shot"][data-sid="${SID}"]`).first();
     await expect(strip).toBeVisible();

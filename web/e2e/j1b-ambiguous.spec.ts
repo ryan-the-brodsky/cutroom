@@ -13,7 +13,7 @@ const PID = "next-year";
 
 test.describe("J1b — ambiguity is surfaced, not guessed", () => {
   test("a name + a conflicting ordinal returns both candidates as ambiguous", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
 
     const res = await callTool(page, "find_shots", { query: "David Ross close up, shot 37" });
     expect(res.ok).toBe(true);
@@ -28,7 +28,7 @@ test.describe("J1b — ambiguity is surfaced, not guessed", () => {
   });
 
   test("nothing runs while the shot is ambiguous", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
 
     const beforeA = await railTakes(page);
     const res = await callTool(page, "generate_takes", {
@@ -48,7 +48,7 @@ test.describe("J1b — ambiguity is surfaced, not guessed", () => {
   });
 
   test("a nonsense query resolves to nothing rather than a wrong shot", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const res = await callTool(page, "find_shots", { query: "the underwater ballet sequence" });
     expect(res.ok).toBe(true);
     expect(res.confidence).toBe("none");

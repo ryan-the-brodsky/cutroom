@@ -13,7 +13,7 @@
 import type { ActionDef, ProjectsPageHandles, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { cut, filmUrl, maybeNum, shotUrl } from "./util";
-import { ROUTES, filmPath } from "../../routes";
+import { ROUTES, projectPath } from "../../routes";
 
 const PROJECTS_ROUTE = ROUTES.projects;
 const FILM_ROUTE = ROUTES.film;
@@ -431,7 +431,7 @@ export const listProjects: ActionDef<Record<string, never>> = {
   annotations: { readOnlyHint: true },
   where: { route: PROJECTS_ROUTE, anchor: ANCHORS.projectsCard, label: "Projects → the cards" },
   keywords: ["projects", "films", "list", "which project", "open", "switch"],
-  howTo: "The Projects page is the front door — every film is a card with its shot count; click one to open its Film Editor.",
+  howTo: "The Projects page is the front door — every film is a card with its shot count; click one to open it on its Timeline.",
   summarize: () => "List the films on this server",
   async execute(_args, ctx): Promise<ToolResult> {
     let rows: ProjectRow[];
@@ -444,7 +444,7 @@ export const listProjects: ActionDef<Record<string, never>> = {
       projects: rows.slice(0, 20).map((p) => ({
         id: p.id, title: cut(p.label || p.id, 40), shots: p.shots ?? 0,
         ...(p.paused ? { paused: true } : {}),
-        url: filmPath(p.id),
+        url: projectPath(p.id),
       })),
       hint: rows.length
         ? "Pass one of these ids as `project`, or open_shot to start work in it."

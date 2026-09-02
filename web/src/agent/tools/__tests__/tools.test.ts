@@ -5,6 +5,7 @@ import type { ToolErr, ToolOk } from "../../contract";
 import {
   FIXTURE_DETAIL, PAID_BACKEND, makeFakeContext, type FakeContext,
 } from "../fakeContext";
+import { ANIME_CLAUSE } from "../plan";
 import {
   applyPlan, cutFilm, describeShot, directShot, findShots, freezeTail, generateTakes,
   getContext, getJobs, listFeatures, openShot, selectTake, setKeeper, setShotTiming,
@@ -182,7 +183,79 @@ describe("generate_takes", () => {
     expect(f.shotPage.gen.frames).toBe("");              // frames only when typed
     expect(f.shotPage.gen.freeze_after).toBe(0);
     expect(f.shotPage.gen.fullFrame).toBe(true);
-    expect(f.shotPage.gen.prompt).toBe(FIXTURE_DETAIL["B10-S2"].motion_prompt);
+    // the director's sentence leads; the anti-photoreal clause rides behind it
+    expect(String(f.shotPage.gen.prompt).startsWith(
+      String(FIXTURE_DETAIL["B10-S2"].motion_prompt))).toBe(true);
+  });
+
+  // i2v models read an anime plate as a photograph: they add faces, daylight
+  // and props nobody asked for. The clause goes on automatically, and the
+  // result says both that it did and what this model drifts into.
+  it("adds the anti-photoreal clause and carries situational guidance", async () => {
+    const r = asOk(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, model: "seedance",
+        backend: "fal", confirm_cost: true }, f.ctx));
+    expect(r.prompt_clause_added).toBe(ANIME_CLAUSE);
+    expect(String(f.shotPage.gen.prompt)).toContain(ANIME_CLAUSE);
+    const g = r.guidance as string[];
+    expect(g.length).toBeGreaterThanOrEqual(2);
+    expect(g.length).toBeLessThanOrEqual(4);
+    expect(g.join(" ")).toContain("photoreal");
+    expect(g.join(" ")).toMatch(/model:"wan"/);        // rerun on the other one
+  });
+
+  it("leaves a prompt that already says anime alone", async () => {
+    const r = asOk(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1,
+        prompt: "the eyes blink, anime cel shading, no photorealism" }, f.ctx));
+    expect(r.prompt_clause_added).toBeUndefined();
+    expect(f.shotPage.gen.prompt).toBe(
+      "the eyes blink, anime cel shading, no photorealism");
+  });
+
+  // The B05-S1 bug (two-claudes, 2026-09-02): the director selected the third
+  // still, the agent said "the third still is selected", and the clip came back
+  // animated from the keeper. Motion starts from the keeper by DEFAULT; naming
+  // a source is what moves it, and the result has to say which was used.
+  it("animates from the keeper by default, and says so", async () => {
+    const keeper = FIXTURE_DETAIL["B10-S2"].keeper as string;
+    await selectTake.execute(
+      { shot: "B10-S2", take: "renders/B10-S2/stills/s2.png" }, f.ctx);
+    const r = asOk(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1 }, f.ctx));
+    expect(r.source_image).toBe(keeper);
+    expect(r.source_is_keeper).toBe(true);
+    expect(f.shotPage.gen.source).toBe(keeper);
+  });
+
+  it("animates from the selected still when source says so", async () => {
+    await selectTake.execute(
+      { shot: "B10-S2", take: "renders/B10-S2/stills/s2.png" }, f.ctx);
+    const r = asOk(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, source: "selected" }, f.ctx));
+    expect(r.source_image).toBe("renders/B10-S2/stills/s2.png");
+    expect(r.source_is_keeper).toBe(false);
+    expect(f.shotPage.gen.source).toBe("renders/B10-S2/stills/s2.png");
+    expect(f.rec.anchors()).toContain(genFieldAnchor("animate", "source"));
+  });
+
+  it("counts positions the way the takes strip does", async () => {
+    const r = asOk(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, source: "second still" }, f.ctx));
+    expect(r.source_image).toBe("renders/B10-S2/stills/s2.png");
+  });
+
+  it("refuses a clip as the thing to animate from", async () => {
+    const r = asErr(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, source: "newest motion" }, f.ctx));
+    expect(r.error).toBe("source_must_be_a_still");
+    expect(f.rec.calls()).not.toContain("submitGenerate(animate)");
+  });
+
+  it("says which still is missing instead of silently using the keeper", async () => {
+    const r = asErr(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, source: "ninth still" }, f.ctx));
+    expect(r.error).toBe("source_not_found");
   });
 
   it("takes seconds and clamps them to the profile", async () => {
@@ -341,6 +414,26 @@ describe("set_keeper", () => {
     expect(r.previous_keeper).toBe("renders/B10-S2/stills/keeper.png");
   });
 
+  it("moves the keeper the strip's own way and confirms it from the server", async () => {
+    const r = asOk(await setKeeper.execute(
+      { shot: "B10-S2", take: "second still" }, f.ctx));
+    expect(r.keeper).toBe("renders/B10-S2/stills/s2.png");
+    // read back, not assumed: the shot detail now says the same thing
+    expect(FIXTURE_DETAIL["B10-S2"].keeper).toBe("renders/B10-S2/stills/s2.png");
+    expect(r.hint).toMatch(/Motion, i2i and compose now start from this still/);
+    // and animate follows it without being told
+    const g = asOk(await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1 }, f.ctx));
+    expect(g.source_image).toBe("renders/B10-S2/stills/s2.png");
+  });
+
+  it("keeps the still the monitor is showing when no take is named", async () => {
+    await selectTake.execute(
+      { shot: "B10-S2", take: "renders/B10-S2/stills/s2.png" }, f.ctx);
+    const r = asOk(await setKeeper.execute({ shot: "B10-S2" }, f.ctx));
+    expect(r.keeper).toBe("renders/B10-S2/stills/s2.png");
+  });
+
   it("refuses a clip — the keeper is the plate", async () => {
     const r = asErr(await setKeeper.execute(
       { shot: "B10-S2", take: "newest motion" }, f.ctx));
@@ -371,7 +464,7 @@ describe("set_shot_timing", () => {
   it("edits the Film Editor quick panel", async () => {
     const r = asOk(await setShotTiming.execute(
       { shot: "B10-S2", seconds: 5, vo_offset: -0.3, mute_vo: true }, f.ctx));
-    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year?sel=B10-S2`);
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/film?sel=B10-S2`);
     expect(f.rec.calls()).toContain("selectShot(B10-S2)");
     expect(f.rec.calls()).toContain(
       'setOverride(B10-S2,{"seconds":5,"vo_offset":-0.3,"mute_vo":true})');
@@ -476,7 +569,7 @@ describe("direct_shot / apply_plan", () => {
 describe("cut_film", () => {
   it("sets scope and res on the Film Editor and presses cut", async () => {
     const r = asOk(await cutFilm.execute({ scope: "act1", res: "720" }, f.ctx));
-    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year?scope=act1&res=720`);
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/film?scope=act1&res=720`);
     expect(f.rec.calls()).toEqual(["setScope(act1)", "setRes(720)", "cutFilm()", "refresh()"]);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.filmScope, ANCHORS.filmRes, ANCHORS.filmCut]));

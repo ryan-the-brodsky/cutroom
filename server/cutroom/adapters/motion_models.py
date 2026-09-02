@@ -49,6 +49,8 @@ MOTION_MODELS: list[dict] = [
         ],
         "failure_modes": ("may replace dark close-ups with a brighter room; "
                           "grade drifts warm on wides"),
+        "drift": ("flashes a dark scene into daylight, and adds photoreal "
+                  "people or props to a sparse set"),
         "fallback": "wan",
         "registers": ["legible_text", "effects_burst", "wide_tableau"],
         "enabled": True,
@@ -84,6 +86,8 @@ MOTION_MODELS: list[dict] = [
             "fixed ~5s clip: no duration parameter",
         ],
         "failure_modes": "small motion amplitude; drops fine text after ~2s",
+        "drift": ("its content checker refuses crowd plates, and can pull an "
+                  "empty set toward photoreal detail"),
         "fallback": "seedance",
         "registers": ["dialogue_closeup", "wide_tableau"],
         "enabled": True,
@@ -196,6 +200,14 @@ def public(model: dict) -> dict:
     return {k: v for k, v in model.items() if k != "payload_map"}
 
 
+#: The clause an image-to-video model needs to HEAR. Every model in this
+#: registry was measured adding photoreal faces, daylight or extra props to a
+#: plate that never asked for them (docs/research/motion-bakeoff/RESULTS.md):
+#: they treat an anime plate as a photograph unless the prompt says otherwise.
+#: Kept to one short clause so it rides behind the director's own sentence
+#: instead of crowding it.
+ANIME_CLAUSE = "anime cel shading, no photorealism, no new people or objects"
+
 #: The sentence every motion tool carries. Faithfulness is a model property:
 #: a plate that got replaced is not a prompt that was worded badly.
 UNFAITHFUL_DOCTRINE = (
@@ -207,6 +219,14 @@ def fallback_for(ref: str | None) -> dict | None:
     """The model to rerun on when a clip comes back unfaithful to the plate."""
     m = get_model(ref)
     return get_model(m.get("fallback")) if m else None
+
+
+def drift_note(ref: str | None) -> str | None:
+    """One line: what THIS model adds to a plate that never asked for it. The
+    tools relay it at the moment a clip is about to be generated, not up front
+    — the agent can only act on it once a model is chosen."""
+    m = get_model(ref)
+    return (m or {}).get("drift")
 
 
 def unfaithful_hint(ref: str | None, register: str | None = None) -> str | None:

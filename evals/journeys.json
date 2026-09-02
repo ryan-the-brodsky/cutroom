@@ -3,7 +3,7 @@
   "version": 1,
   "updated": "2026-09-01",
   "target": {
-    "local": "http://localhost:8785/p/next-year?agent_debug=1&agent_speed=fast",
+    "local": "http://localhost:8785/app/p/next-year/film?agent_debug=1&agent_speed=fast",
     "hosted": "TBD — workstream D fills in the Railway HTTPS domain",
     "project": "next-year",
     "mode": "mock backend on every lane; generations return the film's own footage instantly"

@@ -15,7 +15,7 @@ const PID = "next-year";
 test.describe("J4 — cut the film", () => {
   test("submits an act-1 cut and waits for the animatic", async ({ page }) => {
     test.setTimeout(5 * 60 * 1000);          // the assembler is minutes on CPU
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
 
     const res = await callTool(page, "cut_film", { scope: "act1", res: "720" });
     expect(res.ok, `cut_film failed: ${JSON.stringify(res)}`).toBe(true);
@@ -46,13 +46,13 @@ test.describe("J4 — cut the film", () => {
     // …and the Cuts gallery shows it. Soft, because the gallery may sit behind the
     // film.view toggle — the hard contract above (job settles, animatic named) is
     // what J4 actually promises.
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const gallery = await page.locator("video, [data-cut], source[src*='.mp4']").count();
     expect.soft(gallery, "expected the finished animatic to be visible in the Cuts gallery").toBeGreaterThan(0);
   });
 
   test("get_jobs reports the queue without blocking", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const res = await callTool(page, "get_jobs", {});
     expect(res.ok).toBe(true);
   });

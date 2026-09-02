@@ -202,7 +202,7 @@ claude mcp add chrome-devtools -- npx chrome-devtools-mcp@latest \
   --categoryExperimentalWebmcp=true --autoConnect
 
 # 2. every session — Chrome with the flags, a throwaway profile, CDP on 9222
-scripts/dev-agent-chrome.sh http://localhost:8785/p/next-year
+scripts/dev-agent-chrome.sh http://localhost:8785/app/p/next-year/film
 ```
 
 Then, in Claude Code, the MCP server exposes `list_webmcp_tools` and `execute_webmcp_tool`
@@ -222,7 +222,7 @@ The author runs these by hand; fill in the date and result columns.
 
 | # | Client | Setup | What to check | Date | Result |
 |---|---|---|---|---|---|
-| 1 | **Chrome DevTools › Application › WebMCP** | `chrome://flags/#enable-webmcp-testing` **and** `chrome://flags/#devtools-webmcp-support` → Enabled → relaunch. Open `http://localhost:8785/p/next-year`, F12 → Application → WebMCP. | All ≥16 tools listed with descriptions; no schema errors; "Run tool" on `find_shots {"query":"David Ross close-up"}` returns candidates; invocation log records it. | | |
+| 1 | **Chrome DevTools › Application › WebMCP** | `chrome://flags/#enable-webmcp-testing` **and** `chrome://flags/#devtools-webmcp-support` → Enabled → relaunch. Open `http://localhost:8785/app/p/next-year/film`, F12 → Application → WebMCP. | All ≥16 tools listed with descriptions; no schema errors; "Run tool" on `find_shots {"query":"David Ross close-up"}` returns candidates; invocation log records it. | | |
 | 2 | **`chrome-devtools-mcp` from Claude Code** | §3 above. | `list_webmcp_tools` returns the catalogue; J1 runs end-to-end from a natural sentence; the page visibly navigates and pulses. | | |
 | 3 | **Model Context Tool Inspector** extension | Store id `gbpdfapgefenggkahomfgkhfehlcenpd`; needs Chrome ≥150 + "WebMCP for testing" flag. | Tools appear; run `show_me {"feature":"freeze tail"}` by hand; the page navigates and the ❄ control pulses. | | |
 | 4 | **ChatGPT Desktop site tools** | Settings › Browser › Enable site tools. Open the **hosted HTTPS URL** in the in-app browser. | Ask *"Make a few more generative cuts of the David Ross close-up."* → it calls `find_shots` then `generate_takes`; consequential actions prompt for confirmation; 3 new takes appear. | | |

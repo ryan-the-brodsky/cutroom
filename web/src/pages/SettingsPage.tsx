@@ -135,7 +135,7 @@ function MotionModels({ models, fallbackKey }:
         <thead>
           <tr>
             <th>Model</th><th>Price</th><th>Clip length</th>
-            <th>Good at</th><th>Falls back to</th>
+            <th>Good at</th><th>Watch for</th><th>Falls back to</th>
           </tr>
         </thead>
         <tbody>
@@ -152,6 +152,9 @@ function MotionModels({ models, fallbackKey }:
                 {(m.registers || []).map((r) => REGISTER_COPY[r] || r)
                   .join(", ") || "general shots"}
               </td>
+              {/* What this model does to a plate that never asked for it —
+                  the same line the motion tools relay when a clip is made. */}
+              <td className="muted small">{m.drift || "—"}</td>
               <td>{named(m.fallback) || "nothing"}</td>
             </tr>
           ))}

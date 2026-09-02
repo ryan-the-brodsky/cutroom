@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Navigate, RouterProvider, createBrowserRouter, useLocation } from "react-router-dom";
+import {
+  Navigate, RouterProvider, createBrowserRouter, useLocation, useParams,
+} from "react-router-dom";
 import { installAgentLayer } from "./agent";
 import App from "./App";
 import LandingPage from "./pages/LandingPage";
@@ -12,7 +14,7 @@ import ProjectsPage from "./pages/ProjectsPage";
 import SettingsPage from "./pages/SettingsPage";
 import ShotPage from "./pages/ShotPage";
 import TimelinePage from "./pages/TimelinePage";
-import { APP_BASE, LEGACY_APP_PATHS } from "./routes";
+import { APP_BASE, LEGACY_APP_PATHS, timelinePath } from "./routes";
 import "./styles.css";
 
 /**
@@ -24,6 +26,19 @@ function LegacyRedirect() {
   return <Navigate replace to={`${APP_BASE}${loc.pathname}${loc.search}${loc.hash}`} />;
 }
 
+/**
+ * The project root is a doorway, not a page: opening a film lands on the TIMELINE — the
+ * film as it actually plays — and the Film Editor keeps its own path (`…/p/:pid/film`),
+ * reachable from the sidebar and from every tool that asks for the board by name.
+ * `replace` so the back button leaves the project instead of bouncing off the redirect.
+ */
+function ProjectHome() {
+  const { pid } = useParams();
+  const loc = useLocation();
+  const to = `${timelinePath(encodeURIComponent(pid || ""))}${loc.search}${loc.hash}`;
+  return <Navigate replace to={to} />;
+}
+
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
   {
@@ -33,7 +48,8 @@ const router = createBrowserRouter([
       { index: true, element: <ProjectsPage /> },
       { path: "jobs", element: <JobsPage /> },
       { path: "settings", element: <SettingsPage /> },
-      { path: "p/:pid", element: <FilmEditorPage /> },
+      { path: "p/:pid", element: <ProjectHome /> },
+      { path: "p/:pid/film", element: <FilmEditorPage /> },
       { path: "p/:pid/shot/:sid", element: <ShotPage /> },
       { path: "p/:pid/comp/:cid", element: <ComposerPage /> },
       { path: "p/:pid/timeline", element: <TimelinePage /> },

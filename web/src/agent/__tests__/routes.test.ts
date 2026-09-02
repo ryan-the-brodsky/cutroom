@@ -12,7 +12,9 @@ import type { ActionDef, Where } from "../contract";
 import { FEATURES } from "../features";
 import { SCREEN_FEATURES } from "../features.screen";
 import { TOOLS } from "../tools/index";
-import { APP_BASE, LANDING, ROUTES, appPath, filmPath, pidFromPath, shotPath } from "../../routes";
+import {
+  APP_BASE, LANDING, ROUTES, appPath, filmPath, pidFromPath, projectPath, shotPath,
+} from "../../routes";
 
 /** Argument shapes that make an argument-dependent `where` take each of its branches. */
 const ARG_CASES: Record<string, unknown>[] = [
@@ -84,7 +86,8 @@ describe("path builders", () => {
     expect(ROUTES.projects).toBe("/app");
     expect(ROUTES.jobs).toBe("/app/jobs");
     expect(ROUTES.settings).toBe("/app/settings");
-    expect(ROUTES.film).toBe("/app/p/:pid");
+    expect(ROUTES.project).toBe("/app/p/:pid");
+    expect(ROUTES.film).toBe("/app/p/:pid/film");
     expect(ROUTES.shot).toBe("/app/p/:pid/shot/:sid");
     expect(ROUTES.comp).toBe("/app/p/:pid/comp/:cid");
     expect(ROUTES.timeline).toBe("/app/p/:pid/timeline");
@@ -92,7 +95,8 @@ describe("path builders", () => {
   });
 
   it("builds concrete paths", () => {
-    expect(filmPath("next-year")).toBe("/app/p/next-year");
+    expect(projectPath("next-year")).toBe("/app/p/next-year");
+    expect(filmPath("next-year")).toBe("/app/p/next-year/film");
     expect(shotPath("next-year", "B10-S2")).toBe("/app/p/next-year/shot/B10-S2");
   });
 

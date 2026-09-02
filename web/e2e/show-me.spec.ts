@@ -32,7 +32,7 @@ test.describe("show_me teaches the UI", () => {
   });
 
   test("list_features covers the registry, including palette-only entries", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const res = await callTool(page, "list_features", {});
     expect(res.ok).toBe(true);
 
@@ -58,7 +58,7 @@ test.describe("show_me teaches the UI", () => {
   });
 
   test("show_me on an unknown feature fails helpfully instead of throwing", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const res = await callTool(page, "show_me", { feature: "colour grade the third reel" });
     // Whatever it decides, it must resolve — a rejection becomes an opaque
     // UnknownError to the agent (docs/TESTING-WEBMCP.md §1.5).

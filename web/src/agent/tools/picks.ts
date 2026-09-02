@@ -6,11 +6,12 @@ import type { ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import {
   IS_CLIP, IS_IMAGE, SHOT_ROUTE, asError, cut, fetchShot, lookupShot,
-  openShotPage, pickTake, safeState,
+  openShotPage, pickTake, safeState, stripFor,
 } from "./util";
 
 const TAKE_WORDS =
-  "A path, or a word: \"latest\", \"newest still\", \"newest motion\", \"keeper\", \"plays\".";
+  "A path, or: \"latest\", \"newest still\", \"newest motion\", \"keeper\", " +
+  "\"plays\", \"selected\", \"third still\".";
 
 // ---------------------------------------------------------------- select_take
 
@@ -22,8 +23,8 @@ export const selectTake: ActionDef<SelectArgs> = {
   description:
     "Put one take on the Shot Editor's monitor so the director can see it and so " +
     "the next edit acts on it. Accepts a take path or the words a director uses: " +
-    "\"latest\", \"newest still\", \"newest motion\", \"keeper\" or \"plays\" (the one " +
-    "in the timeline). The takes rail scrolls to it and the thumbnail pulses. Call " +
+    "\"latest\", \"newest still\", \"newest motion\", \"keeper\", \"plays\" or a " +
+    "position like \"the third still\". The rail scrolls to it and pulses. Call " +
     "this before freeze_tail, trim_clip, set_keeper or a restyle when the director " +
     "says \"that one\" or \"the newest\". Returns the selected path, its kind and duration.",
   inputSchema: {
@@ -49,7 +50,8 @@ export const selectTake: ActionDef<SelectArgs> = {
     try { detail = await fetchShot(ctx, pid, shot.sid); }
     catch (e) { return asError(e, "shot_fetch_failed", "Could not read the shot"); }
 
-    const hit = await pickTake(ctx, pid, detail, args?.take, {});
+    const strip = stripFor(ctx, shot.sid, detail);
+    const hit = await pickTake(ctx, pid, detail, args?.take, strip);
     if (!hit) {
       return err("take_not_found", {
         hint: `No take on ${shot.sid} matches “${cut(args?.take, 30)}”. ${TAKE_WORDS}`,
@@ -75,6 +77,13 @@ export const selectTake: ActionDef<SelectArgs> = {
       duration: meta?.duration ?? null,
       is_keeper: detail.keeper === hit.path,
       plays_in_timeline: detail.active_source === hit.path,
+      // The commonest mistake this tool invites: selecting a still and then
+      // animating, which starts from the KEEPER and quietly ignores the pick.
+      ...(IS_IMAGE(hit.path) && detail.keeper !== hit.path
+        ? { hint: "Selecting only moves the monitor — animate, restyle and comps still " +
+                  "start from the keeper. Call set_keeper to make this the plate, or pass " +
+                  "source:\"selected\" to generate_takes." }
+        : {}),
     });
   },
 };
@@ -87,17 +96,18 @@ export const setKeeper: ActionDef<KeeperArgs> = {
   name: "set_keeper",
   title: "Set the keeper",
   description:
-    "Mark a still as the shot's keeper — the curated plate everything else is " +
-    "built on: comps stage on it, animate uses it, and the Film Editor shows it as " +
-    "the chosen frame. Presses ★ keeper on the take. Stills only; motion clips are " +
-    "refused (use set_timeline_source to choose what plays instead). Defaults to " +
-    "the selected take. The previous keeper is kept in history, never overwritten. " +
-    "Optionally records a curation note.",
+    "Mark a still as the shot's keeper — the curated plate. Motion, i2i and " +
+    "compose start from the shot's keeper still. To animate from a different " +
+    "still, set it as keeper first (or pass source to generate_takes). Presses " +
+    "★ keeper on the take. Stills only; clips are refused (use " +
+    "set_timeline_source for what plays). Takes a path, \"selected\", or a " +
+    "position like \"third still\"; defaults to the selected take. Returns the " +
+    "new keeper as the server confirms it. The old keeper stays in the rail.",
   inputSchema: {
     type: "object",
     properties: {
       shot: { type: "string", description: "The shot: a sid (B10-S2), its number in the cut, a beat, or a description." },
-      take: { type: "string", description: `Which still to keep. ${TAKE_WORDS} Defaults to the selected take.` },
+      take: { type: "string", description: `Which still to keep. ${TAKE_WORDS} Defaults to the selection.` },
       note: { type: "string", description: "Optional curation note recorded with the pick, e.g. \"best eyeline, hands read\"." },
     },
     required: ["shot"],
@@ -118,9 +128,9 @@ export const setKeeper: ActionDef<KeeperArgs> = {
     catch (e) { return asError(e, "shot_fetch_failed", "Could not read the shot"); }
 
     // "Defaults to the selected take": honour the monitor selection when this shot is open.
-    const cur = ctx.page.current();
-    const curSel = cur && cur.kind === "shot" && cur.sid === shot.sid ? safeState(cur).selected : null;
-    const hit = await pickTake(ctx, pid, detail, args?.take, { prefer: "image", selected: curSel });
+    const strip = stripFor(ctx, shot.sid, detail);
+    const hit = await pickTake(ctx, pid, detail, args?.take,
+                               { prefer: "image", ...strip });
     if (!hit) {
       return err("take_not_found", {
         hint: `No still on ${shot.sid} matches “${cut(args?.take ?? "the selection", 30)}”. Generate one first, or pass a path.`,
@@ -147,12 +157,29 @@ export const setKeeper: ActionDef<KeeperArgs> = {
     catch (e) { return asError(e, "keeper_rejected", "The server refused the keeper"); }
     try { await page.refresh(); } catch { /* fine */ }
 
+    // Read the keeper BACK from the server. "I set it" was the claim the agent
+    // made while the plate never moved, and the next motion job started from
+    // the old one — so the result reports what is stored, not what was sent.
+    let stored = hit.path;
+    try { stored = (await fetchShot(ctx, pid, shot.sid)).keeper ?? hit.path; }
+    catch { /* the write returned ok; fall back to what we asked for */ }
+    if (stored !== hit.path) {
+      return err("keeper_did_not_change", {
+        shot: shot.sid,
+        keeper: cut(stored, 70),
+        wanted: cut(hit.path, 70),
+        hint: "The server still has the old keeper. Check the Jobs/console for the " +
+              "refusal, then try again with an explicit path.",
+      });
+    }
+
     return ok(`${shot.sid} keeper is now ${cut(hit.path.split("/").pop(), 40)}`, {
       shot: shot.sid,
-      keeper: cut(hit.path, 70),
+      keeper: cut(stored, 70),
       previous_keeper: previous ? cut(previous, 70) : null,
       ...(args?.note ? { note: cut(args.note, 90) } : {}),
-      hint: previous ? "The old keeper is still in the takes rail — nothing was overwritten." : undefined,
+      hint: "Motion, i2i and compose now start from this still." +
+            (previous ? " The old keeper is still in the takes rail." : ""),
     });
   },
 };
@@ -175,7 +202,7 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
     type: "object",
     properties: {
       shot: { type: "string", description: "The shot: a sid (B10-S2), its number in the cut, a beat, or a description." },
-      take: { type: "string", description: `Which take should play. ${TAKE_WORDS} Defaults to the selected take.` },
+      take: { type: "string", description: `Which take plays. ${TAKE_WORDS} Defaults to the selection.` },
       clear: { type: "boolean", description: "True removes the override so the shot falls back to its default source." },
     },
     required: ["shot"],
@@ -224,7 +251,9 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
     }
 
     // Defaults to what is on the monitor, else the newest clip (a motion pick is the common case).
-    const hit = await pickTake(ctx, pid, detail, args?.take, { selected: curSel ?? safeState(page).selected, prefer: "clip" });
+    const hit = await pickTake(ctx, pid, detail, args?.take, {
+      ...stripFor(ctx, shot.sid, detail),
+      selected: curSel ?? safeState(page).selected, prefer: "clip" });
     if (!hit) {
       return err("take_not_found", {
         hint: `No take on ${shot.sid} matches “${cut(args?.take ?? "the selection", 30)}”. ${TAKE_WORDS}`,

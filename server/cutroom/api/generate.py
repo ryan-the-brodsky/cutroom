@@ -11,8 +11,9 @@ from ..director.apply import _gen_pool
 from ..engine.audio import TREATMENT_NAMES
 from ..jobs.queue import submit_job
 from ..models import Backend
+from ..storage import StorageError
 from .. import budget, demo
-from .deps import project_or_404
+from .deps import project_or_404, store_for
 
 router = APIRouter()
 
@@ -30,6 +31,54 @@ LANE_JOBS = {
 
 
 MOTION_LANES = ("motion", "chain")
+
+# The image (or clip) a lane starts FROM, named by the field its handler reads.
+# `source` is the one spelling every caller can use — the motion lanes call it
+# `plate` internally, so it is normalised here rather than in each client.
+LANE_SOURCE_FIELD = {"motion": "plate", "chain": "plate", "i2i": "source",
+                     "freeze": "source", "trim": "source"}
+PLATE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def resolve_lane_source(pid: str, lane: str, body: dict) -> dict:
+    """Normalise `source` -> the lane's own field and check the file is there.
+
+    A motion job that starts from a path nobody has is the worst failure this
+    app has: the submit succeeds, a clip comes back minutes later, and it is
+    animated from the wrong frame (or the job dies deep in a handler). Both
+    the alias and the existence check happen here so every caller — the
+    console, a WebMCP tool, a curl — fails the same way, at submit time, with
+    the path in the message.
+
+    An absent source is left to the handler: some lanes fill it themselves,
+    and the UI already refuses to submit without one.
+    """
+    field = LANE_SOURCE_FIELD.get(lane)
+    if not field:
+        return body
+    if field != "source" and body.get("source"):
+        alias = str(body.pop("source") or "").strip()
+        have = str(body.get(field) or "").strip()
+        if have and have != alias:
+            raise HTTPException(400, (
+                f"{lane} got two different sources: `source`={alias} and "
+                f"`{field}`={have} — pass one"))
+        body[field] = alias
+    path = str(body.get(field) or "").strip().lstrip("/")
+    if not path:
+        return body
+    if field == "plate" and not path.lower().endswith(PLATE_EXTS):
+        raise HTTPException(400, (
+            f"{lane} animates a still ({', '.join(PLATE_EXTS)}), got {path} — "
+            "to animate from a clip, freeze or trim it instead"))
+    try:
+        exists = store_for(pid).exists(path)
+    except StorageError as e:
+        raise HTTPException(400, str(e))
+    if not exists:
+        raise HTTPException(400, f"no such file in {pid}: {path}")
+    body[field] = path
+    return body
 
 
 def apply_motion_profile(pid: str, lane: str, body: dict) -> dict:
@@ -102,6 +151,7 @@ async def generate(pid: str, lane: str, req: Request):
         body["lane"] = "music"
     if lane == "vo":
         body = apply_vo_treatment(body)
+    body = resolve_lane_source(pid, lane, body)
     body = apply_motion_profile(pid, lane, body)
     payload = {"project": pid, **body}
     if pool_lane is None:

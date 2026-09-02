@@ -101,6 +101,8 @@ export interface MotionModel {
   strengths?: string[];
   limits?: string[];
   failure_modes?: string;
+  /** What THIS model adds to a plate that never asked for it. */
+  drift?: string;
   fallback?: string;
   registers?: Register[];
   enabled?: boolean;
@@ -118,6 +120,7 @@ export const FALLBACK_REGISTRY: MotionModel[] = [
     label: "Seedance 1.0 pro fast", rank: 1, note: "best when budget allows",
     cost: { per_second_usd: 0.0216, resolution: "720p" }, seconds_max: 12, fps: 24,
     failure_modes: "may replace dark close-ups with a brighter room; grade drifts warm on wides",
+    drift: "flashes a dark scene into daylight, and adds photoreal people or props to a sparse set",
     fallback: "wan",
     registers: ["legible_text", "effects_burst", "wide_tableau"], enabled: true },
   { id: "fal-ai/wan/v2.2-a14b/image-to-video/turbo", key: "wan",
@@ -125,9 +128,72 @@ export const FALLBACK_REGISTRY: MotionModel[] = [
     note: "cheap fallback, best plate fidelity in dark close-ups",
     cost: { per_clip_usd: 0.05, resolution: "480p" }, seconds_max: 5, fps: 16,
     failure_modes: "small motion amplitude; drops fine text after ~2s",
+    drift: "its content checker refuses crowd plates, and can pull an empty set toward photoreal detail",
     fallback: "seedance",
     registers: ["dialogue_closeup", "wide_tableau"], enabled: true },
 ];
+
+/**
+ * The clause an image-to-video model needs to HEAR. Every model in the registry
+ * was measured adding photoreal faces, daylight or extra props to a plate that
+ * never asked for them: they read an anime plate as a photograph unless the
+ * prompt says otherwise. Mirrors `motion_models.ANIME_CLAUSE`.
+ */
+export const ANIME_CLAUSE =
+  "anime cel shading, no photorealism, no new people or objects";
+
+/** Does this text already commit the clip to the drawn look? */
+export const saysAnime = (text?: string | null): boolean =>
+  /\b(anime|cel[- ]?shad|cel\b|hand[- ]drawn|2d\b|flat shading|photoreal)/i
+    .test(String(text ?? ""));
+
+/**
+ * Add the clause when nothing in the motion prompt commits to the drawn look.
+ * Appended, never substituted: the director's own sentence still leads.
+ */
+export function withAnimeClause(prompt: string): { prompt: string; added: boolean } {
+  const text = String(prompt ?? "").trim();
+  if (!text || saysAnime(text)) return { prompt: text, added: false };
+  const tail = /[.!?]$/.test(text) ? " " : ". ";
+  return { prompt: `${text}${tail}${ANIME_CLAUSE}.`, added: true };
+}
+
+/** A plate the model will happily "improve": dark, empty, or lit by screens. */
+const FRAGILE_PLATE = /\b(empty|deserted|abandoned|nobody|no one|dark|darkness|night|unlit|black|monitors?|screens?|terminals?)\b/i;
+
+/**
+ * The two-to-four lines an agent needs AT THE MOMENT IT ANIMATES, chosen for
+ * this shot and this model. Progressive disclosure: none of it belongs in the
+ * catalogue an agent reads before it knows which plate or model it is on, and
+ * every line names an action, not a caution.
+ */
+export function motionGuidance(o: {
+  models: MotionModel[];
+  model?: string | null;
+  imagePrompt?: string | null;
+  motionPrompt?: string | null;
+  /** True when the tool already appended ANIME_CLAUSE to the prompt. */
+  clauseAdded?: boolean;
+}): string[] {
+  const out: string[] = [];
+  // Same test the append uses: the model only ever reads the MOTION prompt, so
+  // a plate whose own prompt says "anime" still needs the clause said again.
+  if (o.clauseAdded) {
+    out.push(`The motion prompt never said anime, so "${ANIME_CLAUSE}" was added — i2v models fill that silence with photoreal people and daylight.`);
+  } else if (!saysAnime(o.motionPrompt) && !saysAnime(o.imagePrompt)) {
+    out.push(`Nothing here says anime — keep "${ANIME_CLAUSE}" in the motion prompt or the model adds photoreal people and daylight.`);
+  }
+  const m = findModel(o.models, o.model);
+  if (m?.drift) out.push(`${m.label} drifts: ${m.drift}.`);
+  if (FRAGILE_PLATE.test(String(o.imagePrompt ?? ""))) {
+    out.push("Name what must NOT change (\"the room stays dark, only the monitors light it, nobody enters\") — the plate alone will not hold it.");
+  }
+  const fb = findModel(o.models, m?.fallback);
+  if (m && fb) {
+    out.push(`If it drifts, rerun with model:"${fb.key}" — re-prompting the same model drifts the same way.`);
+  }
+  return out.slice(0, 4);
+}
 
 /** The sentence every motion tool carries. */
 export const UNFAITHFUL_DOCTRINE =
@@ -307,6 +373,9 @@ export function rankShots(
 
 export interface PlanItem {
   shot: string; seconds: number; est_usd: number; why: string;
+  /** Which still to animate: a take path or "selected". Defaults to the
+   *  shot's keeper, the same as generate_takes. */
+  source?: string;
   /** Registry key ("seedance"/"wan") chosen for this shot. */
   model?: string;
   /** One line: why this model, at this price, for this shot. */
@@ -501,6 +570,9 @@ export const planMotion: ActionDef<PlanArgs> = {
               })) }
           : {}),
         ...(used.length ? { models_used: used } : {}),
+        // The lines that matter once a model is chosen — relayed here so the
+        // agent reads them while planning, not as standing guidance up front.
+        guidance: motionGuidance({ models, model: used[0] as string | undefined }),
         doctrine: UNFAITHFUL_DOCTRINE,
         hint: plan.items.length
           ? "Call apply_motion_plan with the same arguments and confirm_cost:true to run it."
@@ -537,6 +609,7 @@ export const applyMotionPlan: ActionDef<ApplyArgs> = {
           type: "object",
           properties: {
             shot: { type: "string", description: "The shot sid." },
+            source: { type: "string", description: "Which still to animate: a take path, or \"selected\". Defaults to the shot's keeper." },
             seconds: { type: "number", description: "Clip length in seconds." },
             est_usd: { type: "number", description: "Estimated dollars for this clip." },
             why: { type: "string", description: "Why this shot earned a clip." },
@@ -628,6 +701,7 @@ export const applyMotionPlan: ActionDef<ApplyArgs> = {
       try {
         res = await generateTakes.execute({
           shot: item.shot, lane: "animate", count: 1, seconds,
+          ...(item.source ? { source: String(item.source) } : {}),
           ...(chosen ? { model: chosen.key } : {}),
           ...(args?.backend ? { backend: args.backend } : {}),
           confirm_cost: args?.confirm_cost === true,
@@ -677,8 +751,7 @@ export const applyMotionPlan: ActionDef<ApplyArgs> = {
         shots: done.map((d) => ({ shot: d.shot, jobs: d.jobs.slice(0, 2),
                                   takes: d.takes, est_usd: d.est_usd,
                                   ...(d.model ? { model: d.model } : {}) })),
-        ...(unfaithfulHint(models, done[0]?.model)
-          ? { next_if_unfaithful: unfaithfulHint(models, done[0]?.model) } : {}),
+        guidance: motionGuidance({ models, model: done[0]?.model }),
         spent_usd: Math.round(spent * 10000) / 10000,
         budget_usd: Math.round(budget * 100) / 100,
         left: Math.round((budget - spent) * 10000) / 10000,

@@ -200,12 +200,63 @@ const MOTION_KINDS = new Set(["motion", "fx", "chain", "comp", "panel"]);
 const INTERMEDIATE_KINDS = new Set(["crop", "matte", "ref"]);   // never "the newest clip"
 
 /**
- * Resolve `take` the way a director says it: a path, a filename, or one of
- * "latest" / "newest still" / "newest motion" / "keeper" / "plays".
+ * The takes strip's OWN order — stills, then i2i, then motion, then fx, each
+ * oldest first, narrowed by the kind filter. This is what a director counts
+ * when they say "the third still": the third cell on screen, which is not the
+ * third row of the newest-first takes table.
+ */
+export function galleryOrder(shot: ShotDetail, kind = "all"): TakeRow[] {
+  const rows: TakeRow[] = [];
+  const add = (paths: string[] | undefined, k: string) =>
+    (paths || []).forEach((p) => rows.push({ path: p, kind: k }));
+  if (kind === "all" || kind === "stills") add(shot.stills, "still");
+  if (kind === "all" || kind === "i2i") add(shot.i2i, "i2i");
+  if (kind === "all" || kind === "motion") add(shot.motion, "motion");
+  if (kind === "all" || kind === "fx") add(shot.fx, "fx");
+  if (kind === "crops") add(shot.crops, "crop");
+  return rows;
+}
+
+/** "the selected one", not a path — the take the monitor is showing. */
+const SELECTION_RE =
+  /^(the )?(selected|selection|monitor|highlighted|current|this one|that one)( take| still| clip| one)?$/;
+
+const ORDINALS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+  seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+};
+
+/** "3", "#3", "take 2", "the third still" → an index into the strip. */
+function ordinalIn(word: string): { n: number; kind?: string } | null {
+  const kind = /\b(stills?|images?|frames?)\b/.test(word) ? "stills"
+    : /\b(motions?|clips?|videos?)\b/.test(word) ? "motion"
+      : /\b(i2i|restyles?)\b/.test(word) ? "i2i"
+        : /\bfx\b/.test(word) ? "fx" : undefined;
+  const digits = /(?:^|[\s#])(\d{1,2})(?:$|\s)/.exec(word);
+  let n = digits ? Number(digits[1]) : 0;
+  if (!n) {
+    for (const [k, v] of Object.entries(ORDINALS)) {
+      if (new RegExp(`\\b${k}\\b`).test(word)) { n = v; break; }
+    }
+  }
+  return n > 0 ? { n, kind } : null;
+}
+
+/**
+ * Resolve `take` the way a director says it: a path, a filename, "selected"
+ * (what the monitor is showing), a position in the takes strip ("the third
+ * still", "2"), or one of "latest" / "newest still" / "newest motion" /
+ * "keeper" / "plays".
  */
 export async function pickTake(
   ctx: ActionContext, pid: string, shot: ShotDetail, want: unknown,
-  opts: { prefer?: "clip" | "image"; selected?: string | null } = {},
+  opts: {
+    prefer?: "clip" | "image";
+    selected?: string | null;
+    /** The strip as the director sees it, when the page is open (kind filter
+     *  applied). Positions count through this. */
+    gallery?: string[];
+  } = {},
 ): Promise<{ path: string; kind: string } | null> {
   const all = () => {
     const rows: TakeRow[] = [];
@@ -222,6 +273,20 @@ export async function pickTake(
   const word = typeof want === "string" ? want.trim().toLowerCase() : "";
 
   if (word && !word.includes("/") && !word.includes(".")) {
+    // "the selected one" is a real answer: the monitor selection, never a
+    // silent fallback to the keeper.
+    if (SELECTION_RE.test(word)) {
+      return opts.selected
+        ? { path: opts.selected, kind: kindOf(opts.selected) } : null;
+    }
+    const ord = ordinalIn(word);
+    if (ord) {
+      const strip = ord.kind || !opts.gallery?.length
+        ? galleryOrder(shot, ord.kind ?? "all")
+        : opts.gallery.map((p) => ({ path: p, kind: kindOf(p) }));
+      const hit = strip[ord.n - 1];
+      return hit ? { path: hit.path, kind: hit.kind } : null;
+    }
     if (/keeper|plate|star/.test(word)) {
       return shot.keeper ? { path: shot.keeper, kind: "still" } : null;
     }
@@ -271,6 +336,23 @@ export async function pickTake(
   const hit = shot.active_source ? { path: shot.active_source, kind: kindOf(shot.active_source) }
     : pool[0] ? { path: pool[0].path, kind: pool[0].kind } : null;
   return hit;
+}
+
+/**
+ * What the director is looking at on the Shot Editor: the monitor selection and
+ * the takes strip in page order (kind filter applied). Pass it into pickTake so
+ * "selected" and "the third still" mean the same thing to a tool as to a human.
+ */
+export function stripFor(ctx: ActionContext, sid: string, shot: ShotDetail):
+  { selected: string | null; gallery: string[] } {
+  const cur = ctx.page.current();
+  if (!cur || cur.kind !== "shot" || String(cur.sid).toLowerCase() !== sid.toLowerCase()) {
+    return { selected: null, gallery: galleryOrder(shot).map((r) => r.path) };
+  }
+  const state = safeState(cur);
+  let kind = "all";
+  try { kind = cur.getState().kindFilter || "all"; } catch { /* default */ }
+  return { selected: state.selected, gallery: galleryOrder(shot, kind).map((r) => r.path) };
 }
 
 // ---------------------------------------------------------------- page arrival

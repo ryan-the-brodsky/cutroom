@@ -296,8 +296,9 @@ export const renderTimeline: ActionDef<RenderArgs> = {
     "model with real source in/out points, not the shot-slot assembler that " +
     "cut_film uses. Optionally scope it to the first N seconds so a check is " +
     "quick. Returns the job. The engine is an optional dependency: when it is " +
-    "not configured this answers \"engine offline\" cleanly rather than failing, " +
-    "and cut_film remains the way to see the film.",
+    "not configured — and on the hosted studio it never is — this answers " +
+    "\"engine offline\" cleanly rather than failing, and cut_film remains the " +
+    "way to see the film.",
   inputSchema: {
     type: "object",
     properties: {
@@ -308,9 +309,9 @@ export const renderTimeline: ActionDef<RenderArgs> = {
   },
   annotations: { consequentialHint: true },
   where: { route: TIMELINE_ROUTE, anchor: ANCHORS.timelineRender,
-           label: "Timeline → render via engine" },
+           label: "Timeline → 🎞 cut the film" },
   keywords: ["render", "engine", "freecut", "timeline", "preview render", "export video"],
-  howTo: "On the Timeline page choose a scope in the dropdown and press ▶ render (greyed out when the engine is not configured).",
+  howTo: "There is no engine button in the studio: this is a server-side option, and the Timeline's 🎞 cut the film is what a director presses.",
   summarize: (a) => (a?.scope_sec ? `Render the first ${a.scope_sec}s` : "Render the whole timeline"),
   async execute(args, ctx): Promise<ToolResult> {
     const pid = ctx.project;
@@ -353,7 +354,7 @@ export const renderTimeline: ActionDef<RenderArgs> = {
       scope_sec: scope ?? null,
       container: args?.container || "mp4",
       jobs: [job.job],
-      hint: "Engine renders land in the Timeline page's Engine renders gallery; wait_for_jobs follows it.",
+      hint: "The render lands as a take on the project; wait_for_jobs follows the job.",
     });
   },
 };

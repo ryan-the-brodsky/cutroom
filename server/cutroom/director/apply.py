@@ -12,6 +12,7 @@ from ..jobs.handlers import pick_backend
 from ..jobs.queue import submit_job
 from ..models import Backend, Comp, Shot
 from ..adapters.registry import pool_for
+from ..storage import StorageError, get_storage
 from .ops import PlanError, validate_plan
 
 
@@ -39,26 +40,55 @@ def _update_override(session, project: str, sid: str, patch: dict) -> dict:
     return ov
 
 
+PLATE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def _check_plate(project: str, path: str, what: str) -> str:
+    """A plate is a still that EXISTS. Curating a path that is not there is the
+    silent-failure the UI cannot see: motion, i2i and comps all start from the
+    keeper, so a bad pick only surfaces hours later as a job that dies on
+    `Image.open`. Fail here, with the path in the message."""
+    path = str(path or "").strip().lstrip("/")
+    if not path:
+        raise PlanError(f"need a path for the {what}")
+    if not path.lower().endswith(PLATE_EXTS):
+        raise PlanError(
+            f"the {what} has to be a still ({', '.join(PLATE_EXTS)}), got "
+            f"{path} — for a clip use the timeline source override instead")
+    try:
+        exists = get_storage().project(project).exists(path)
+    except StorageError as e:
+        raise PlanError(str(e))
+    if not exists:
+        raise PlanError(f"no such file in {project}: {path}")
+    return path
+
+
 def apply_op(project: str, op: dict) -> dict:
     name = op["op"]
 
     # ---------------- state ops (inline) ----------------------------------
     if name == "set_keeper":
+        path = _check_plate(project, op["path"], "keeper")
         with session_scope() as s:
             shot = _shot(s, project, op["shot"])
+            previous = shot.keeper
             extra = dict(shot.extra or {})
             hist = extra.get("keeper_history", [])
             if shot.keeper:
                 hist.append({"keeper": shot.keeper, "ts": time.time()})
             extra["keeper_history"] = hist[-20:]
             shot.extra = extra
-            shot.keeper = op["path"]
+            shot.keeper = path
             if op.get("note"):
                 stamp = time.strftime("%m-%d")
                 shot.curation_note = ((shot.curation_note + " | ")
                                       if shot.curation_note else "") + \
                     f"[{stamp}] {op['note']}"
-        return {"op": name, "applied": True, "shot": op["shot"]}
+        # Echo the pick: a caller (the UI, a WebMCP tool) confirms the change
+        # from the response instead of assuming the write landed.
+        return {"op": name, "applied": True, "shot": op["shot"],
+                "keeper": path, "previous": previous}
     if name == "set_source":
         with session_scope() as s:
             _update_override(s, project, op["shot"], {"source": op["source"]})

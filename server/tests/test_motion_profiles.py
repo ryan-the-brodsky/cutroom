@@ -275,6 +275,28 @@ def test_unfaithful_hint_names_the_other_model():
     assert mm.unfaithful_hint("nothing-registered") is None
 
 
+def test_every_model_says_what_it_drifts_into(client):
+    """Both models were measured adding daylight, people or photoreal detail to
+    a plate that never asked for them. That is a per-model fact, so it lives on
+    the record and the tools relay it at the moment a clip is generated —
+    progressive disclosure, not another paragraph of standing guidance."""
+    for key in ("seedance", "wan"):
+        note = mm.drift_note(key)
+        assert note and len(note) < 160 and "\n" not in note
+    assert "daylight" in mm.drift_note("seedance")
+    assert "photoreal" in mm.drift_note("wan")
+    assert mm.drift_note("nothing-registered") is None
+    # the clause the tools add to a motion prompt that never says "anime"
+    assert "anime cel shading" in mm.ANIME_CLAUSE
+    assert "no photorealism" in mm.ANIME_CLAUSE
+    assert "no new people or objects" in mm.ANIME_CLAUSE
+    assert len(mm.ANIME_CLAUSE) < 80          # rides behind the director's line
+
+    d = client.get("/api/motion-models").json()
+    assert all(m["drift"] for m in d["models"])
+    assert d["anime_clause"] == mm.ANIME_CLAUSE
+
+
 def test_motion_models_endpoint(client):
     d = client.get("/api/motion-models").json()
     assert [m["key"] for m in d["models"]] == ["seedance", "wan"]

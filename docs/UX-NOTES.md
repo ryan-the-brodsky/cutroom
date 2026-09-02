@@ -8,10 +8,13 @@ friction as a user. Fixed-in-place items are marked ✅.
 
 Two rooms, two mindsets:
 
-- **Film Editor** (`/p/<id>`) — the arrangement room. Strip + board of what
+- **Timeline** (`/app/p/<id>/timeline`) — where a film opens. The project root
+  `/app/p/<id>` redirects here: the film as real clips, with a live preview that
+  plays picture *and* sound (VO on A1, the music bed, SFX).
+- **Film Editor** (`/app/p/<id>/film`) — the arrangement room. Strip + board of what
   exists; select a shot for a *quick* panel (seconds, VO offset/mute, "what
   plays" take picker); cut the film; double-click into focused work. ✅ built
-- **Shot Editor** (`/p/<id>/shot/<sid>`) — the granular room. Monitor +
+- **Shot Editor** (`/app/p/<id>/shot/<sid>`) — the granular room. Monitor +
   direct box + filterable takes rail on the left; a workspace on the right
   with tabs **compose · generate · motion edits · audio · script**. The
   compose tab embeds the full cel workbench (stage with region drawing over

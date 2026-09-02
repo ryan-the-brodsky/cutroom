@@ -905,3 +905,18 @@ evidence in this plan still describe the shipped build exactly.
   cut (`animatic-full-720p-3.mp4`, 129.9 s): motion runs to within 0.5 s of the end on
   14 of 15 shots; B01-S1 (wide dorm, typing) moves subtly for its full 10 s. Ledger for
   the day $9.82 of $15; the takes on screen cost $2.80. Volume after: 192 MB free.
+- **Wed 16:29 PT — three UI fixes from Ryan's session, in parallel.** (1) Timeline is the
+  project's front door (`/app/p/:pid` → timeline; Film Editor at `/film`) and the preview
+  plays sound: VO, music and SFX cues ride the playhead with drift snapping and a mute
+  control. (2) "Cut the film" shows queued → cutting → ready/failed inline on both pages,
+  with the ffmpeg reason on failure; the local-engine residue (render via engine, engine
+  offline, engine renders gallery) is gone. (3) Motion animated from the keeper regardless
+  of the monitor selection and nothing told the agent: `generate_takes` gains `source`
+  (path / "selected" / "third still" / "keeper"), `set_keeper` re-reads the server's
+  keeper, the shot page gets an "animate from" control, and keeper/source buttons report
+  failures. Progressive-disclosure guidance: motion results carry 2–4 situational lines
+  (anti-photoreal clause, the chosen model's drift note, switch-model advice) instead of
+  more catalogue text; the registry carries a per-model `drift` line.
+- B05-S1 now animates from the dark GOODBYE still; the model smears the lettering after
+  ~3 s of scrolling, so the shot holds its last legible frame (freeze as a surgical repair,
+  per the motion doctrine).

@@ -3,8 +3,8 @@
 # then open a URL. This is the browser you point `chrome-devtools-mcp` at.
 #
 #   scripts/dev-agent-chrome.sh                                   # localhost:8785
-#   scripts/dev-agent-chrome.sh http://localhost:8785/p/next-year
-#   scripts/dev-agent-chrome.sh https://<hosted>/p/next-year
+#   scripts/dev-agent-chrome.sh http://localhost:8785/app/p/next-year/film
+#   scripts/dev-agent-chrome.sh https://<hosted>/app/p/next-year/film
 #
 # Why a separate --user-data-dir: Chrome applies --enable-features only when it
 # actually starts a new browser process. If your daily profile is already

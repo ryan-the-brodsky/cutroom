@@ -14,11 +14,11 @@
 | 4 | `list_features` | 415 | 1 | readOnly |
 | 5 | `show_me` | 435 | 2 | — |
 | 6 | `open_shot` | 434 | 4 | — |
-| 7 | `generate_takes` | 482 | 14 | consequential |
+| 7 | `generate_takes` | 467 | 15 | consequential |
 | 8 | `freeze_tail` | 395 | 3 | consequential |
 | 9 | `trim_clip` | 403 | 3 | consequential |
 | 10 | `select_take` | 462 | 2 | — |
-| 11 | `set_keeper` | 418 | 3 | consequential |
+| 11 | `set_keeper` | 486 | 3 | consequential |
 | 12 | `set_timeline_source` | 422 | 3 | consequential |
 | 13 | `set_shot_timing` | 416 | 4 | consequential |
 | 14 | `synthesize_vo` | 455 | 6 | consequential |
@@ -30,7 +30,7 @@
 
 ## 1. `find_shots` — Find shots
 
-**where** `/p/:pid` · anchor `film.shot` · **“Film Editor → the strip”**
+**where** `/p/:pid/film` · anchor `film.shot` · **“Film Editor → the strip”**
 
 **description** (500/500)
 
@@ -62,7 +62,7 @@
 
 ## 3. `get_context` — Where am I?
 
-**where** `/p/:pid` · anchor `app.nav.film` · **“Anywhere in Genga Studio”**
+**where** `/p/:pid/film` · anchor `app.nav.film` · **“Anywhere in Genga Studio”**
 
 **description** (446/500)
 
@@ -76,7 +76,7 @@
 
 ## 4. `list_features` — List Genga Studio features
 
-**where** `/p/:pid` · anchor `—` · **“⌘K command palette”**
+**where** `/p/:pid/film` · anchor `—` · **“⌘K command palette”**
 
 **description** (415/500)
 
@@ -92,7 +92,7 @@
 
 ## 5. `show_me` — Show me how
 
-**where** `/p/:pid` · anchor `—` · **“⌘K command palette”**
+**where** `/p/:pid/film` · anchor `—` · **“⌘K command palette”**
 
 **description** (435/500)
 
@@ -130,9 +130,9 @@
 
 **where** `/p/:pid/shot/:sid` `?tab=generate&sub=still` · anchor `shot.gen.still.submit` · **“Shot Editor → Generate → still”**
 
-**description** (482/500)
+**description** (467/500)
 
-> Generate new takes for a shot in Genga Studio — stills, restyles of an existing take, or animated cel clips. Opens the shot's Generate console on screen, fills it, and submits one job per take with a fresh seed. Returns job ids and, when the backend is fast, the finished takes. Count is 1–4 (default 3). Prompt defaults to the shot's own written prompt; prompt_mode "append" adds yours to it. Animate keeps the first second live and freezes the rest. Paid backends require confirm_cost.
+> Generate new takes for a shot — stills, restyles of an existing take, or animated cel clips. Opens the Generate console, fills it, and submits one job per take with a fresh seed. Count 1–4 (default 3); paid backends need confirm_cost. ANIMATE STARTS FROM THE KEEPER STILL — to animate another, pass source (a path or "selected"). Readable text needs model:"pro"; attach_reference pins a face or place, restyle edits a frame. Motion results carry situational guidance.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
@@ -141,12 +141,13 @@
 | `count` |  | integer | 89/150 | How many takes to submit, 1–4. Words like "a few" (3) or "a couple" (2) are accepted too. |
 | `prompt` |  | string | 100/150 | Prompt text. Omit to use the shot's written image or motion prompt exactly as the director wrote it. |
 | `prompt_mode` |  | `replace`/`append` | 87/150 | replace = use only your prompt (default) · append = add yours to the shot's own prompt. |
-| `source_take` |  | string | 111/150 | For restyle: the take to restyle. A path, or "latest", "newest still", "keeper". Defaults to the selected take. |
+| `source` |  | string | 140/150 | Which image to start FROM: a take path, "selected", "third still" or "keeper". Animate defaults to the keeper; restyle to the selected take. |
+| `source_take` |  | string | 127/150 | For restyle: the take to restyle. A path, or "latest", "newest still", "keeper". Defaults to the selected take. Same as source. |
 | `denoise` |  | number | 80/150 | Restyle strength, 0.35–0.95. 0.55 keeps the layout, 0.85 restyles. Default 0.85. |
 | `region` |  | array | 90/150 | For animate: the cel region as [left, top, right, bottom]. Omit to animate the full frame. |
-| `seconds` |  | number | 121/150 | For animate: clip length in seconds. Defaults to the backend's own clip length and is clamped to what it supports. |
-| `frames` |  | integer | 104/150 | For animate: exact frame count, when you need one. Normally leave it and pass seconds instead. |
-| `live_seconds` |  | number | 141/150 | For animate: freeze after this many seconds. Only for a model that drifts after N seconds — clips play in full otherwise. |
+| `seconds` |  | number | 114/150 | For animate: clip length in seconds. Defaults to the backend's own clip length and is clamped to what it supports. |
+| `frames` |  | integer | 94/150 | For animate: exact frame count, when you need one. Normally leave it and pass seconds instead. |
+| `live_seconds` |  | number | 121/150 | For animate: freeze after this many seconds. Only for a model that drifts after N seconds — clips play in full otherwise. |
 | `seeds` |  | array | 79/150 | Exact seeds to use, one per take. Omit for fresh random seeds (the usual case). |
 | `backend` |  | string | 98/150 | Force a specific backend id instead of the project's lane default (e.g. "mock", "comfyui", "fal"). |
 | `model` |  | string | 39/150 | Force a specific model on that backend. |
@@ -198,12 +199,12 @@
 
 **description** (462/500)
 
-> Put one take on the Shot Editor's monitor so the director can see it and so the next edit acts on it. Accepts a take path or the words a director uses: "latest", "newest still", "newest motion", "keeper" or "plays" (the one in the timeline). The takes rail scrolls to it and the thumbnail pulses. Call this before freeze_tail, trim_clip, set_keeper or a restyle when the director says "that one" or "the newest". Returns the selected path, its kind and duration.
+> Put one take on the Shot Editor's monitor so the director can see it and so the next edit acts on it. Accepts a take path or the words a director uses: "latest", "newest still", "newest motion", "keeper", "plays" or a position like "the third still". The rail scrolls to it and pulses. Call this before freeze_tail, trim_clip, set_keeper or a restyle when the director says "that one" or "the newest". Returns the selected path, its kind and duration.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
 | `shot` | • | string | 74/150 | The shot: a sid (B10-S2), its number in the cut, a beat, or a description. |
-| `take` | • | string | 80/150 | A path, or a word: "latest", "newest still", "newest motion", "keeper", "plays". |
+| `take` | • | string | 100/150 | A path, or: "latest", "newest still", "newest motion", "keeper", "plays", "selected", "third still". |
 
 **howTo** (92) — Click the take's thumbnail in the takes rail under the monitor — the monitor switches to it.
 
@@ -215,12 +216,12 @@
 
 **description** (418/500)
 
-> Mark a still as the shot's keeper — the curated plate everything else is built on: comps stage on it, animate uses it, and the Film Editor shows it as the chosen frame. Presses ★ keeper on the take. Stills only; motion clips are refused (use set_timeline_source to choose what plays instead). Defaults to the selected take. The previous keeper is kept in history, never overwritten. Optionally records a curation note.
+> Mark a still as the shot's keeper — the curated plate. Motion, i2i and compose start from the shot's keeper still. To animate from a different still, set it as keeper first (or pass source to generate_takes). Presses ★ keeper on the take. Stills only; clips are refused (use set_timeline_source for what plays). Takes a path, "selected", or a position like "third still"; defaults to the selected take. Returns the new keeper as the server confirms it. The old keeper stays in the rail.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
 | `shot` | • | string | 74/150 | The shot: a sid (B10-S2), its number in the cut, a beat, or a description. |
-| `take` |  | string | 132/150 | Which still to keep. A path, or a word: "latest", "newest still", "newest motion", "keeper", "plays". Defaults to the selected take. |
+| `take` |  | string | 148/150 | Which still to keep. A path, or: "latest", "newest still", "newest motion", "keeper", "plays", "selected", "third still". Defaults to the selection. |
 | `note` |  | string | 79/150 | Optional curation note recorded with the pick, e.g. "best eyeline, hands read". |
 
 **howTo** (93) — Click a still in the takes rail, then press ★ keeper in the row of buttons under the monitor.
@@ -238,7 +239,7 @@
 | param | req | type | chars | description |
 |---|---|---|---|---|
 | `shot` | • | string | 74/150 | The shot: a sid (B10-S2), its number in the cut, a beat, or a description. |
-| `take` |  | string | 135/150 | Which take should play. A path, or a word: "latest", "newest still", "newest motion", "keeper", "plays". Defaults to the selected take. |
+| `take` |  | string | 145/150 | Which take plays. A path, or: "latest", "newest still", "newest motion", "keeper", "plays", "selected", "third still". Defaults to the selection. |
 | `clear` |  | boolean | 71/150 | True removes the override so the shot falls back to its default source. |
 
 **howTo** (137) — Select a take and press ⬆ timeline source under the monitor — or click a thumbnail in the Film Editor's "what plays" strip for that shot.
@@ -247,7 +248,7 @@
 
 ## 13. `set_shot_timing` — Set shot timing
 
-**where** `/p/:pid` · anchor `film.quick.seconds` · **“Film Editor → selected shot → seconds / VO offset / mute”**
+**where** `/p/:pid/film` · anchor `film.quick.seconds` · **“Film Editor → selected shot → seconds / VO offset / mute”**
 
 **description** (416/500)
 
@@ -321,7 +322,7 @@
 
 ## 17. `cut_film` — Cut the film
 
-**where** `/p/:pid` · anchor `film.cut` · **“Film Editor → 🎞 cut the film”**
+**where** `/p/:pid/film` · anchor `film.cut` · **“Film Editor → 🎞 cut the film”**
 
 **description** (460/500)
 

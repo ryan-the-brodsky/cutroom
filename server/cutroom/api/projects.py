@@ -391,13 +391,24 @@ async def set_override(pid: str, sid: str, req: Request):
 
 @router.post("/projects/{pid}/shots/{sid}/curate")
 async def curate(pid: str, sid: str, req: Request):
+    """Pick the shot's keeper — the curated plate. Motion, i2i and comps all
+    start from it, so this is the write that decides what "animate this shot"
+    animates.
+
+    Viewer-allowed on the demo: curating is creative work (cutroom/demo.py).
+    The response echoes `keeper` and `previous` so a caller can confirm the
+    pick landed rather than assuming it did."""
     body = await req.json()
     from ..director.apply import apply_op
+    from ..director.ops import PlanError
     project_or_404(pid)
     if not body.get("keeper"):
         raise HTTPException(400, "need keeper")
-    return apply_op(pid, {"op": "set_keeper", "shot": sid,
-                          "path": body["keeper"], "note": body.get("note")})
+    try:
+        return apply_op(pid, {"op": "set_keeper", "shot": sid,
+                              "path": body["keeper"], "note": body.get("note")})
+    except PlanError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/projects/{pid}/shots/{sid}/refs")

@@ -15,7 +15,7 @@ const PID = process.env.CUTROOM_E2E_PROJECT || "two-claudes";
 
 test.describe("M: the screening room", () => {
   test("play_cut opens the room at a named shot; stop_playback closes it", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
 
     const from = "B01-S2";
     const res = await callTool(page, "play_cut", { from });
@@ -54,7 +54,7 @@ test.describe("M: the screening room", () => {
   });
 
   test("play_cut takes a clock and a description", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const byClock = await callTool(page, "play_cut", { from: "0:17" });
     expect(byClock.ok).toBe(true);
     expect(byClock.from).toBe(17);
@@ -62,11 +62,11 @@ test.describe("M: the screening room", () => {
   });
 
   test("preview_timeline seeks the live preview to a clip", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const res = await callTool(page, "preview_timeline", { from: "B01-S2" });
     expect(res.ok, `preview_timeline failed: ${JSON.stringify(res)}`).toBe(true);
     expect(res.now_playing_shot).toBe("B01-S2");
-    expect(String(res.note)).toContain("video only");
+    expect(String(res.note)).toContain("VO/music/SFX mix");
     await expect(anchor(page, "timeline.play")).toBeVisible();
     // The playhead readout is the page's own proof that the seek landed.
     const head = await page.locator('[data-testid="playhead"]').innerText();

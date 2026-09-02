@@ -310,7 +310,7 @@ for (const def of agentDefs()) {
 - [ ] `https://gengastudio.com/` renders the landing page and its "Open the studio" button
       lands on `/app`.
 - [ ] Old deep links still work: `https://gengastudio.com/p/two-claudes` redirects to
-      `https://gengastudio.com/app/p/two-claudes`.
+      `https://gengastudio.com/app/p/two-claudes`, which opens that film's Timeline.
 - [ ] All three prompts run clean against the hosted URL, recorded in
       `docs/TESTING-WEBMCP.md`.
 - [ ] The Two Claudes cut is in the Cuts gallery on the hosted instance and
@@ -321,3 +321,8 @@ for (const def of agentDefs()) {
 - [ ] `docs/PRIOR-WORK.md` hashes match `git log`.
 - [ ] Devpost form submitted by 11:00 PDT Thursday. Screenshot the
       confirmation.
+
+
+## Thumbnail
+
+The Devpost thumbnail is `docs/submission/thumbnail.jpg` (1500×1000): the light-table key art with the wordmark and tagline. The same art, without text, is the landing-page hero (`web/public/landing/light-table.jpg`) and the site's `og:image` (`/landing/light-table-og.jpg`).

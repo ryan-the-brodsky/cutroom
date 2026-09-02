@@ -1,10 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ANCHORS, type TimelineClipLite } from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
-import { api, mediaUrl, thumbUrl } from "../api";
-import { pushToast, useAsync, useJobWatch, usePoll } from "../hooks";
+import CutFilm, { type CutScope, useCutFilm } from "../components/CutFilm";
+import { mediaUrl, thumbUrl } from "../api";
+import { usePoll } from "../hooks";
 import { PreviewStage } from "../preview/PreviewStage";
+import { mixSummary, useTimelineAudio } from "../preview/timelineAudio";
 import type { PlayerRef } from "../runtime/player";
 import {
   type Clip,
@@ -23,10 +25,14 @@ import {
 export default function TimelinePage() {
   const { pid } = useParams() as { pid: string };
   const { data: tl, error } = usePoll<Timeline>(`/api/projects/${pid}/timeline`, 0);
+  const fps = tl?.fps || 24;
   const [ppf, setPpf] = useState(0.7); // pixels per frame (zoom)
   const [sel, setSel] = useState<Clip | null>(null);
-  const [scopeSec, setScopeSec] = useState<number | null>(24);
-  const [renderJob, setRenderJob] = useState<string | null>(null);
+  // `preview_timeline` sets a preview scope in seconds. Nothing draws it now
+  // that the local-engine render row is gone, but the handle stays in the
+  // contract, so the setter stays with it.
+  const [, setScopeSec] = useState<number | null>(24);
+  const [cutScope, setCutScope] = useState<CutScope>("full");
   const playerRef = useRef<PlayerRef>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -35,16 +41,64 @@ export default function TimelinePage() {
     playerRef.current?.seekTo(clamped);
     setFrame(clamped);
   };
-  const { data: engine } = usePoll<{ available: boolean }>(
-    `/api/projects/${pid}/timeline/engine`, 0);
-  const { data: renders, refresh: refreshRenders } = usePoll<any[]>(
-    `/api/projects/${pid}/takes?kind=animatic&limit=6`, 0);
-  const { busy, run } = useAsync();
-  useJobWatch(renderJob, (ok) => {
-    setRenderJob(null);
-    pushToast({ text: ok ? "✓ engine render ready" : "✗ render failed (see Jobs)" });
-    refreshRenders();
-  });
+  // Cutting the film is the same DB-backed job here as in the Film Editor —
+  // there is no local engine to be offline.
+  const cut = useCutFilm({ pid, params: { scope: cutScope, res: "720" } });
+
+  /* ------------------------------------------------------------------ the mix
+   * The picture is composited by seeking a <video> per frame; sound cannot work
+   * that way, so the VO/music/SFX clips run as their own elements following the
+   * same playhead (preview/timelineAudio.ts). Everything the transport does goes
+   * through `transport()`, so the button, the mix and the drift loop never
+   * disagree — and the first play() happens inside the click that asked for it,
+   * which is what the browser's autoplay policy checks. */
+  const audioSrc = useCallback((rel: string) => mediaUrl(pid, rel), [pid]);
+  const audio = useTimelineAudio(tl, audioSrc);
+  const fpsRef = useRef(fps);
+  fpsRef.current = fps;
+  const lastFrameRef = useRef(0);
+  lastFrameRef.current = Math.max(0, (tl?.total_frames ?? 1) - 1);
+  const raf = useRef<number | null>(null);
+  const nowSeconds = useCallback(() =>
+    (playerRef.current?.getCurrentFrame() ?? 0) / (fpsRef.current || 24), []);
+
+  /** Ride the player's own clock: re-sync the mix every frame (so a snap costs at
+   * most one frame of drift) and notice the end of the film, which stops the clock
+   * a beat before React hears about it — hence the explicit last-frame test, so a
+   * held line can never stutter against a playhead that has stopped moving. */
+  const pump = useCallback(() => {
+    const p = playerRef.current;
+    const on = p?.isPlaying() ?? false;
+    const running = on && (p?.getCurrentFrame() ?? 0) < lastFrameRef.current;
+    audio.sync(nowSeconds(), running);
+    if (on) { raf.current = requestAnimationFrame(pump); return; }
+    raf.current = null;
+    setPlaying(false);
+  }, [audio, nowSeconds]);
+
+  const transport = useCallback((on: boolean) => {
+    setPlaying(on);
+    // `true`: this call is the ask (a press of ▶, or a tool's play), so it is
+    // allowed one attempt even if the browser refused the last one.
+    audio.sync(nowSeconds(), on, true);
+    if (on) {
+      if (raf.current == null) raf.current = requestAnimationFrame(pump);
+    } else if (raf.current != null) {
+      cancelAnimationFrame(raf.current);
+      raf.current = null;
+    }
+  }, [audio, nowSeconds, pump]);
+
+  // Scrubbing (and any seek) re-cues the mix where it stands, so pressing ▶ next
+  // starts every clip at the right place instead of at its head.
+  useEffect(() => {
+    if (!playing) audio.sync(frame / (fps || 24), false);
+  }, [frame, fps, playing, audio]);
+
+  useEffect(() => () => {
+    if (raf.current != null) cancelAnimationFrame(raf.current);
+    raf.current = null;
+  }, []);
 
   const secs = (f: number) => framesToSeconds(f, tl?.fps || 24);
   const mmss = (f: number) => {
@@ -57,7 +111,6 @@ export default function TimelinePage() {
    * to "play the film from second X" fell back to a thumbnail. These handles are
    * the same playerRef and seek() the buttons use, in seconds rather than frames
    * (a caller should never have to know the fps). Workstream M. */
-  const fps = tl?.fps || 24;
   const clipsLite = useMemo<TimelineClipLite[]>(() => (tl?.clips || [])
     .filter((c) => c.kind !== "audio")
     .map((c) => ({
@@ -82,17 +135,17 @@ export default function TimelinePage() {
     duration: () => framesToSeconds(tl?.total_frames ?? 0, fps),
     seek: seekSeconds,
     play: async () => {
-      // The preview player has no autoplay gate (no audio track), but keep the
-      // same "did it start" contract the screening room uses.
+      // Picture always starts; the mix may not, because a tool call is not a
+      // click. `audio.blocked` says so on the page, and the ▶ button unblocks it.
       playerRef.current?.play();
       const on = playerRef.current?.isPlaying() ?? false;
-      setPlaying(on);
+      transport(on);
       return on;
     },
-    pause: () => { playerRef.current?.pause(); setPlaying(false); },
+    pause: () => { playerRef.current?.pause(); transport(false); },
     toggle: () => {
       playerRef.current?.toggle();
-      setPlaying(playerRef.current?.isPlaying() ?? false);
+      transport(playerRef.current?.isPlaying() ?? false);
     },
     selectClip: (sid: string) => {
       const want = String(sid || "").toLowerCase();
@@ -150,34 +203,18 @@ export default function TimelinePage() {
         </span>
       </div>
 
-      {/* ------------------------------------------------- render via engine */}
+      {/* ---------------------------------------------------- cut the film */}
       <div className="row" style={{ gap: 8, margin: "0 0 10px", alignItems: "center" }}>
-        <span className="muted small">render via engine:</span>
-        <select value={scopeSec ?? "full"} data-action={ANCHORS.timelineScope}
-                onChange={(e) => setScopeSec(e.target.value === "full"
-                  ? null : parseInt(e.target.value))}>
-          <option value={12}>first 12s</option>
-          <option value={24}>first 24s</option>
-          <option value={60}>first 60s</option>
+        <span className="muted small">cut:</span>
+        {/* The assemble endpoint scopes by act, not by seconds — this is the
+            same scope the Film Editor sends. */}
+        <select value={cutScope} data-action={ANCHORS.timelineScope}
+                onChange={(e) => setCutScope(e.target.value as CutScope)}>
           <option value="full">whole film ({mmss(tl.total_frames)})</option>
+          {[1, 2, 3, 4].map((a) => (
+            <option key={a} value={`act${a}`}>act {a}</option>))}
         </select>
-        <button
-          className="primary"
-          data-testid="render-btn"
-          data-action={ANCHORS.timelineRender}
-          disabled={busy || !!renderJob || !engine?.available}
-          title={engine?.available ? "render through the lifted FreeCut engine"
-            : "engine not configured (CUTROOM_ENGINE_DIR)"}
-          onClick={() => run(
-            () => api(`/api/projects/${pid}/timeline/render`,
-                      { scope_sec: scopeSec }),
-            (d: any) => { setRenderJob(d.job);
-                          pushToast({ text: "engine rendering…", job: d.job }); })}
-        >
-          {renderJob ? "⏳ rendering…" : "▶ render"}
-        </button>
-        {!engine?.available && (
-          <span className="muted small">engine offline</span>)}
+        <CutFilm cut={cut} anchor={ANCHORS.timelineRender} />
         <span style={{ flex: 1 }} />
         <span className="muted small">export:</span>
         <a data-action={ANCHORS.timelineOtio} className="small"
@@ -202,9 +239,19 @@ export default function TimelinePage() {
                     data-action={ANCHORS.timelinePlay}
                     onClick={() => {
                       playerRef.current?.toggle();
-                      setPlaying(playerRef.current?.isPlaying() ?? false);
+                      transport(playerRef.current?.isPlaying() ?? false);
                     }}>
               {playing ? "⏸" : "▶"}
+            </button>
+            <button className="small" data-testid="mute"
+                    data-action={ANCHORS.timelineMute}
+                    disabled={!audio.cues.length}
+                    title={audio.cues.length
+                      ? (audio.muted ? "unmute the preview" : "mute the preview")
+                      : "this film has no audio clips yet"}
+                    aria-pressed={audio.muted}
+                    onClick={() => audio.setMuted(!audio.muted)}>
+              {audio.muted || !audio.cues.length ? "🔇" : "🔊"}
             </button>
             <button className="small" data-action={ANCHORS.timelineStepBack}
                     onClick={() => seek(frame - 1)}>◀</button>
@@ -223,8 +270,20 @@ export default function TimelinePage() {
         <div className="muted small" style={{ flex: 1 }}>
           <b>Live preview</b> — the lifted FreeCut player compositing this
           project's media by URL. Scrub the bar or click the timeline to seek;
-          this is the same clip model the engine renders. Audio/VO preview is a
-          later pass — video &amp; stills scrub now.
+          this is the same clip model the cut is assembled from.
+          {audio.cues.length ? <>
+            {" "}It plays <b>with sound</b>: {mixSummary(audio.cues)} ride the
+            playhead — each clip starts where the timeline puts it, stops when the
+            playhead leaves, and re-cues when you scrub. 🔊 mutes the lot.
+          </> : <>
+            {" "}This film has no audio clips yet: synthesize VO or place a music
+            or SFX cue and they compile onto A1 / MUSIC / SFX, and play here.
+          </>}
+          {audio.blocked && (
+            <div style={{ color: "var(--bad, #ef4444)", marginTop: 4 }}>
+              The browser would not start the sound on its own — press ▶ here to
+              let it in.
+            </div>)}
         </div>
       </div>
 
@@ -339,24 +398,6 @@ export default function TimelinePage() {
                 .map(([k, v]) => `${k}=${v}`).join(" · ")}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ------------------------------------------------ engine renders */}
-      {(renders?.length ?? 0) > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <h3 style={{ margin: "0 0 6px" }}>Engine renders</h3>
-          <div className="grid cards" data-testid="renders">
-            {(renders || []).filter((r) => r.meta?.engine).map((r) => (
-              <div className="card" key={r.id}>
-                <video src={mediaUrl(pid, r.path)} controls
-                       style={{ width: "100%", borderRadius: 5 }} />
-                <div className="muted small">{r.path.split("/").pop()}
-                  {r.meta?.total ? ` · ${Math.round(r.meta.total)}s` : ""}
-                  {r.meta?.items ? ` · ${r.meta.items} clips` : ""}</div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
     </div>

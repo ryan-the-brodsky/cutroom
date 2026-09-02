@@ -16,7 +16,9 @@ import * as screen from "../screen/store";
 import PlanPreview from "../components/PlanPreview";
 import RegionCanvas from "../components/RegionCanvas";
 import SeparateCanvas from "../components/SeparateCanvas";
+import { ANIME_CLAUSE, saysAnime, withAnimeClause } from "../agent/tools/plan";
 import { pushToast, useAsync, useJobWatch, usePlateDims, usePoll } from "../hooks";
+import { chatPath, filmPath } from "../routes";
 import type { FilmEntry, Plan } from "../types";
 
 /** SHOT EDITOR — granular, single-shot composition & editing. The Film
@@ -44,6 +46,8 @@ const VO_TREATMENTS = ["none", "radio", "phone", "megaphone", "hall"];
  *  front of the picture, so "setting" is matched and not copied wholesale. */
 const REF_ROLES: RefRole[] = ["character", "prop", "setting", "style"];
 const IS_STILL = (p: string) => /\.(png|jpe?g|webp)$/i.test(p);
+/** What "animate from" accepts besides an explicit take path. */
+const SOURCE_WORDS = ["keeper", "selected"];
 
 export default function ShotPage() {
   const { pid, sid } = useParams() as { pid: string; sid: string };
@@ -66,6 +70,11 @@ export default function ShotPage() {
   const activeComp = q.get("comp");
   const setActiveComp = (c: string | null) => setQ({ comp: c });
   const [separating, setSeparating] = useState(false);
+  /** What the ★ keeper / ⬆ timeline source row last said. Those buttons post
+   *  straight to the API, so without this a 4xx (a viewer token on an
+   *  owner-only endpoint, a path the project does not have) looked exactly
+   *  like the button doing nothing at all. */
+  const [takeNote, setTakeNote] = useState<{ text: string; bad: boolean } | null>(null);
   // The References strip's "add from takes" picker (path + what it is for).
   const [refPick, setRefPick] = useState<{ path: string; role: RefRole }>(
     { path: "", role: "character" });
@@ -88,6 +97,27 @@ export default function ShotPage() {
   const selected = sel || shot?.active_source || null;
   const plate = shot?.keeper || shot?.stills[0] || null;
   const plateDims = usePlateDims(pid, plate);
+
+  /** WHICH IMAGE animate / chain start from. The keeper is the default — it is
+   *  the curated plate everything else builds on — but "selected" (or an
+   *  explicit path an agent sets) points the lane at the still on the monitor
+   *  instead. Selecting a take alone never moved the source, which is how a
+   *  clip came back animated from the keeper the director had moved past. */
+  const genSourceWord = String(gen.source || "keeper");
+  const genSourceWant = genSourceWord === "keeper" ? plate
+    : genSourceWord === "selected" ? selected : genSourceWord;
+  const motionPlate = genSourceWant && IS_STILL(genSourceWant) ? genSourceWant : null;
+  const motionPlateDims = usePlateDims(pid, motionPlate);
+  /** What the "animate from" picker shows. A tool pins an explicit path (so the
+   *  submission matches what it reported); when that path IS the keeper the
+   *  picker still reads "keeper", which is what the director cares about. */
+  const genSourcePick = SOURCE_WORDS.includes(genSourceWord) ? genSourceWord
+    : genSourceWant === plate ? "keeper" : "take";
+  const motionPlateWhy = motionPlate ? "" : genSourceWord === "keeper"
+    ? "no plate — set a keeper still first"
+    : genSourceWant
+      ? `${genSourceWant.split("/").pop()} is not a still — pick a still, or animate from the keeper`
+      : "nothing is selected — click a still in the takes rail, or animate from the keeper";
 
   useJobWatch(watchJob, (ok, result) => {
     setWatchJob(null);
@@ -145,14 +175,28 @@ export default function ShotPage() {
     references: oneOffRefs(),
     seeds: gen.seeds ? String(gen.seeds).split(",").map(Number) : undefined });
 
+  /** The frame a restyle edits: the monitor selection unless a source was
+   *  named (an agent can point at the keeper or any path without moving the
+   *  director's view). */
+  const restyleSource = !gen.source || gen.source === "selected" ? selected
+    : gen.source === "keeper" ? plate : String(gen.source);
+
   const genRestyle = () => submitGen("i2i", {
-    source: selected, prompt: gen.prompt, denoise: gen.denoise,
+    source: restyleSource, prompt: gen.prompt, denoise: gen.denoise,
     name: `${sid}-i2i`, backend: gen.backend || undefined,
     references: oneOffRefs(),
     model: gen.model || undefined });
 
-  const genAnimate = () => submitGen("motion", {
-    plate, prompt: gen.prompt || shot?.motion_prompt,
+  /** Refuse rather than quietly animate the keeper: the console was pointed at
+   *  a source that is not a still, and silently substituting one is the bug. */
+  const refuseSource = (lane: string) => {
+    const why = `${lane} needs a still to start from — ${motionPlateWhy}`;
+    setError(why);
+    return Promise.reject(new Error(why));
+  };
+
+  const genAnimate = () => !motionPlate ? refuseSource("animate") : submitGen("motion", {
+    plate: motionPlate, prompt: gen.prompt || shot?.motion_prompt,
     region: gen.fullFrame ? undefined : gen.region,
     // Seconds is the unit of direction; frames only when the director typed a count.
     seconds: numOr(gen.seconds), frames: numOr(gen.frames), steps: numOr(gen.steps), cfg: numOr(gen.cfg),
@@ -161,11 +205,12 @@ export default function ShotPage() {
     backend: gen.backend || undefined, model: gen.model || undefined });
 
   const genChain = () => {
+    if (!motionPlate) return refuseSource("chain");
     let beats: any;
     try { beats = JSON.parse(gen.beats); }
     catch { setError("beats is not valid JSON");
             return Promise.reject(new Error("beats is not valid JSON")); }
-    return submitGen("chain", { plate, beats, name: `${sid}-chain` });
+    return submitGen("chain", { plate: motionPlate, beats, name: `${sid}-chain` });
   };
 
   const submitBySub = (s: GenSub) => (
@@ -219,9 +264,36 @@ export default function ShotPage() {
   };
   const addReference = (ref: ShotReference) => postRefs({ add: ref });
   const removeReference = (which: string) => postRefs({ remove: which });
-  const setKeeperPath = (path: string, note?: string) =>
-    api(`/api/projects/${pid}/shots/${sid}/curate`,
-        { keeper: path, ...(note ? { note } : {}) }).then(() => refresh());
+  /** Run a take-row action so its outcome is visible either way: the row says
+   *  what happened, a toast repeats it, and the promise still rejects so the
+   *  agent layer gets the server's own reason. */
+  const takeAction = async <T,>(what: string, p: Promise<T>): Promise<T> => {
+    setTakeNote(null);
+    try {
+      const v = await p;
+      setTakeNote({ text: `${what} ✓`, bad: false });
+      pushToast({ text: `${what} ✓` });
+      return v;
+    } catch (e: any) {
+      const why = e?.detail || e?.message || String(e);
+      setTakeNote({ text: `${what} failed — ${why}`, bad: true });
+      pushToast({ text: `✗ ${what} failed — ${String(why).slice(0, 120)}` });
+      throw e;
+    }
+  };
+
+  const setKeeperPath = async (path: string, note?: string): Promise<void> => {
+    const d = await takeAction(`★ keeper — ${path.split("/").pop()}`,
+      api<{ keeper?: string }>(`/api/projects/${pid}/shots/${sid}/curate`,
+        { keeper: path, ...(note ? { note } : {}) }));
+    refresh();
+    // The server echoes the pick; if it ever came back as something else the
+    // page would be lying about which plate the next motion job starts from.
+    if (d?.keeper && d.keeper !== path) {
+      setTakeNote({ text: `keeper is ${d.keeper}, not ${path}`, bad: true });
+      throw new Error(`the server kept ${d.keeper}, not ${path}`);
+    }
+  };
 
   const direct = () => run(
     () => api(`/api/projects/${pid}/direct`,
@@ -264,6 +336,9 @@ export default function ShotPage() {
       tab, sub, kindFilter,
       selected, activeSource: shot?.active_source ?? null,
       keeper: shot?.keeper ?? null, takes: takesLite,
+      // What the animate console would submit right now, already resolved —
+      // a tool reports the image it used instead of guessing.
+      genSource: sub === "restyle" ? restyleSource : motionPlate,
     }),
     setTab, setSub, setKindFilter,
     selectTake: setSel,
@@ -298,7 +373,8 @@ export default function ShotPage() {
   const takeActions = (path: string) => (
     <div className="row" style={{ gap: 4 }}>
       {/\.(png|jpg|jpeg|webp)$/i.test(path) && (
-        <button className="small" title="curation keeper (the plate)"
+        <button className="small"
+          title="curation keeper — the plate animate, restyle and comps start from"
           data-action={ANCHORS.takeKeeper} data-path={path}
           onClick={() => fire(setKeeperPath(path))}>★ keeper</button>
       )}
@@ -321,7 +397,8 @@ export default function ShotPage() {
       {path !== shot.active_source && (
         <button className="small"
           data-action={ANCHORS.takeSource} data-path={path}
-          onClick={() => fire(setOverride({ source: path }))}>
+          onClick={() => fire(takeAction(`⬆ plays — ${path.split("/").pop()}`,
+                                         setOverride({ source: path })))}>
           ⬆ timeline source</button>
       )}
       <button className="small"
@@ -336,7 +413,7 @@ export default function ShotPage() {
     <div>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h2 style={{ margin: 0 }}>
-          <Link to={`/p/${pid}`} title="back to Film Editor">🎞←</Link>{" "}
+          <Link to={filmPath(pid)} title="back to Film Editor">🎞←</Link>{" "}
           <b>{sid}</b>
           <span className="muted"> · {shot.type} · {shot.register} ·
             {" "}{shot.seconds}s</span>
@@ -344,7 +421,7 @@ export default function ShotPage() {
         <div className="row">
           {watchJob && <span className="chip">
             <span className="dot busy" /> working…</span>}
-          <Link to={`/p/${pid}/chat?shot=${sid}`}>
+          <Link to={`${chatPath(pid)}?shot=${sid}`}>
             <button>💬 direct in chat</button></Link>
         </div>
       </div>
@@ -406,6 +483,9 @@ export default function ShotPage() {
             ))}
           </div>
           {selected && takeActions(selected)}
+          {takeNote && (
+            <div className={takeNote.bad ? "error" : "muted small"}>
+              {takeNote.text}</div>)}
         </div>
 
         {/* -------------------------------------------------- workspace */}
@@ -549,8 +629,9 @@ export default function ShotPage() {
               <ModelPicker pid={pid} lane="i2i" backend={gen.backend}
                 model={gen.model}
                 onChange={(b, m) => setGen({ ...gen, backend: b, model: m })} />
-              <div className="muted small">source = selected take.
-                0.55 keeps layout · 0.85 restyles.</div>
+              <div className="muted small">source ={" "}
+                <code>{restyleSource?.split("/").pop() ?? "select a take"}</code>
+                {" "}· 0.55 keeps layout · 0.85 restyles.</div>
               <label className="field">prompt
                 <textarea value={gen.prompt}
                           data-action={genFieldAnchor("restyle", "prompt")}
@@ -574,7 +655,32 @@ export default function ShotPage() {
               <ModelPicker pid={pid} lane="motion" backend={gen.backend}
                 model={gen.model}
                 onChange={(b, m) => setGen({ ...gen, backend: b, model: m })} />
-              {plate && plateDims ? <>
+              {/* WHICH IMAGE this animates. Motion has always started from the
+                  keeper; the strip's yellow outline is only the monitor, so
+                  "animate the one I am looking at" needs saying out loud. */}
+              <div className="row">
+                <label className="field">animate from
+                  <select value={genSourcePick}
+                          data-action={genFieldAnchor("animate", "source")}
+                          onChange={(e) =>
+                            setGen({ ...gen, source: e.target.value })}>
+                    <option value="keeper">★ keeper (the plate)</option>
+                    <option value="selected">selected take</option>
+                    {genSourcePick === "take" &&
+                      <option value={genSourceWord}>
+                        {genSourceWord.split("/").pop()}</option>}
+                  </select></label>
+                <code className="muted small" style={{ overflow: "hidden" }}>
+                  {motionPlate ?? "—"}</code>
+                {/* No anchor here on purpose: `shot.take.keeper` belongs to the
+                    rail's own ★ keeper button, and an agent pulse must land on
+                    exactly one control. */}
+                {motionPlate && motionPlate !== plate &&
+                  <button className="small" title="make this still the shot's plate"
+                          onClick={() => fire(setKeeperPath(motionPlate))}>
+                    ★ keep it</button>}
+              </div>
+              {motionPlate && motionPlateDims ? <>
                 <div className="row">
                   <label className="field">mode
                     <select value={gen.fullFrame ? "full" : "cel"}
@@ -584,13 +690,13 @@ export default function ShotPage() {
                       <option value="cel">cel region (draw on the plate)</option>
                       <option value="full">full frame</option>
                     </select></label>
-                  <span className="muted small">plate {plateDims[0]}×
-                    {plateDims[1]} — untouched outside the region</span>
+                  <span className="muted small">plate {motionPlateDims[0]}×
+                    {motionPlateDims[1]} — untouched outside the region</span>
                 </div>
                 {!gen.fullFrame && (
                   <div data-action={genFieldAnchor("animate", "region")}>
-                    <RegionCanvas pid={pid} plate={plate}
-                      plateW={plateDims[0]} plateH={plateDims[1]}
+                    <RegionCanvas pid={pid} plate={motionPlate}
+                      plateW={motionPlateDims[0]} plateH={motionPlateDims[1]}
                       region={gen.region}
                       onRegion={(r) => setGen({ ...gen, region: r })} />
                   </div>
@@ -629,6 +735,21 @@ export default function ShotPage() {
                              setGen({ ...gen, freeze_after: e.target.value })} />
                   </label>
                 </div>
+                {/* Progressive disclosure, human side: the models read an
+                    anime plate as a photograph and fill the gap with photoreal
+                    faces and daylight. Offered as a button, never appended
+                    behind the director's back. */}
+                {!saysAnime(gen.prompt || shot.motion_prompt || "") && (
+                  <div className="row muted small">
+                    <span style={{ flex: 1 }}>Nothing here says anime — i2v
+                      models add photoreal people and daylight to a plate like
+                      this.</span>
+                    <button className="small"
+                      onClick={() => setGen({ ...gen, prompt: withAnimeClause(
+                        String(gen.prompt || shot.motion_prompt || "")).prompt })}>
+                      ＋ {ANIME_CLAUSE}</button>
+                  </div>
+                )}
                 <div className="muted small">hold 97f/8st/cfg1 · gesture
                   97f/12st/cfg2 · environment 25f/16st/cfg3 · first-second
                   49f + freeze 1s</div>
@@ -638,7 +759,7 @@ export default function ShotPage() {
                   data-action={genFieldAnchor("animate", "submit")}
                   onClick={() => fire(genAnimate())}>
                   ▶ animate</button>
-              </> : <div className="muted">no plate — set a keeper first</div>}
+              </> : <div className="muted">{motionPlateWhy}</div>}
             </div>}
             {sub === "chain" && <div className="col">
               <div className="muted small">Breath-stitching: front-load each
@@ -650,7 +771,10 @@ export default function ShotPage() {
                           onChange={(e) =>
                             setGen({ ...gen, beats: e.target.value })} />
               </label>
-              <button className="primary" disabled={busy || !plate}
+              <div className="muted small">chains from {motionPlate
+                ? motionPlate.split("/").pop() : motionPlateWhy} — the animate
+                tab's "animate from" picks it.</div>
+              <button className="primary" disabled={busy || !motionPlate}
                 data-action={genFieldAnchor("chain", "submit")}
                 onClick={() => fire(genChain())}>▶ chain</button>
             </div>}

@@ -8,6 +8,10 @@
  *
  * `LANDING` is deliberately NOT under APP_BASE: registry entries that live "anywhere"
  * (the ⌘K palette, get_context on the landing page) keep reporting `/`.
+ *
+ * The project ROOT (`/app/p/:pid`) is not a page: it redirects to the project's default
+ * view, the Timeline. The Film Editor has its own explicit path (`/app/p/:pid/film`), so
+ * a tool that wants the board asks for the board rather than for "the project".
  */
 export const APP_BASE = "/app";
 export const LANDING = "/";
@@ -23,7 +27,9 @@ export const ROUTES = {
   projects: APP_BASE,
   jobs: appPath("/jobs"),
   settings: appPath("/settings"),
-  film: appPath("/p/:pid"),
+  /** The project root — a redirect to `timeline`, never a page of its own. */
+  project: appPath("/p/:pid"),
+  film: appPath("/p/:pid/film"),
   shot: appPath("/p/:pid/shot/:sid"),
   comp: appPath("/p/:pid/comp/:cid"),
   timeline: appPath("/p/:pid/timeline"),
@@ -31,7 +37,9 @@ export const ROUTES = {
 } as const;
 
 /** Concrete paths. */
-export const filmPath = (pid: string) => appPath(`/p/${pid}`);
+/** The project's front door. Redirects to `timelinePath` — link here to mean "open it". */
+export const projectPath = (pid: string) => appPath(`/p/${pid}`);
+export const filmPath = (pid: string) => appPath(`/p/${pid}/film`);
 export const shotPath = (pid: string, sid: string) => appPath(`/p/${pid}/shot/${sid}`);
 export const timelinePath = (pid: string) => appPath(`/p/${pid}/timeline`);
 export const chatPath = (pid: string) => appPath(`/p/${pid}/chat`);
@@ -50,6 +58,7 @@ export const LEGACY_APP_PATHS = [
   "jobs",
   "settings",
   "p/:pid",
+  "p/:pid/film",
   "p/:pid/shot/:sid",
   "p/:pid/comp/:cid",
   "p/:pid/timeline",

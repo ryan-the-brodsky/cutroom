@@ -68,7 +68,11 @@ def motion_models():
     return {"models": [mm.public(m) for m in mm.all_models()],
             "registers": list(mm.REGISTERS),
             "default": mm.DEFAULT_MODEL_KEY,
-            "doctrine": mm.UNFAITHFUL_DOCTRINE}
+            "doctrine": mm.UNFAITHFUL_DOCTRINE,
+            # The clause a motion prompt needs when the plate's own prompt
+            # never says it is drawn. Served here so the tools relay one
+            # wording, not two.
+            "anime_clause": mm.ANIME_CLAUSE}
 
 
 @router.get("/image-models")

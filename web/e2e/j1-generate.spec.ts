@@ -16,7 +16,7 @@ test.describe("J1 — generate takes from a description", () => {
   test.slow();  // three mock generations plus navigation
 
   test("resolves the David Ross close-up to B10-S2", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const res = await callTool(page, "find_shots", { query: "David Ross close-up" });
     expect(res.ok).toBe(true);
 
@@ -28,7 +28,7 @@ test.describe("J1 — generate takes from a description", () => {
   });
 
   test("generates 3 stills, visibly, and leaves the UI on the shot", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
 
     const before = await callTool(page, "describe_shot", { shot: SID });
     expect(before.ok).toBe(true);

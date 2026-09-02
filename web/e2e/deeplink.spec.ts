@@ -53,6 +53,17 @@ test.describe("deep links restore UI state", () => {
     await expect(anchor(page, "shot.motion.freeze")).toBeVisible();
   });
 
+  test("the project root opens the Timeline, and the board keeps its own path", async ({ page }) => {
+    await page.goto(appUrl(`/p/${PID}`));
+    await expect(page).toHaveURL(/\/app\/p\/next-year\/timeline/);
+    await waitForTools(page);
+    await expect(anchor(page, "timeline.play").first()).toBeVisible();
+
+    await page.goto(appUrl(`/p/${PID}/film`));
+    await waitForTools(page);
+    await expect(anchor(page, "film.shot").first()).toBeVisible();
+  });
+
   test("the tab lands in the URL when clicked, so the state is linkable", async ({ page }) => {
     await page.goto(appUrl(`/p/${PID}/shot/${SID}`));
     await waitForTools(page);

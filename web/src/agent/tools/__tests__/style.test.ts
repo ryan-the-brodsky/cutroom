@@ -41,7 +41,7 @@ describe("set_style", () => {
 
   it("sets a named preset on the open film and says what the look is now", async () => {
     const r = asOk(await setStyle.execute({ preset: "anime-noir" }, f.ctx));
-    expect(f.rec.nav.at(-1)).toBe(`${APP_BASE}/p/next-year`);
+    expect(f.rec.nav.at(-1)).toBe(`${APP_BASE}/p/next-year/film`);
     expect(r.project).toBe("next-year");
     expect(r.style).toMatchObject({ name: "anime-noir" });
     expect(r.summary).toContain("anime-noir");

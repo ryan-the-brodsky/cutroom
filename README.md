@@ -31,7 +31,9 @@ cutroom/
 
 `/` is the public landing page (what Genga Studio is, the demo film, how the WebMCP
 layer works). The studio itself lives at **`/app`**, and old deep links
-(`/p/…`, `/jobs`, `/settings`) redirect there. The landing page registers the
+(`/p/…`, `/jobs`, `/settings`) redirect there. Opening a film (`/app/p/<id>`) lands on
+its **Timeline** — the film as real clips, previewed with sound; the Film Editor board
+keeps its own path at `/app/p/<id>/film`. The landing page registers the
 same WebMCP tools, so a visitor who lands on `/` can ask the page what it does.
 
 ![The landing page](web/public/landing/poster.jpg)

@@ -7,7 +7,8 @@ The server is one origin with three kinds of path:
 | Path | What it is |
 |---|---|
 | `/` | the public landing page (static-feeling; the SPA renders it) |
-| `/app`, `/app/p/:pid/...` | the studio (Projects, Film Editor, Shot Editor, Jobs, Settings) |
+| `/app`, `/app/p/:pid/...` | the studio (Projects, Timeline, Film Editor, Shot Editor, Jobs, Settings) |
+| `/app/p/:pid` | the project root — redirects to that film's Timeline (the board is `/app/p/:pid/film`) |
 | `/api/*` | the API; never touched by the SPA history fallback |
 
 `web/src/routes.ts` holds the single `APP_BASE` constant every route builder uses.

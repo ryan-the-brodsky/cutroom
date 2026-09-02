@@ -40,15 +40,54 @@ def test_shot_and_override_flow(client):
 
 
 def test_curation_keeps_history(client):
+    from cutroom.storage import get_storage
+    from conftest import make_image
     client.post("/api/projects", json={"id": "p2"})
     client.post("/api/projects/p2/shots", json={"sid": "B01-S1"})
-    client.post("/api/projects/p2/shots/B01-S1/curate",
-                json={"keeper": "renders/stills/a.png", "note": "clean"})
-    client.post("/api/projects/p2/shots/B01-S1/curate",
-                json={"keeper": "renders/stills/b.png"})
+    store = get_storage().project("p2")
+    for name in ("a", "b"):
+        make_image(store.resolve(f"renders/stills/{name}.png"), 320, 224)
+    r = client.post("/api/projects/p2/shots/B01-S1/curate",
+                    json={"keeper": "renders/stills/a.png", "note": "clean"})
+    # the response echoes the pick, so a caller can confirm it landed
+    assert r.json()["keeper"] == "renders/stills/a.png"
+    assert r.json()["previous"] is None
+    r = client.post("/api/projects/p2/shots/B01-S1/curate",
+                    json={"keeper": "renders/stills/b.png"})
+    assert r.json() == {"op": "set_keeper", "applied": True, "shot": "B01-S1",
+                        "keeper": "renders/stills/b.png",
+                        "previous": "renders/stills/a.png"}
     shot = client.get("/api/projects/p2/shots/B01-S1").json()
     assert shot["keeper"] == "renders/stills/b.png"
     assert "clean" in shot["curation_note"]
+
+
+def test_curate_refuses_a_keeper_that_is_not_a_still_that_exists(client):
+    """The keeper is the plate every motion / i2i / comp job starts from, so a
+    path that is not there has to fail HERE — loudly, at the click — not hours
+    later as a clip animated from the wrong frame."""
+    from cutroom.storage import get_storage
+    from conftest import make_image
+    client.post("/api/projects", json={"id": "p3"})
+    client.post("/api/projects/p3/shots", json={"sid": "B01-S1"})
+    store = get_storage().project("p3")
+    make_image(store.resolve("renders/stills/real.png"), 320, 224)
+
+    r = client.post("/api/projects/p3/shots/B01-S1/curate",
+                    json={"keeper": "renders/stills/typo.png"})
+    assert r.status_code == 400
+    assert "renders/stills/typo.png" in r.json()["detail"]
+
+    # a clip is not a plate: the timeline-source override is the tool for that
+    r = client.post("/api/projects/p3/shots/B01-S1/curate",
+                    json={"keeper": "renders/fx/B01-S1.mp4"})
+    assert r.status_code == 400
+    assert "still" in r.json()["detail"]
+
+    assert client.get("/api/projects/p3/shots/B01-S1").json()["keeper"] is None
+    assert client.post("/api/projects/p3/shots/B01-S1/curate",
+                       json={"keeper": "renders/stills/real.png"}
+                       ).status_code == 200
 
 
 def test_backend_crud_masks_keys(client):
@@ -172,3 +211,59 @@ def test_auth_token(data_dir, monkeypatch):
                headers={"Authorization": "Bearer tok123"})
         assert c.get("/api/projects/p/media/nope.png?token=tok123"
                      ).status_code == 404  # authed, then missing file
+
+
+def test_motion_source_is_normalised_and_checked(client):
+    """`source` is the one word every caller uses for "start FROM this image".
+
+    The motion lane calls it `plate` internally; the alias is resolved at the
+    API edge, and a path that is not in the project is a 400 at submit time —
+    the failure this app cannot afford is a job that queues happily and comes
+    back animated from the wrong frame.
+    """
+    from cutroom.db import session_scope
+    from cutroom.models import Backend, Job
+    from cutroom.storage import get_storage
+    from conftest import make_image
+    client.post("/api/projects", json={"id": "p4"})
+    client.post("/api/projects/p4/shots", json={"sid": "B01-S1"})
+    store = get_storage().project("p4")
+    make_image(store.resolve("renders/stills/goodbye.png"), 320, 224)
+    with session_scope() as s:
+        s.get(Backend, "mock").enabled = True
+
+    r = client.post("/api/projects/p4/generate/motion",
+                    json={"shot": "B01-S1", "prompt": "the text scrolls",
+                          "source": "renders/stills/goodbye.png",
+                          "backend": "mock"})
+    assert r.status_code == 200, r.text
+    with session_scope() as s:
+        payload = s.get(Job, r.json()["job"]).payload
+    assert payload["plate"] == "renders/stills/goodbye.png"
+    assert "source" not in payload
+
+    # a path nobody has: refused, with the path in the message
+    r = client.post("/api/projects/p4/generate/motion",
+                    json={"shot": "B01-S1", "prompt": "x", "backend": "mock",
+                          "plate": "renders/stills/nope.png"})
+    assert r.status_code == 400
+    assert "renders/stills/nope.png" in r.json()["detail"]
+
+    # a clip is not a plate
+    r = client.post("/api/projects/p4/generate/motion",
+                    json={"shot": "B01-S1", "prompt": "x", "backend": "mock",
+                          "source": "renders/fx/a.mp4"})
+    assert r.status_code == 400 and "still" in r.json()["detail"]
+
+    # two different sources is a caller bug, not a coin flip
+    r = client.post("/api/projects/p4/generate/motion",
+                    json={"shot": "B01-S1", "prompt": "x", "backend": "mock",
+                          "source": "renders/stills/goodbye.png",
+                          "plate": "renders/stills/other.png"})
+    assert r.status_code == 400 and "pass one" in r.json()["detail"]
+
+    # the i2i lane names the field `source` already, and gets the same check
+    r = client.post("/api/projects/p4/generate/i2i",
+                    json={"shot": "B01-S1", "prompt": "x", "backend": "mock",
+                          "source": "renders/stills/gone.png"})
+    assert r.status_code == 400 and "renders/stills/gone.png" in r.json()["detail"]

@@ -113,7 +113,7 @@ describe("J4 — “Cut act 1 at 720.”", () => {
     });
 
     const cut = asOk(await cutFilm.execute({ scope: "act1", res: "720" }, f.ctx));
-    expect(f.rec.nav).toEqual([`${APP_BASE}/p/next-year?scope=act1&res=720`]);
+    expect(f.rec.nav).toEqual([`${APP_BASE}/p/next-year/film?scope=act1&res=720`]);
     expect(f.rec.calls()).toEqual(["setScope(act1)", "setRes(720)", "cutFilm()", "refresh()"]);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.filmScope, ANCHORS.filmRes, ANCHORS.filmCut]));

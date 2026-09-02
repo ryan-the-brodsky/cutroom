@@ -13,7 +13,7 @@ import type {
 } from "./contract";
 import { pageHandles, waitForHandles } from "./pageHandles";
 import { getSpeed, trail } from "./presence";
-import { pidFromPath } from "../routes";
+import { APP_BASE, pidFromPath } from "../routes";
 
 export interface RouterLike { navigate(to: string, opts?: { replace?: boolean }): unknown }
 
@@ -97,8 +97,20 @@ export const fallbackResolver: ShotResolver = {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-const SHOT_ROUTE = /^\/p\/([^/?#]+)\/shot\/([^/?#]+)/;
-const FILM_ROUTE = /^\/p\/([^/?#]+)\/?(?:[?#]|$)/;
+/**
+ * Which page a path lands on. The app base is optional so a legacy `/p/…` link
+ * (which the router redirects under `/app`) waits for the same handles.
+ *
+ * The project ROOT is not the board any more: `/app/p/:pid` redirects to the
+ * Timeline, so it waits for the timeline's handles. The Film Editor is the
+ * explicit `…/film` path — which is what `filmPath()` builds, so every tool that
+ * asks for the board still gets the board.
+ */
+const P = `^(?:${APP_BASE})?/p/([^/?#]+)`;
+const SHOT_ROUTE = new RegExp(`${P}/shot/([^/?#]+)`);
+const FILM_ROUTE = new RegExp(`${P}/film/?(?:[?#]|$)`);
+const TIMELINE_ROUTE = new RegExp(`${P}(?:/timeline)?/?(?:[?#]|$)`);
+const PROJECTS_ROUTE = new RegExp(`^(?:${APP_BASE})?/?$`);
 
 /**
  * Navigate and wait for the destination to be usable.
@@ -122,7 +134,12 @@ export async function navigateTo(to: string): Promise<void> {
     await sleep(0);
     return;
   }
-  if (path === "/" || path === "") {
+  if (TIMELINE_ROUTE.test(path)) {
+    await waitForHandles("timeline", undefined, 5000);
+    await sleep(0);
+    return;
+  }
+  if (PROJECTS_ROUTE.test(path)) {
     // The Projects page registers handles too, so create_project can press the
     // real create button. Falling back to a beat keeps older routes working.
     try {

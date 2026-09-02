@@ -15,7 +15,7 @@ test.describe("J2 — freeze the tail of a motion take", () => {
   test.slow();
 
   test("selects the newest motion take then freezes after 1s", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
 
     const sel = await callTool(page, "select_take", { shot: SID, take: "newest motion" });
     test.skip(!sel.ok && /no .*motion|not found/i.test(String(sel.error)),
@@ -53,7 +53,7 @@ test.describe("J2 — freeze the tail of a motion take", () => {
   });
 
   test("never freezes a still — the clip-extension guard holds", async ({ page }) => {
-    await gotoApp(page, `/p/${PID}`);
+    await gotoApp(page, `/p/${PID}/film`);
     const sel = await callTool(page, "select_take", { shot: SID, take: "newest still" });
     test.skip(!sel.ok, "no still take to test the guard with");
     const still = String(sel.selected ?? "");

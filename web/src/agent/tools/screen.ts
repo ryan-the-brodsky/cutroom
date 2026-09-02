@@ -345,8 +345,9 @@ export const previewTimeline: ActionDef<PreviewArgs> = {
     "Play the Timeline's live preview: the film compiled straight from the clip " +
     "model, with no render step, so it reflects edits the instant they are made. " +
     "Seeks to `from` (seconds, \"1:05\", a shot sid, \"act2\", or a description) " +
-    "and presses play. Video and stills only: there is no audio in this preview, " +
-    "so use play_cut when the director needs to hear the VO or the score.",
+    "and presses play. Picture and sound both: the VO, music and SFX clips play " +
+    "with it. A browser that has seen no click yet may hold the sound back — the " +
+    "page says so under the monitor, and \u25b6 there releases it.",
   inputSchema: {
     type: "object",
     properties: {
@@ -420,7 +421,7 @@ export const previewTimeline: ActionDef<PreviewArgs> = {
         duration: duration ? Math.round(duration) : null,
         clips: clips.length,
         ...(args?.play !== false && !playing ? { needs_click: true } : {}),
-        note: "live compiled preview, video only; use play_cut for the rendered cut with audio",
+        note: "live compiled preview — picture and the VO/music/SFX mix, no render step; play_cut screens an assembled cut instead",
       },
     );
   },

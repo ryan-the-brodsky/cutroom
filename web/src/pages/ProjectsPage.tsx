@@ -5,6 +5,7 @@ import type { ProjectLite } from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
 import { api } from "../api";
 import { pushToast, useAsync, usePoll } from "../hooks";
+import { projectPath } from "../routes";
 import type { Project } from "../types";
 
 export default function ProjectsPage() {
@@ -43,7 +44,7 @@ export default function ProjectsPage() {
       <h2>Projects</h2>
       <div className="grid cards">
         {(projects || []).map((p) => (
-          <Link to={`/p/${p.id}`} key={p.id} className="card"
+          <Link to={projectPath(p.id)} key={p.id} className="card"
                 data-action={ANCHORS.projectsCard} data-pid={p.id}>
             <h4>{p.label || p.id}</h4>
             <div className="muted">{p.shots} shots{p.paused ? " · ⏸" : ""}</div>

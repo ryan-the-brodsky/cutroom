@@ -53,7 +53,7 @@ describe("play_cut", () => {
     expect(p.playing).toBe(true);
 
     // Visible execution: the Film Editor first, then the cut card, then the room.
-    expect(f.rec.nav).toContain(`${APP_BASE}/p/next-year`);
+    expect(f.rec.nav).toContain(`${APP_BASE}/p/next-year/film`);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       `${ANCHORS.filmCutPlay}[data-path="assembly/animatic-full-720p-2.mp4"]`,
       ANCHORS.screenRoot,
@@ -213,7 +213,7 @@ describe("preview_timeline", () => {
     expect(r.now_playing_shot).toBe("B11-S4");
     expect(r.clips).toBe(2);
     expect(r.duration).toBe(7);
-    expect(String(r.note)).toMatch(/video only/);
+    expect(String(r.note)).toMatch(/VO\/music\/SFX mix/);
     expect(f.timelinePage.t).toBe(4);
     expect(f.timelinePage.playing).toBe(true);
     expect(f.timelinePage.selected).toBe("B11-S4");

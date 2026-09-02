@@ -69,7 +69,13 @@ export type GenField =
   | "prompt" | "negative" | "seeds" | "denoise" | "frames" | "seconds" | "steps" | "cfg"
   | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats"
   /** One-off reference images for the next submit: [{image, role}]. */
-  | "references";
+  | "references"
+  /**
+   * WHICH IMAGE the next generation starts from: "keeper" (the default plate),
+   * "selected" (whatever is on the monitor) or an explicit take path. Animate
+   * and chain read it as the plate; restyle reads it as the source frame.
+   */
+  | "source";
 export type VoField = "text" | "voice" | "backend" | "treatment";
 
 // ---------------------------------------------------------------- cues (music & SFX)
@@ -126,6 +132,9 @@ export interface ShotPageHandles {
     tab: ShotTab; sub: GenSub; kindFilter: KindFilter;
     selected: string | null; activeSource: string | null; keeper: string | null;
     takes: TakeLite[];
+    /** The image the animate / chain console would submit right now, resolved
+     *  from the `source` field — so a tool can report what it actually used. */
+    genSource?: string | null;
   };
   setTab(tab: ShotTab): void;
   setSub(sub: GenSub): void;
@@ -496,6 +505,7 @@ export const ANCHORS = {
   timelineZoom: "timeline.zoom", timelinePlay: "timeline.play",
   timelineStepBack: "timeline.step.back", timelineStepFwd: "timeline.step.fwd",
   timelineScrub: "timeline.scrub", timelineRuler: "timeline.ruler",
+  timelineMute: "timeline.mute",
   timelineClip: "timeline.clip",                // + data-id
   timelineOtio: "timeline.export.otio", timelineEdl: "timeline.export.edl",
   // settings
