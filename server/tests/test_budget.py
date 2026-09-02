@@ -9,6 +9,7 @@ from cutroom import budget, demo
 @pytest.fixture()
 def demo_budget_client(data_dir, monkeypatch):
     monkeypatch.setenv("CUTROOM_DEMO", "1")
+    monkeypatch.setenv("CUTROOM_DEMO_MOCK", "1")   # tests use the free lane; hosted demos do not
     monkeypatch.setenv("CUTROOM_DEMO_BUDGET_USD", "0.10")
     monkeypatch.setenv("CUTROOM_COST_MOCK", "0")
     from cutroom import config

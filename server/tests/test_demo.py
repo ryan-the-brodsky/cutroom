@@ -14,6 +14,7 @@ from cutroom import demo
 def demo_client(data_dir, monkeypatch):
     """A demo-mode app: visitors hold `viewer`, the owner holds `admin`."""
     monkeypatch.setenv("CUTROOM_DEMO", "1")
+    monkeypatch.setenv("CUTROOM_DEMO_MOCK", "1")   # tests use the free lane; hosted demos do not
     monkeypatch.setenv("CUTROOM_AUTH_TOKEN", "judge")
     monkeypatch.setenv("CUTROOM_ADMIN_TOKEN", "boss")
     from cutroom import config
@@ -190,6 +191,7 @@ def test_boot_import_downloads_extracts_and_imports(tmp_path, data_dir,
         port = httpd.server_address[1]
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         monkeypatch.setenv("CUTROOM_DEMO", "1")
+        monkeypatch.setenv("CUTROOM_DEMO_MOCK", "1")   # tests use the free lane; hosted demos do not
         monkeypatch.setenv(
             "CUTROOM_DEMO_BUNDLE", f"http://127.0.0.1:{port}/bundle.tar.zst")
         monkeypatch.setenv("CUTROOM_DEMO_PROJECT", "next-year")
