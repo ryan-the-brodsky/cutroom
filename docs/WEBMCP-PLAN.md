@@ -641,3 +641,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
   restyle/set/remove layer, render_comp, list_layers), lane/settings/export tools, and a
   palette-only registry entry for every remaining UI action (~97 → all discoverable via ⌘K,
   `list_features`, `show_me`). Memory gate on region composites for the 1 GB demo box.
+- **Video backgrounds (Tue 22:15 PT, Ryan)** — comps must support a moving background under
+  moving cels. Today `render_comp` opens the background with PIL (stills only). Added to
+  workstream I: streaming compositor with video backgrounds (loop/hold), API + UI + tools
+  (`add_cel_layer.background`, `set_background`), moving-background test.
