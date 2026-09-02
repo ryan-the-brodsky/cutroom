@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import HTTPException, Request
 
 from ..config import get_settings
@@ -16,7 +18,10 @@ async def require_auth(request: Request) -> None:
     in the link, and CUTROOM_ADMIN_TOKEN. Which one you presented decides
     your role (demo.role_for), not whether you get in."""
     settings = get_settings()
-    accepted = [t for t in (settings.auth_token, settings.admin_token) if t]
+    # CUTROOM_AUTH_TOKEN may hold several viewer tokens (comma or space separated) so
+    # audiences can be revoked independently; the admin token is always accepted.
+    viewers = [t for t in re.split(r"[,\s]+", settings.auth_token or "") if t]
+    accepted = viewers + ([settings.admin_token] if settings.admin_token else [])
     if not accepted:
         return
     header = request.headers.get("authorization", "")
@@ -40,7 +45,8 @@ async def require_worker(request: Request) -> None:
     viewer token must NOT be enough — a judge claiming queued jobs would
     stall the pools — so the fallback there is the admin token."""
     settings = get_settings()
-    fallback = settings.admin_token if settings.demo else settings.auth_token
+    first_viewer = ([t for t in re.split(r"[,\s]+", settings.auth_token or "") if t] or [""])[0]
+    fallback = settings.admin_token if settings.demo else first_viewer
     token = settings.worker_token or fallback
     if not token:
         if settings.demo:

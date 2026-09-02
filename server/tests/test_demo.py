@@ -218,3 +218,21 @@ def test_boot_import_downloads_extracts_and_imports(tmp_path, data_dir,
     # idempotent: a second boot with the project present is a no-op
     assert demo.boot_import()["skipped"] == "projects exist"
     assert (data_dir / "logs/boot.log").exists()
+
+
+def test_multiple_viewer_tokens(monkeypatch, tmp_path):
+    monkeypatch.setenv("CUTROOM_DATA", str(tmp_path / "d"))
+    monkeypatch.setenv("CUTROOM_DEMO", "1")
+    monkeypatch.setenv("CUTROOM_DEMO_MOCK", "1")
+    monkeypatch.setenv("CUTROOM_AUTH_TOKEN", "judge, mvpclub")
+    monkeypatch.setenv("CUTROOM_ADMIN_TOKEN", "boss")
+    from cutroom import config
+    config.reset_settings()
+    from fastapi.testclient import TestClient
+    from cutroom.main import create_app
+    with TestClient(create_app()) as c:
+        for tok in ("judge", "mvpclub"):
+            r = c.get("/api/system", headers={"Authorization": f"Bearer {tok}"})
+            assert r.status_code == 200 and r.json()["role"] == "viewer", tok
+        assert c.get("/api/system", headers={"Authorization": "Bearer boss"}).json()["role"] == "admin"
+        assert c.get("/api/system", headers={"Authorization": "Bearer nope"}).status_code == 401
