@@ -1,6 +1,6 @@
 """Queue-style hosted generation APIs: fal.ai and Replicate.
 
-These close the seam the old dashboard declared but never implemented
+These close the seam the original pipeline declared but never implemented
 ("remote-video-tbd"): hosted video models become a motion backend the model
 picker can select per shot. Both adapters are deliberately generic — the
 model id and any extra payload live in Backend.options, and results are found

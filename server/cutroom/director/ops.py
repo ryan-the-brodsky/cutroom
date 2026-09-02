@@ -2,8 +2,8 @@
 
 A plan is {"ops": [{"op": <name>, ...args}], "note": str}. Ops either mutate
 project state directly (set_*) or submit jobs (gen_*, render_*, freeze_tail,
-assemble). The vocabulary is the same one the dashboard's CLAUDE_PREAMBLE and
-the director-cut skill documented — now a validated, previewable schema.
+assemble). The vocabulary is the same one the original single-machine pipeline
+documented for its own director grammar, now a validated, previewable schema.
 """
 from __future__ import annotations
 

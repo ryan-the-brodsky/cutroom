@@ -1,6 +1,6 @@
 """Hosted image backends: OpenAI-compatible /images and OpenRouter-style
 chat-completions with image output. These generalize the two adapters that
-lived inline in the old dashboard's remote_image_job_code()."""
+lived inline in the original pipeline's remote image job."""
 from __future__ import annotations
 
 import base64

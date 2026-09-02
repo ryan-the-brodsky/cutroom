@@ -2,8 +2,8 @@
 Timeline, and project that Timeline onto the FreeCut engine's render input.
 
 This is the bridge from the shot-slot model to the clip model. Each shot becomes
-a clip on V1 (using the same `film.active_source` precedence the assembler and
-dashboard honor); its VO becomes an audio clip on A1 placed at head_pad +
+a clip on V1 (using the same `film.active_source` precedence the assembler
+honors); its VO becomes an audio clip on A1 placed at head_pad +
 offset. Stills hold true-still (image clips). Generation lineage rides along in
 each clip's `cutroom` block.
 

@@ -1,6 +1,6 @@
 """The film model — shots joined with their takes, curation, and overrides.
 
-Source precedence (director ruling preserved from the dashboard):
+Source precedence (the director's ruling, preserved from the original pipeline):
   override.source > promoted motion (renders/motion/<sid>.webm) >
   newest non-boil rendered fx/comp/panel > keeper still > first still > None
 Boil clips never auto-play (banned); they stay listed as candidates.
