@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .api import (audio, backends, comps, cues, deps, direction, generate,
+from .api import (admin, audio, backends, comps, cues, deps, direction, generate,
                   jobs, media, projects, separate, system, timeline)
 from .adapters.motion_profiles import default_profile_for_row, env_profile
 from .adapters.registry import ADAPTER_TYPES, default_backends
@@ -181,7 +181,8 @@ def create_app() -> FastAPI:
     auth = [Depends(deps.require_auth)]
     for r in (projects.router, media.router, generate.router, comps.router,
               direction.router, jobs.router, backends.router, system.router,
-              timeline.router, separate.router, cues.router, audio.router):
+              timeline.router, separate.router, cues.router, audio.router,
+              admin.router):
         app.include_router(r, prefix="/api", dependencies=auth)
 
     @app.get("/api/health")
