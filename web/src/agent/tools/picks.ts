@@ -201,8 +201,13 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
     const clearing = args?.clear === true ||
       (typeof args?.take === "string" && /^(none|clear|default|off)$/i.test(args.take.trim()));
 
+    // Capture what is on the monitor BEFORE navigating: re-opening the shot page without a
+    // ?take= param resets the selection to the shot's default source.
+    const before = ctx.page.current();
+    const curSel = before && before.kind === "shot" && before.sid === shot.sid
+      ? safeState(before).selected : null;
     const opened = await openShotPage(ctx, "set_timeline_source", pid, shot.sid,
-      clearing ? {} : { take: undefined });
+      clearing ? {} : { take: curSel ?? undefined });
     if (!opened.ok) return opened.res;
     const page = opened.page;
 
@@ -219,7 +224,7 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
     }
 
     // Defaults to what is on the monitor, else the newest clip (a motion pick is the common case).
-    const hit = await pickTake(ctx, pid, detail, args?.take, { selected: safeState(page).selected, prefer: "clip" });
+    const hit = await pickTake(ctx, pid, detail, args?.take, { selected: curSel ?? safeState(page).selected, prefer: "clip" });
     if (!hit) {
       return err("take_not_found", {
         hint: `No take on ${shot.sid} matches “${cut(args?.take ?? "the selection", 30)}”. ${TAKE_WORDS}`,
