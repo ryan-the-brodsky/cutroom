@@ -679,3 +679,10 @@ at low cost, with Ryan able to toggle providers without redeploying.
   moving cels. Today `render_comp` opens the background with PIL (stills only). Added to
   workstream I: streaming compositor with video backgrounds (loop/hold), API + UI + tools
   (`add_cel_layer.background`, `set_background`), moving-background test.
+- **Workstream I landed (Tue 23:00 PT)** — 12 new tools (35 total): cel workbench (add/reroll/
+  set/remove layer, restyle_background, set_background, render_comp, list_layers) and lanes/
+  export (list_backends, set_lane_default, export_timeline, render_timeline). 111 palette-only
+  registry entries (146 in all) so ⌘K, `list_features` and `show_me` cover every UI action.
+  Compositor now streams through ffmpeg pipes and accepts a VIDEO background (loop/hold);
+  moving-background test green; peak RSS 131 MB python / 174 MB ffmpeg. 423 web + 170 server
+  tests. Pinned `sha-685034c`; production cel run (still bg + video bg) in flight.
