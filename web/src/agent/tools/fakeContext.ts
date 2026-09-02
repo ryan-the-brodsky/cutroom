@@ -10,7 +10,8 @@ import type {
   ActionContext, AnyPageHandles, BgField, Candidate, CompLayerLite,
   CompPageHandles, Confidence, CueField, CueKind,
   CuePlacement, CueRecord, FilmPageHandles,
-  FilmShotLite, GenField, GenSub, KindFilter, ResolvedShot, Resolution,
+  FilmShotLite, GenField, GenSub, KindFilter, ProjectLite, ProjectsPageHandles,
+  ResolvedShot, Resolution,
   ShotPageHandles, ShotTab, TakeLite, TrailStep, VoField,
 } from "../contract";
 import type { AgentDeps, BackendChoice, SettledJob } from "./deps";
@@ -400,6 +401,40 @@ export class FakeCompPage implements CompPageHandles {
   async refresh() { this.log("refresh()"); }
 }
 
+/**
+ * The Projects page — the front door, and the only page an agent can reach
+ * before any film exists. `createProject` records the call and adds a card.
+ */
+export class FakeProjectsPage implements ProjectsPageHandles {
+  kind = "projects" as const;
+  projects: ProjectLite[] = [
+    { id: "next-year", label: "Next Year", shots: 2, paused: false },
+  ];
+  newId = "";
+  /** Set to a message (or an ApiError-shaped object) to make create throw. */
+  failCreate: unknown = null;
+
+  constructor(private rec: string[]) {}
+  private log(s: string) { this.rec.push(s); }
+
+  getState() { return { projects: this.projects.map((p) => ({ ...p })), newId: this.newId }; }
+
+  async createProject(id: string, body: Record<string, unknown> = {}) {
+    this.newId = id;
+    this.log(`createProject(${id},${JSON.stringify(body)})`);
+    if (this.failCreate) {
+      throw typeof this.failCreate === "string"
+        ? new Error(this.failCreate) : this.failCreate;
+    }
+    const made: ProjectLite = { id, label: String(body.label ?? id), shots: 0 };
+    this.projects.push(made);
+    this.newId = "";
+    return made;
+  }
+
+  async refresh() { this.log("refresh()"); }
+}
+
 // ---------------------------------------------------------------- resolver fake
 
 export interface ResolverFixture {
@@ -479,6 +514,32 @@ function defaultApi(path: string, body?: unknown): unknown {
     return sid ? (FIXTURE_COMPS[sid] || []) : Object.values(FIXTURE_COMPS).flat();
   }
   if (/\/api\/projects\/[^/]+\/dims\//.test(path)) return { width: 960, height: 544 };
+  if (path === "/api/projects") {
+    if (body !== undefined) {
+      const b = (body || {}) as Record<string, unknown>;
+      return { id: b.id, label: b.label ?? b.id, lanes: { still: { backend: "mock" } } };
+    }
+    return [{ id: "next-year", label: "Next Year", shots: 2, paused: false }];
+  }
+  const batchMatch = /\/api\/projects\/([^/]+)\/shots\/batch$/.exec(path);
+  if (batchMatch) {
+    const rows = (((body || {}) as Record<string, unknown>).shots || []) as Record<string, unknown>[];
+    let n = 0;
+    const sids = rows.map((r) => String(r.sid || `B01-S${++n}`));
+    return { count: rows.length, sids,
+             total_seconds: rows.reduce((t, r) => t + (Number(r.seconds) || 6), 0) };
+  }
+  const castMatch = /\/api\/projects\/([^/]+)\/cast$/.exec(path);
+  if (castMatch && body !== undefined) {
+    const rows = (((body || {}) as Record<string, unknown>).characters || []) as Record<string, unknown>[];
+    return { ok: true, cast: rows.map((r) => {
+      const text = String(r.character || "");
+      const name = text.split("—")[0].trim();
+      return { id: r.id || `CHAR-${name.toLowerCase()}`, name,
+               aliases: [name.toLowerCase(), ...((r.aliases as string[]) || [])],
+               descriptor: text };
+    }) };
+  }
   if (path === "/api/backends") {
     return [{ id: "mock", type: "mock", label: "Mock", enabled: true,
               lanes: ["still", "i2i", "motion", "vo", "music", "sfx"],
@@ -543,6 +604,7 @@ export interface FakeContext {
   shotPage: FakeShotPage;
   filmPage: FakeFilmPage;
   compPage: FakeCompPage;
+  projectsPage: FakeProjectsPage;
   cues: FakeCueStore;
   /** Restore the real deps after a test that installed fakes. */
   restore(): void;
@@ -561,6 +623,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
   const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls, cues);
   const filmPage = new FakeFilmPage(project || "next-year", pageCalls, cues);
   const compPage = new FakeCompPage(project || "next-year", "B10-S2-1", "B10-S2", pageCalls);
+  const projectsPage = new FakeProjectsPage(pageCalls);
   let current: AnyPageHandles | null = opts.page ?? null;
 
   const api = <T,>(path: string, body?: unknown, method?: string): Promise<T> => {
@@ -589,13 +652,20 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
         current = shotPage;
       } else if (/^\/p\/[^/]+(\?|$)/.test(to)) {
         current = filmPage;
+      } else if (to === "/" || to === "") {
+        current = projectsPage;
       }
     },
     page: {
       current: () => current,
       // Overload-compatible implementation; the contract narrows it for callers.
-      waitFor: ((kind: "shot" | "film" | "comp", match?: { sid?: string; cid?: string }) => {
+      waitFor: ((kind: "shot" | "film" | "comp" | "projects",
+                 match?: { sid?: string; cid?: string }) => {
         if (opts.failWaitFor) return Promise.reject(new Error("page did not mount"));
+        if (kind === "projects") {
+          current = projectsPage;
+          return Promise.resolve(projectsPage);
+        }
         if (kind === "comp") {
           if (match?.cid) compPage.cid = match.cid;
           // The workbench mounts INSIDE the shot page: `current` stays the shot.
@@ -638,7 +708,8 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
 
   installDeps({ settleJobs: settle, classifyBackend: classify });
 
-  return { ctx, rec, shotPage, filmPage, compPage, cues, restore: resetDeps };
+  return { ctx, rec, shotPage, filmPage, compPage, projectsPage, cues,
+           restore: resetDeps };
 }
 
 /** A paid-backend classifier, for the needs_confirmation paths. */

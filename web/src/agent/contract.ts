@@ -230,13 +230,33 @@ export interface CompPageHandles {
   refresh(): Promise<void>;
 }
 
-export type AnyPageHandles = ShotPageHandles | FilmPageHandles | CompPageHandles;
+// ---------------------------------------------------------------- projects (the front door)
+
+export interface ProjectLite { id: string; label?: string; shots?: number; paused?: boolean }
+
+/**
+ * The Projects page. `create_project` drives this the way a human does: it types the
+ * slug into the "New empty project" field and presses create, then navigates to the
+ * new film. Not a "page" in `current()`'s sense (no project is open yet), so ask for
+ * it by kind: `ctx.page.waitFor("projects")`.
+ */
+export interface ProjectsPageHandles {
+  kind: "projects";
+  getState(): { projects: ProjectLite[]; newId: string };
+  /** Same handler the create button calls: fills the field, posts, refreshes. */
+  createProject(id: string, body?: Record<string, unknown>): Promise<ProjectLite>;
+  refresh(): Promise<void>;
+}
+
+export type AnyPageHandles =
+  ShotPageHandles | FilmPageHandles | CompPageHandles | ProjectsPageHandles;
 
 export interface PageHandles {
   current(): AnyPageHandles | null;
   waitFor(kind: "shot", match: { sid: string }, timeoutMs?: number): Promise<ShotPageHandles>;
   waitFor(kind: "film", match?: Record<string, never>, timeoutMs?: number): Promise<FilmPageHandles>;
   waitFor(kind: "comp", match?: { cid?: string; sid?: string }, timeoutMs?: number): Promise<CompPageHandles>;
+  waitFor(kind: "projects", match?: Record<string, never>, timeoutMs?: number): Promise<ProjectsPageHandles>;
 }
 
 // ---------------------------------------------------------------- resolver
@@ -313,6 +333,8 @@ export const TOOL_NAMES = [
   "add_cel_layer", "reroll_layer", "restyle_background", "set_background",
   "set_layer", "remove_layer", "render_comp", "list_layers",
   "list_backends", "set_lane_default", "export_timeline", "render_timeline",
+  // workstream K — starting a film from nothing
+  "create_project", "write_script", "set_project_cast", "list_projects",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -405,7 +427,7 @@ export const ANCHORS = {
   jobsCancel: "jobs.cancel", jobsLog: "jobs.log",
   // projects
   projectsCard: "projects.card",                // + data-pid
-  projectsNewId: "projects.new.id", projectsCreate: "projects.create",
+  projectsNewId: "projects.create.id", projectsCreate: "projects.create.submit",
   projectsImportSrc: "projects.import.src", projectsImportId: "projects.import.id",
   projectsImport: "projects.import",
   // director chat

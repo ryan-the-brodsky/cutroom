@@ -45,7 +45,6 @@ def test_query_param_token_works_for_the_judge_link(demo_client):
 ADMIN_ONLY = [
     ("post", "/api/backends", {"id": "x", "type": "mock"}),
     ("post", "/api/backends/mock/delete", {}),
-    ("post", "/api/projects", {"id": "new"}),
     ("post", "/api/projects/p/import", {"src_root": "/tmp"}),
     ("post", "/api/projects/p/lanes", {"lane": "still", "backend": "mock"}),
     ("post", "/api/projects/p/pause", {"paused": True}),

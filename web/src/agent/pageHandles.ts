@@ -11,7 +11,8 @@
  */
 import { useEffect, useRef } from "react";
 import type {
-  AnyPageHandles, CompPageHandles, FilmPageHandles, PageHandles, ShotPageHandles,
+  AnyPageHandles, CompPageHandles, FilmPageHandles, PageHandles, ProjectsPageHandles,
+  ShotPageHandles,
 } from "./contract";
 
 type Listener = (h: AnyPageHandles | null) => void;
@@ -81,7 +82,7 @@ const findMounted = (kind: string, match?: Record<string, unknown>): AnyPageHand
  * Rejects after `timeoutMs` — `perform()` turns that into a clean error envelope.
  */
 export function waitForHandles(
-  kind: "shot" | "film" | "comp",
+  kind: "shot" | "film" | "comp" | "projects",
   match?: Record<string, unknown>,
   timeoutMs = 5000,
 ): Promise<AnyPageHandles> {
@@ -109,7 +110,8 @@ export function waitForHandles(
 /** The `PageHandles` façade handed to every tool as `ctx.page`. */
 export const pageHandles: PageHandles = {
   current: currentPage,
-  waitFor: ((kind: "shot" | "film" | "comp", match?: Record<string, unknown>, timeoutMs?: number) =>
+  waitFor: ((kind: "shot" | "film" | "comp" | "projects",
+             match?: Record<string, unknown>, timeoutMs?: number) =>
     waitForHandles(kind, match, timeoutMs)) as PageHandles["waitFor"],
 };
 
@@ -121,6 +123,7 @@ export const pageHandles: PageHandles = {
 export function usePageHandles(handles: ShotPageHandles): void;
 export function usePageHandles(handles: FilmPageHandles): void;
 export function usePageHandles(handles: CompPageHandles): void;
+export function usePageHandles(handles: ProjectsPageHandles): void;
 export function usePageHandles(handles: AnyPageHandles): void {
   const live = useRef(handles);
   live.current = handles;

@@ -85,7 +85,7 @@ whole list instead.
 One **action registry** (`web/src/agent/registry.ts`) is the single source of
 truth for every feature: name, JSON Schema, where it lives in the UI, how a
 human does it by hand, and how to run it. Three surfaces come off that one
-list. **35 WebMCP tools** on `document.modelContext`, a ⌘K palette for humans,
+list. **39 WebMCP tools** on `document.modelContext`, a ⌘K palette for humans,
 and a "show me" behaviour that navigates to a feature and rings its control.
 
 Tools execute **through the UI you are looking at**. `generate_takes` opens the

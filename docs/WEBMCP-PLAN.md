@@ -315,6 +315,11 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 34 | `export_timeline` | readOnly | `format?` otio\|edl | Timeline → export links | download URL, byte count, event count and a 300-char preview |
 | 35 | `render_timeline` | consequential | `scope_sec?`, `container?` | Timeline → render via engine | job; `engine offline` (cleanly) when the engine is not configured |
 
+| 36 | `create_project` | consequential | `id?` (slug), `title`, `fps?` | Projects → New empty project; types the slug, presses create, then opens the new Film Editor | project id, url, the lane defaults it inherited |
+| 37 | `write_script` | consequential | `project?`, `shots[]` (sid?, beat?, act?, type?, seconds?, register?, image_prompt, negative?, motion_prompt?, radio?, dialogue?, sfx?, ambient?, cut?, render_notes?), `replace?` | Film Editor → the strip; one batch POST; then the first shot's Script tab | count, sids, total_seconds, and what to call next |
+| 38 | `set_project_cast` | consequential | `project?`, `characters[]` ({id?, name, descriptor, aliases?}) | Film Editor (the cast index is not a screen) | the cast with the aliases it derived |
+| 39 | `list_projects` | readOnly | — | none | every film: id, title, shot count, paused, url |
+
 (19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
 "16" was the working count — the number is not load-bearing. Stay under ~25 for v1.
 Rows 20–23 are workstream H's music/SFX set, appended 2026-09-01 — 23 tools total.
@@ -324,7 +329,22 @@ Rows 24-35 are workstream I's cel workbench and lane/export set, appended
 2026-09-01 — 35 tools total. The comp tools drive `CompEditor` through new
 `CompPageHandles` (`kind: "comp"`, registered alongside the page it mounts in);
 regions are TRUE background pixels snapped to /32, and a comp background may be
-a still plate or a clip.)
+a still plate or a clip.
+Rows 36-39 are workstream K's "start a film from nothing" set, appended
+2026-09-02 — 39 tools total. They exist because a judge asked the site to
+"build a new comical short anime about the French Revolution" and there was no
+tool that made a project or wrote a shot. Server side: `POST /projects` is
+viewer-allowed in demo mode under `CUTROOM_DEMO_PROJECTS_PER_TOKEN` (3 per
+rolling 24 h, admin exempt) and applies `CUTROOM_LANE_*` to the new project so
+a fresh film never falls through to "first enabled backend"; new
+`POST /projects/{pid}/shots/batch` upserts a whole script in order (order_idx =
+position, sids auto-assigned `B01-S1…` one beat per act, seconds 2-20 default
+6, 300 s and 40 shots the ceilings); `POST /projects/{pid}/cast` is
+viewer-allowed too, since a visitor who just wrote a script has to be able to
+name its cast and per-project ownership is not modelled. `write_script`'s
+descriptions carry the house prompt style — setting sentence, "Subject: …",
+framing, "cinematic anime film still", radio ≤ 25 words, dialogue ≤ 12 — so an
+LLM that has never seen the app writes prompts the still lane can use.)
 
 ### Feature registry (`web/src/agent/features.ts`)
 
@@ -706,3 +726,11 @@ at low cost, with the owner able to toggle providers without redeploying.
   (friendly message, as designed). Decision: judges must be able to start a film from nothing.
   Workstream K: `create_project` (viewer-allowed, capped per token), `write_script` (batch shot
   upsert), `set_project_cast`, `list_projects`. Public-facing scrub (J) landed and pinned.
+- **Start a film from nothing (Wed 2026-09-02 09:30 PT, workstream K)** — four tools
+  (`create_project`, `write_script`, `set_project_cast`, `list_projects`; 39 total),
+  a viewer-allowed capped `POST /projects`, and `POST /projects/{pid}/shots/batch`.
+  Live check on a scratch demo instance with the VIEWER token, through the native
+  `document.modelContext` in real Chrome: empty server → project → a 6-shot
+  satirical French Revolution script (38 s) → cast → mock still → mock VO →
+  `assembly/animatic-full-720p.mp4`. Seven calls, zero failures. The project cap
+  answered the fourth create with its own 429 text.

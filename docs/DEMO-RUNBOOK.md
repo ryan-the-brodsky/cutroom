@@ -17,7 +17,7 @@
 | Live URL | <https://cutroom-production-0f3c.up.railway.app> |
 | Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and your local env file, never in this repo) |
 | Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
-| Tools | 35 |
+| Tools | 39 |
 
 ---
 
@@ -34,7 +34,7 @@ and 8.
       `{"ok":true}` and `200`. Health alone passes while the SPA is missing;
       that shipped once.
 - [ ] **2. Tools chip reads native.** Open the judge link. The topbar says
-      `tools: 35 · native`. `unavailable` means an insecure origin or the flag
+      `tools: 39 · native`. `unavailable` means an insecure origin or the flag
       is off. `polyfill` means you left `?webmcp=polyfill` on; drop it, the
       video must show the native API.
 - [ ] **3. Chrome flags on** (Chrome path only):
@@ -158,7 +158,7 @@ visiting:
   reads at 1080p.
 - A separate Chrome on the judge link, DevTools docked right, Application ›
   WebMCP selected, list scrolled to show `find_shots`, `generate_takes`,
-  `freeze_tail`. The count of 35 should be visible.
+  `freeze_tail`. The count of 39 should be visible.
 - A terminal running Claude Code with `chrome-devtools-mcp` v1.8.0 and
   `--categoryExperimentalWebmcp=true`, already connected to that tab. Test
   before recording: `find_shots {"query": "the two chairs shot"}`.
@@ -278,6 +278,38 @@ seconds at 720p. The reference cuts are `/tmp/cutroom-drive/cut3/two-claudes-cut
   caption it "sped up".
 - *Assembly fails*: check the Jobs log tail. Most likely a missing VO asset.
   Fall back to playing the existing cut from the gallery.
+
+### Run 5b · start a film from nothing
+
+The judge-path answer to "can it make something new?". Nothing on this instance
+is touched: it creates its own project.
+
+```
+Build me a comical short anime about the French Revolution.
+```
+
+| # | Tool | Args | Expected |
+|---|---|---|---|
+| 1 | `create_project` | `{"title":"The Bread Riot"}` | `project`, `url`, the lane defaults it inherited |
+| 2 | `write_script` | `{"shots":[…6 shots…]}` | `count: 6`, sids `B01-S1 … B03-S2`, `total_seconds` |
+| 3 | `set_project_cast` | `{"characters":[{"name":"Margot","descriptor":"the baker who runs out of bread"}]}` | the cast with derived aliases |
+| 4 | `generate_takes` | `{"shot":"B01-S1","lane":"still","count":1}` | job, then the take |
+| 5 | `synthesize_vo` | `{"shot":"B01-S1"}` | the narration line, from the script |
+| 6 | `cut_film` | `{"scope":"full","res":"720"}` | the animatic |
+
+**Visible:** Projects page, the slug typed into "New empty project", create
+rings and fires, the new empty Film Editor, then the strip filling with six
+shots and the first shot's Script tab showing the prompt the agent wrote.
+
+**Fallbacks:**
+- *429 on `create_project`*: the visitor cap is 3 films per token per rolling
+  24 h (`CUTROOM_DEMO_PROJECTS_PER_TOKEN`). Restart the instance, use the admin
+  token, or run `write_script` with `replace: true` on a film made earlier.
+- *Slates instead of stills*: the lanes on a brand-new project come from
+  `CUTROOM_LANE_*`. Check them with `list_backends`, which reports the lane
+  defaults alongside the backends.
+- Six shots at about 6 seconds is the right size for camera. The ceilings are
+  40 shots and 300 seconds; past those the server refuses in plain words.
 
 ### Run 6 · reproduce the whole production (not on camera)
 

@@ -123,6 +123,31 @@ def rate_limit(request: Request, paid: bool = False) -> None:
             _hits[_bucket_key(request, kind)].append(now)
 
 
+DAY = 24 * 3600.0
+
+
+def project_quota(request: Request) -> None:
+    """Viewers may start their own films, up to
+    `CUTROOM_DEMO_PROJECTS_PER_TOKEN` per rolling 24 h (in-memory, per node,
+    same buckets as the job rate limits). Admin is exempt."""
+    settings = get_settings()
+    if not settings.demo or is_admin(request):
+        return
+    cap = max(0, int(settings.demo_projects_per_token))
+    now = time.time()
+    with _hits_lock:
+        q = _hits[_bucket_key(request, "projects")]
+        while q and q[0] < now - DAY:
+            q.popleft()
+        if len(q) >= cap:
+            wait = int((q[0] + DAY - now) / 3600) + 1 if q else 24
+            raise HTTPException(429, (
+                f"demo limit: {cap} new project{'' if cap == 1 else 's'} per "
+                f"day per visitor. Try again in about {wait}h, or keep working "
+                "in a film that already exists — write_script can rewrite one."))
+        q.append(now)
+
+
 # ------------------------------------------------------- bundle building
 
 BUNDLE_FILES = [

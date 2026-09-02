@@ -15,6 +15,7 @@ CUTROOM_AUTH_TOKEN    viewer/judge token — may generate and edit, may not conf
 CUTROOM_DEMO_BUDGET_USD       rolling-24h estimated spend ceiling (default 10)
 CUTROOM_DEMO_PAID_JOBS_PER_HOUR   per-token paid job cap (default 12)
 CUTROOM_DEMO_JOBS_PER_MIN         per-token any-job cap (default 60)
+CUTROOM_DEMO_PROJECTS_PER_TOKEN   per-token new-project cap, rolling 24h (default 3)
 CUTROOM_DEMO_BUNDLE       url of a demo bundle tarball; imported at boot if empty
 CUTROOM_DEMO_BUNDLE_TOKEN bearer token for that url (private GitHub Release asset)
 CUTROOM_DEMO_PROJECT      project id the bundle imports as (default next-year)
@@ -67,6 +68,7 @@ class Settings(BaseSettings):
     demo_budget_usd: float = 10.0
     demo_paid_jobs_per_hour: int = 12
     demo_jobs_per_min: int = 60
+    demo_projects_per_token: int = 3
     demo_bundle: str = ""
     demo_bundle_token: str = ""
     demo_project: str = "next-year"

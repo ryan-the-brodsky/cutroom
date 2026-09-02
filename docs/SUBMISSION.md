@@ -92,6 +92,22 @@ open right now.
 I did not write a pipeline script for that. I wrote a page that publishes its
 own tools, and an agent used them the way a person would.
 
+Then a judge in ChatGPT's browser asked the site to build a new comical short
+about the French Revolution, and hit the wall: every tool assumed a film
+already existed, and making one was reserved for the owner. So an agent can now
+start a film from a sentence. `create_project` types the slug on the Projects
+page and opens the new Film Editor. `write_script` writes the whole shot list
+in one call, in order, with the house prompt style carried in the tool's own
+descriptions: a sentence of setting, then "Subject: …", then the framing, then
+"cinematic anime film still", narration under 25 words and dialogue lines under
+12. Its schema is the thing that teaches, so a model that has never seen
+Cutroom writes prompts the still lane can actually use. `set_project_cast`
+names who is in it, which is what makes "the Margot close-up" resolve later.
+From there the existing tools take over: generate, freeze, voice, score, cut.
+A visitor gets three films a day and the same providers the demo runs on, and
+the server says so in words when the cap is reached rather than failing
+obscurely.
+
 The smaller wins are the ones I feel daily. Ambiguous shot names come back as
 candidates with reasons instead of a guess that burns GPU minutes. Edit
 instructions compile to a plan that renders on screen and waits for me. The
@@ -103,7 +119,7 @@ One registry, three surfaces. `web/src/agent/registry.ts` holds an `ActionDef`
 per feature: name, description, JSON Schema, annotations, `where` it lives in
 the UI (route, query params, a `data-action` anchor), `howTo` a human performs
 it, and an `execute` that drives imperative handles the React pages publish on
-mount. The 35 WebMCP tools, the ⌘K palette and `show_me` are projections of
+mount. The 39 WebMCP tools, the ⌘K palette and `show_me` are projections of
 that one list.
 
 `web/src/agent/webmcp.ts` is the bridge. At app mount it reads
@@ -127,7 +143,7 @@ insertions, of which `web/src/agent/**` is 10,596 lines across 41 files, all
 new. That covers the action registry and contract, the WebMCP bridge, page
 handles and anchors, the pulse and Agent trail, the ⌘K palette, a
 natural-language shot resolver with a cast index, a cost and doctrine guard,
-the async job pattern, and 35 tool implementations. Plus URL state for the
+the async job pattern, and 39 tool implementations. Plus URL state for the
 Shot and Film Editors so deep links exist at all, demo mode with judge and
 admin token roles, boot-time provider seeding with a rolling spend cap, the
 vitest and Playwright suites (the repo had no front-end tests), and the
@@ -150,14 +166,14 @@ Open it in one of these two environments:
 ChatGPT Desktop (the fastest path)
   1. Settings > Browser > turn on "Enable site tools".
   2. Open the URL above in the in-app browser.
-  3. Wait for the topbar chip to read "tools: 35 · native".
+  3. Wait for the topbar chip to read "tools: 39 · native".
   4. Ask for one of the prompts below.
 
 Google Chrome 149 or later
   1. chrome://flags/#enable-webmcp-testing   -> Enabled
   2. chrome://flags/#devtools-webmcp-support -> Enabled
   3. Restart Chrome, then open the URL above.
-  4. DevTools > Application > WebMCP lists all 35 tools and runs them by
+  4. DevTools > Application > WebMCP lists all 39 tools and runs them by
      hand if you would rather not use an agent client. Try
      find_shots {"query": "the two chairs shot"} and then generate_takes.
   5. If your build does not list those flags, launching Chrome with
@@ -260,7 +276,7 @@ for (const def of agentDefs()) {
 ## Pre-submit checklist
 
 - [ ] Live URL opens logged out in a fresh profile and the tools chip reads
-      `tools: 35 · native`.
+      `tools: 39 · native`.
 - [ ] All three prompts run clean against the hosted URL, recorded in
       `docs/TESTING-WEBMCP.md`.
 - [ ] The Two Claudes cut is in the Cuts gallery on the hosted instance and

@@ -121,6 +121,15 @@ export async function navigateTo(to: string): Promise<void> {
     await sleep(0);
     return;
   }
+  if (path === "/" || path === "") {
+    // The Projects page registers handles too, so create_project can press the
+    // real create button. Falling back to a beat keeps older routes working.
+    try {
+      await waitForHandles("projects", undefined, 3000);
+      await sleep(0);
+      return;
+    } catch { /* no handles there: treat it like any other route */ }
+  }
   await sleep(already ? 0 : 300);
 }
 

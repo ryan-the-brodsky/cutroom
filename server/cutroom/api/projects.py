@@ -26,19 +26,46 @@ def list_projects():
                                    .order_by(Project.created_at)).scalars()]
 
 
-@router.post("/projects",
-             dependencies=[Depends(require_admin("creating projects"))])
+def slugify(raw: str) -> str:
+    return re.sub(r"[^a-z0-9-]+", "-", str(raw or "").lower()).strip("-")[:64]
+
+
+@router.post("/projects")
 async def create_project(req: Request):
+    """Start an empty film. Admin-only on a self-host is the wrong default for
+    the hosted demo — a visitor who wants to make their own short has nowhere to
+    put it — so viewers may create projects too, capped by
+    `CUTROOM_DEMO_PROJECTS_PER_TOKEN` per rolling 24 h (demo.project_quota).
+
+    The new project gets the instance's lane defaults (`CUTROOM_LANE_<LANE>`)
+    applied straight away, so generation on a fresh project routes to the
+    configured providers instead of falling through to "first enabled backend"."""
+    from ..demo import project_quota
     body = await req.json()
-    pid = re.sub(r"[^a-z0-9-]+", "-", str(body.get("id", "")).lower()).strip("-")
+    pid = slugify(body.get("id") or body.get("label") or body.get("title") or "")
     if not pid:
         raise HTTPException(400, "need an id (slug)")
+    label = body.get("label") or body.get("title") or pid
     with session_scope() as s:
         if s.get(Project, pid):
             raise HTTPException(409, f"project {pid} exists")
-        s.add(Project(id=pid, label=body.get("label", pid)))
+    project_quota(req)
+    settings: dict = {}
+    fps = body.get("fps")
+    if fps:
+        try:
+            settings["fps"] = max(1, min(60, int(float(fps))))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "fps must be a number")
+    with session_scope() as s:
+        if s.get(Project, pid):
+            raise HTTPException(409, f"project {pid} exists")
+        s.add(Project(id=pid, label=label, settings=settings))
     get_storage().create_project(pid)
-    return {"id": pid, "label": body.get("label", pid)}
+    from ..demo import apply_lane_env
+    lanes = apply_lane_env(pid, log=lambda _m: None)
+    return {"id": pid, "label": label, "lanes": lanes,
+            **({"fps": settings["fps"]} if "fps" in settings else {})}
 
 
 @router.post("/projects/{pid}/import",
@@ -94,18 +121,32 @@ def get_cast(pid: str):
         return {"cast": cast}
 
 
-@router.post("/projects/{pid}/cast",
-             dependencies=[Depends(require_admin("editing the cast"))])
+@router.post("/projects/{pid}/cast")
 async def set_cast(pid: str, req: Request):
     """Set the character index for a project created through the API (the folder
     importer does this from prompts/characters.jsonl; fresh projects need a way in).
-    Body: {"characters": [{id, character, image_prompt?, negative?, seeds?}, …]}"""
+    Body: {"characters": [{id, character, image_prompt?, negative?, seeds?}, …]}
+
+    Viewer-allowed on the hosted demo: a visitor who just wrote a script has to
+    be able to name its cast, and per-project ownership is not modelled — the
+    simplest honest rule is that casting is creative work, like the script."""
     body = await req.json()
     rows = body.get("characters") or []
     if not isinstance(rows, list):
         raise HTTPException(400, "characters must be a list")
-    from ..importer.folder import build_cast
-    cast = build_cast(rows)
+    from ..importer.folder import cast_entry
+    cast = []
+    for rec in rows:
+        entry = cast_entry(rec if isinstance(rec, dict) else {})
+        if not entry:
+            continue
+        # An API caller may know aliases the descriptor does not spell out
+        # ("the baker", "her"); the folder importer has no way to say them.
+        for extra in (rec.get("aliases") or []) if isinstance(rec, dict) else []:
+            alias = str(extra).strip().lower()
+            if len(alias) >= 3 and alias not in entry["aliases"]:
+                entry["aliases"].append(alias)
+        cast.append(entry)
     with session_scope() as s:
         proj = s.get(Project, pid)
         if not proj:
@@ -161,6 +202,121 @@ async def upsert_shot(pid: str, req: Request):
             if f in body:
                 setattr(shot, f, body[f])
     return {"ok": True, "sid": sid}
+
+
+SID_RE = re.compile(r"^B\d\d-S\d+$")
+BEAT_RE = re.compile(r"^B\d\d$")
+SHOT_FIELDS = ("beat", "act", "type", "seconds", "register", "image_prompt",
+               "negative", "motion_prompt", "pan", "radio", "dialogue", "sfx",
+               "ambient", "cut", "render_notes")
+MAX_BATCH_SHOTS = 40
+MAX_BATCH_SECONDS = 300.0
+MIN_SECONDS, MAX_SECONDS, DEFAULT_SECONDS = 2.0, 20.0, 6.0
+
+
+def _beat_of(raw, act: int) -> str:
+    """"B7" / "b07" / 7 all mean B07; nothing means one beat per act."""
+    text = str(raw or "").strip().upper()
+    if not text:
+        return f"B{act:02d}"
+    digits = re.sub(r"[^0-9]", "", text)
+    if not digits:
+        raise HTTPException(400, f"beat {raw!r} must look like B01")
+    return f"B{int(digits):02d}"
+
+
+@router.post("/projects/{pid}/shots/batch")
+async def upsert_shots(pid: str, req: Request):
+    """Write a whole script in one call: `{"shots": [...], "replace": false}`.
+
+    Shots are upserted in the order given and `order_idx` is the position, so
+    the list IS the cut. `sid` is optional — a missing one is assigned
+    `B01-S1`, `B01-S2`, … one beat per act, or inside an explicit `beat`.
+    Guard rails so an agent cannot write a feature film by accident: at most
+    40 shots, 2–20 seconds each (default 6), 300 seconds in total.
+
+    Viewer-allowed: writing the script is the creative act this whole room
+    exists for. `replace: true` drops the shots this batch does not name."""
+    body = await req.json()
+    rows = body.get("shots")
+    if not isinstance(rows, list) or not rows:
+        raise HTTPException(400, "need shots: [{image_prompt, …}, …]")
+    if len(rows) > MAX_BATCH_SHOTS:
+        raise HTTPException(400, f"{len(rows)} shots — the cap is "
+                                 f"{MAX_BATCH_SHOTS} in one script")
+    project_or_404(pid)
+
+    prepared: list[dict] = []
+    per_beat: dict[str, int] = {}
+    seen: set[str] = set()
+    total = 0.0
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise HTTPException(400, f"shot {i + 1} is not an object")
+        try:
+            act = int(float(row.get("act") or 1))
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"shot {i + 1}: act must be a number")
+        act = max(1, min(99, act))
+        beat = _beat_of(row.get("beat"), act)
+        if not BEAT_RE.match(beat):
+            raise HTTPException(400, f"shot {i + 1}: beat {beat!r} must look like B01")
+
+        sid = str(row.get("sid") or row.get("id") or "").strip().upper()
+        if sid:
+            if not SID_RE.match(sid):
+                raise HTTPException(400, f"sid {sid!r} must look like B01-S1")
+            head, _, tail = sid.partition("-S")
+            per_beat[head] = max(per_beat.get(head, 0), int(tail))
+        else:
+            per_beat[beat] = per_beat.get(beat, 0) + 1
+            sid = f"{beat}-S{per_beat[beat]}"
+        if sid in seen:
+            raise HTTPException(400, f"sid {sid} appears twice in one batch")
+        seen.add(sid)
+
+        prompt = str(row.get("image_prompt") or "").strip()
+        if not prompt:
+            raise HTTPException(400, f"shot {sid}: need an image_prompt")
+        try:
+            seconds = float(row.get("seconds") or DEFAULT_SECONDS)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"shot {sid}: seconds must be a number")
+        seconds = max(MIN_SECONDS, min(MAX_SECONDS, seconds))
+        total += seconds
+        if total > MAX_BATCH_SECONDS:
+            raise HTTPException(400, (
+                f"the script runs past {MAX_BATCH_SECONDS:.0f}s at {sid} — "
+                "shorten it or cut shots"))
+
+        fields = {f: row[f] for f in SHOT_FIELDS if f in row}
+        fields.update({"beat": beat, "act": act, "seconds": seconds,
+                       "image_prompt": prompt,
+                       "type": str(row.get("type") or "STILL").upper()})
+        dialogue = fields.get("dialogue")
+        if dialogue is not None and not isinstance(dialogue, list):
+            raise HTTPException(400, f"shot {sid}: dialogue must be a list")
+        prepared.append({"sid": sid, "order_idx": i, **fields})
+
+    with session_scope() as s:
+        existing = {sh.sid: sh for sh in
+                    s.query(Shot).filter_by(project_id=pid)}
+        for row in prepared:
+            shot = existing.get(row["sid"])
+            if not shot:
+                shot = Shot(project_id=pid, sid=row["sid"])
+                s.add(shot)
+            for f, v in row.items():
+                if f != "sid":
+                    setattr(shot, f, v)
+        if body.get("replace"):
+            for sid, shot in existing.items():
+                if sid not in seen:
+                    s.delete(shot)
+
+    return {"count": len(prepared), "sids": [r["sid"] for r in prepared],
+            "total_seconds": round(total, 2),
+            "replaced": bool(body.get("replace"))}
 
 
 @router.post("/projects/{pid}/shots/{sid}/override")

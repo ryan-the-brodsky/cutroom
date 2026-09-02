@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ANCHORS } from "../agent/contract";
+import type { ProjectLite } from "../agent/contract";
+import { usePageHandles } from "../agent/pageHandles";
 import { api } from "../api";
 import { pushToast, useAsync, usePoll } from "../hooks";
 import type { Project } from "../types";
@@ -11,6 +13,30 @@ export default function ProjectsPage() {
   const [nid, setNid] = useState("");
   const [importSrc, setImportSrc] = useState("");
   const [importId, setImportId] = useState("");
+
+  /** The create button's handler, and the one `create_project` drives. */
+  const createProject = async (id: string, body: Record<string, unknown> = {}) => {
+    setNid(id);
+    const made = await api<ProjectLite>("/api/projects", { id, ...body });
+    setNid("");
+    refresh();
+    return made;
+  };
+
+  usePageHandles({
+    kind: "projects",
+    getState: () => ({
+      projects: (projects || []).map((p) => ({
+        id: p.id, label: p.label, shots: p.shots, paused: p.paused,
+      })),
+      newId: nid,
+    }),
+    createProject,
+    refresh: async () => {
+      refresh();
+      await new Promise((r) => setTimeout(r, 300));
+    },
+  });
 
   return (
     <div>
@@ -32,8 +58,7 @@ export default function ProjectsPage() {
                onChange={(e) => setNid(e.target.value)} />
         <button className="primary" disabled={busy || !nid}
           data-action={ANCHORS.projectsCreate}
-          onClick={() => run(() => api("/api/projects", { id: nid }),
-                             () => { setNid(""); refresh(); })}>
+          onClick={() => run(() => createProject(nid))}>
           create
         </button>
       </div>

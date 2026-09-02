@@ -92,7 +92,7 @@ contract). 46 commits, `112 files changed, 18384 insertions(+), 217 deletions(-)
 
 **Why this counts as meaningfully extended:** the WebMCP layer is a new
 subsystem, not a wrapper. It adds an action registry that becomes the single
-source of truth for every feature in the app, 35 tools published on
+source of truth for every feature in the app, 39 tools published on
 `document.modelContext`, a natural-language shot resolver that did not exist,
 URL state and page handles that had to be built before any tool could drive the
 UI, and a cost guard that gates real spending. None of it existed in `cebcf93`.
@@ -116,17 +116,18 @@ been driven that way, because it published nothing to drive.
 | `Palette.tsx` | The ⌘K palette, the human projection of the same registry, and the `show_me` teaching path. |
 | `jobs.ts` | The async pattern: `submitAndSettle` over the existing SSE watch, and bounded waiting. |
 | `guard.ts` | Cost and doctrine guard. Resolves the effective backend per lane, classifies free versus paid, requires `confirm_cost`, applies FIRST-SECOND LAW defaults. |
-| `tools/**` | The 35-tool catalogue: `find.ts`, `navigate.ts`, `generate.ts`, `motion.ts`, `picks.ts`, `timing.ts`, `audio.ts`, `music.ts`, `direct.ts`, `film.ts`, `jobs.ts`, `comp.ts`, `settings.ts`, plus `deps.ts`, `util.ts`, `fakeContext.ts` and `descriptions.md`. The palette-only feature registry (111 entries) lives in `agent/features.ts`. |
+| `tools/**` | The 39-tool catalogue: `find.ts`, `navigate.ts`, `generate.ts`, `motion.ts`, `picks.ts`, `timing.ts`, `audio.ts`, `music.ts`, `direct.ts`, `film.ts`, `jobs.ts`, `comp.ts`, `settings.ts`, `project.ts`, plus `deps.ts`, `util.ts`, `fakeContext.ts` and `descriptions.md`. The palette-only feature registry (111 entries) lives in `agent/features.ts`. |
 | `__tests__/**`, `tools/__tests__/**` | Registry contract tests against Chrome's budgets, resolver pins, page-handle and palette tests, per-tool units, and the hero journeys as runnable evals. |
 
-The 35 tool names, in `contract.ts` order: `find_shots`, `describe_shot`,
+The 39 tool names, in `contract.ts` order: `find_shots`, `describe_shot`,
 `get_context`, `list_features`, `show_me`, `open_shot`, `generate_takes`,
 `freeze_tail`, `trim_clip`, `select_take`, `set_keeper`, `set_timeline_source`,
 `set_shot_timing`, `synthesize_vo`, `direct_shot`, `apply_plan`, `cut_film`,
 `get_jobs`, `wait_for_jobs`, `generate_music`, `generate_sfx`, `place_cue`,
 `list_cues`, `add_cel_layer`, `reroll_layer`, `restyle_background`,
 `set_background`, `set_layer`, `remove_layer`, `render_comp`, `list_layers`,
-`list_backends`, `set_lane_default`, `export_timeline`, `render_timeline`.
+`list_backends`, `set_lane_default`, `export_timeline`, `render_timeline`, `create_project`,
+`write_script`, `set_project_cast`, `list_projects`.
 
 ### Changes to pre-existing files (`server/cutroom/**`: 18 files, +1,548 / -83)
 

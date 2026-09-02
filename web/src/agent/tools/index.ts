@@ -24,6 +24,9 @@ import { generateMusic, generateSfx, listCues, placeCue } from "./music";
 import { openShot, showMe } from "./navigate";
 import { selectTake, setKeeper, setTimelineSource } from "./picks";
 import {
+  createProject, listProjects, setProjectCast, writeScript,
+} from "./project";
+import {
   exportTimeline, listBackends, renderTimeline, setLaneDefault,
 } from "./settings";
 import { setShotTiming } from "./timing";
@@ -74,6 +77,11 @@ export const TOOLS: AnyActionDef[] = [
   setLaneDefault,
   exportTimeline,
   renderTimeline,
+  // workstream K — starting a film from nothing
+  createProject,
+  writeScript,
+  setProjectCast,
+  listProjects,
 ];
 
 /**
@@ -125,4 +133,5 @@ export {
   restyleBackground, setBackground, setLayer, snapRegion,
 } from "./comp";
 export { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "./settings";
+export { createProject, listProjects, setProjectCast, writeScript } from "./project";
 export { FEATURES, FEATURES_BY_NAME, featureGroups, walkTo } from "../features";

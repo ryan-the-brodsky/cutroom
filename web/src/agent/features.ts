@@ -158,11 +158,7 @@ const SPECS: Spec[] = [
     howTo: "Click the 🤖 chip in the topbar to open the trail; click a step to re-pulse its control." },
 
   // ------------------------------------------------------------------ Projects
-  { name: "create_project", title: "Create a project", group: "Projects",
-    description: "Start an empty project from a slug; shots can then be added by API or import.",
-    route: PROJECTS, anchor: ANCHORS.projectsCreate, label: "Projects → New empty project",
-    keywords: ["new project", "create", "empty", "slug"],
-    howTo: "On the Projects page, type a slug under \"New empty project\" and press create." },
+  // "create_project" is a TOOL now (workstream K), so it is not repeated here.
   { name: "import_project", title: "Import a production repo", group: "Projects",
     description: "Index a studio folder (shots.jsonl, renders/, audio/) into a project. Media is copied; it runs as a job.",
     route: PROJECTS, anchor: ANCHORS.projectsImport, label: "Projects → Import",

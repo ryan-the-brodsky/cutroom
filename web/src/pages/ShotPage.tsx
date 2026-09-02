@@ -703,8 +703,15 @@ export default function ShotPage() {
 
           {tab === "script" && <div className="col small"
                                     data-action={ANCHORS.scriptPanel}>
+            <div className="muted">
+              {[shot.beat, shot.act ? `act ${shot.act}` : "", shot.type,
+                shot.seconds ? `${shot.seconds}s` : ""]
+                .filter(Boolean).join(" · ")}</div>
+            {shot.register && <div className="muted">register: {shot.register}</div>}
             <label className="field">image prompt
               <textarea readOnly value={shot.image_prompt} /></label>
+            {shot.negative && <label className="field">negative
+              <textarea readOnly value={shot.negative} /></label>}
             {shot.motion_prompt && <label className="field">motion prompt
               <textarea readOnly value={shot.motion_prompt} /></label>}
             {shot.pan && <div className="muted">pan: {shot.pan}</div>}
