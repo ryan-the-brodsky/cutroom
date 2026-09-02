@@ -371,6 +371,9 @@ export const ANCHORS = {
   sfxPrompt: "shot.audio.sfx.prompt", sfxSeconds: "shot.audio.sfx.seconds",
   sfxSubmit: "shot.audio.sfx.submit",
   shotCues: "shot.audio.cues", shotCueRemove: "shot.audio.cues.remove",
+  // monitor audio (workstream L) — the preview mix under the Shot Editor monitor
+  monitorAudio: "shot.monitor.audio", monitorPlayStill: "shot.monitor.play",
+  monitorTracks: "shot.monitor.tracks", monitorProgress: "shot.monitor.progress",
   // film cue strip (under the Cuts gallery)
   filmCues: "film.cues", filmCueRemove: "film.cues.remove",
   // shot editor — compose tab shell (the cel workbench lives inside it)

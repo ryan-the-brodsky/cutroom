@@ -10,7 +10,7 @@ import { usePageHandles } from "../agent/pageHandles";
 import { pick, useQueryState } from "../agent/urlState";
 import CompEditor from "../components/CompEditor";
 import ModelPicker from "../components/ModelPicker";
-import Player from "../components/Player";
+import ShotMonitor from "../components/ShotMonitor";
 import PlanPreview from "../components/PlanPreview";
 import RegionCanvas from "../components/RegionCanvas";
 import SeparateCanvas from "../components/SeparateCanvas";
@@ -311,7 +311,8 @@ export default function ShotPage() {
       <div className="split" style={{ marginTop: 12 }}>
         {/* ---------------------------------------------- monitor + takes */}
         <div className="col">
-          <Player pid={pid} rel={selected} />
+          <ShotMonitor pid={pid} sid={sid} rel={selected}
+                       seconds={Number(shot.override?.seconds ?? shot.seconds) || 0} />
           <div className="row muted small">
             <code style={{ flex: 1, overflow: "hidden" }}>{selected}</code>
             {selected && selected === shot.active_source &&

@@ -76,7 +76,13 @@ and 8.
       confuses the topbar chip in Block D.
 - [ ] **11. The finished cut is in the Cuts gallery** on `two-claudes` and
       plays. Block B is built on it.
-- [ ] **12. Screen set up** (§3) and Do Not Disturb on.
+- [ ] **12. Monitor audio on.** Open any shot with a VO take: the 🔊 audio
+      button under the monitor reads on and the track line beneath it names
+      what is mixed ("VO 0.6s · bed −8 dB"). The preference is remembered per
+      browser, so a machine that turned it off in rehearsal stays silent.
+      Click once inside the page before recording — browsers refuse to make
+      sound before the first user gesture.
+- [ ] **13. Screen set up** (§3) and Do Not Disturb on.
 
 ---
 

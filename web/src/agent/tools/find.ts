@@ -94,6 +94,24 @@ const LANES: [string, string][] = [
   ["still", "still"], ["i2i", "restyle"], ["motion", "animate"], ["vo", "vo"],
 ];
 
+/** What a reviewer would HEAR under this shot, in one small object.
+ * The full placement lives behind `plan_url` (workstream L). */
+interface AudioPlanLite {
+  vo: { at: number; duration: number | null; muted: boolean } | null;
+  music: unknown[]; sfx: unknown[];
+}
+
+async function audioSummary(ctx: ActionContext, pid: string, sid: string) {
+  const url = `/api/projects/${pid}/shots/${sid}/audio-plan`;
+  let p: AudioPlanLite;
+  try { p = await ctx.api<AudioPlanLite>(url); }
+  catch { return undefined; }
+  const vo = !p.vo ? null
+    : p.vo.muted ? "muted"
+    : `${(p.vo.duration ?? 0).toFixed(1)}s @ ${p.vo.at.toFixed(1)}s`;
+  return { vo, music: p.music?.length || 0, sfx: p.sfx?.length || 0, plan_url: url };
+}
+
 export const describeShot: ActionDef<DescribeArgs> = {
   name: "describe_shot",
   title: "Describe a shot",
@@ -151,6 +169,8 @@ export const describeShot: ActionDef<DescribeArgs> = {
       } catch { /* lane unknown is fine */ }
     }));
 
+    const audio = await audioSummary(ctx, pid, shot.sid);
+
     const line = d.dialogue?.[0];
     return ok(`${shot.sid} · ${d.type || shot.type} · ${d.seconds ?? shot.seconds}s · ` +
               `${counts.stills} stills, ${counts.motion + counts.fx} clips`, {
@@ -171,6 +191,7 @@ export const describeShot: ActionDef<DescribeArgs> = {
       takes: counts,
       latest_takes: latest,
       comps: d.comps?.length || 0,
+      ...(audio ? { audio } : {}),
       lanes,
     });
   },

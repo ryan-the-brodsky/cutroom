@@ -102,6 +102,20 @@ returns result metadata. Ported from the proven `bin/` code:
 Doctrine is encoded as defaults: no zoompan anywhere, boil never auto-selected,
 stills hold true-still.
 
+**Hearing a shot.** Those lanes only meet at cut time, so reviewing one shot in
+the Shot Editor used to be silent. `GET /api/projects/{pid}/shots/{sid}/audio-plan`
+(`api/audio.py`) returns the shot's window and everything that sounds inside it:
+the VO at head pad + `vo_offset`, the music cues overlapping the window (a bed
+that started three shots ago reports `offset_into_file`), and the SFX anchored to
+the shot. Placement is not re-derived — the shot's start and length come from
+`compile_film_cached`'s picture clips and cue anchors resolve through
+`cues.film_start` against those same starts, so the preview and the cut agree.
+Times are shot-relative seconds; gain is decibels. The browser plays it with
+`web/src/audio/shotMix.ts` (`ShotMixer`: one Web Audio source per track, dB
+converted to linear gain, `GainNode` ramps for fades, loop where flagged),
+locked to the monitor's `<video>` and resynced when drift passes 120 ms. A still
+take gets a held-frame transport of the shot's length so it can be heard too.
+
 ### Backends: everything generative is a plug
 
 A **Backend** row = `{id, type, label, base_url, api_key, options, enabled}`.
