@@ -40,6 +40,48 @@ A two minute limited animation short for Cutroom, drawn from This American Life 
 
 Six HERO shots carry the turns: the first face off, the mirror recognition, the lighthouses, the human's hands, the flood of letters, the final held frame. Three shots animate (`B02-S2`, `B04-S2`, `B05-S3`), each one a single designed burst under two seconds followed by a true freeze. Every other shot is a hard held still. No zooms, no pans, no boil.
 
+## How this film was made
+
+Nothing here was rendered by a pipeline script. An agent produced the whole
+film on the hosted Cutroom demo by calling the page's own WebMCP tools, and
+every call drove the same interface a person clicks. 257 tool calls across
+eight passes, 15 distinct tools, about $1.50 of API spend.
+
+The per-shot sequence, repeated fifteen times:
+
+1. `generate_takes` (lane `still`) fills the Generate console and submits.
+2. `wait_for_jobs` holds until the image lands.
+3. `select_take` puts the newest still on the monitor.
+4. `set_keeper` marks it.
+5. `synthesize_vo` fills the Audio tab with that shot's narration line and
+   submits, then `wait_for_jobs` again.
+
+The three shots that animate (`B02-S2`, `B04-S2`, `B05-S3`) took four more:
+`generate_takes` on the `animate` lane, `select_take` for the newest clip,
+`freeze_tail` at 1.0 seconds to hold the burst and freeze the rest, and
+`set_timeline_source` so the frozen take is what plays.
+
+Audio came last: `generate_music` for the piano bed, `generate_sfx` and
+`place_cue` for the key press and the chimes, `list_cues` to read the cue sheet
+back. Then `cut_film`, four times, as picks changed. The first cut ran 124.5
+seconds; the last runs 130.0.
+
+Call counts, largest first: `wait_for_jobs` 96, `select_take` 42,
+`generate_takes` 29, `set_keeper` 21, `synthesize_vo` 21,
+`set_timeline_source` 14, `freeze_tail` 8, `cut_film` 6, `get_context` 6,
+`find_shots` 6, `generate_sfx` 3, `list_cues` 2, `generate_music` 1,
+`describe_shot` 1, `get_jobs` 1.
+
+Lanes: stills on `google/gemini-2.5-flash-image` through OpenRouter ($0.04
+each), motion on fal's Wan 2.2 turbo at 480p ($0.05 a clip), voice, music and
+SFX on ElevenLabs ($0.02 a take, voice "River").
+
+Driving production found real bugs, which is the honest part of this. Crop
+intermediates were being picked as "the newest clip". `set_keeper` ignored the
+monitor selection. The in-memory compositor ran the 1 GB demo box out of
+memory on full-frame cels. Failed jobs reported success. All fixed in the
+commits listed in [`docs/PRIOR-WORK.md`](../../PRIOR-WORK.md).
+
 ## Narration script
 
 Read straight through, this is the VO lane, roughly two minutes at a normal radio pace.

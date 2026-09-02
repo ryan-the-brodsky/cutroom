@@ -72,34 +72,39 @@ Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
 
 ## Drive Cutroom with an agent (WebMCP)
 
-Cutroom has about a hundred distinct actions across two rooms, five tabs and
-four generation consoles. Finding any of them means clicking. WebMCP lets the
-page hand an agent the whole list instead.
+**An agent made a film with this.** [Two Claudes](docs/demo-films/two-claudes/README.md)
+is a 130-second limited-animation short. An agent produced it end to end on the
+hosted demo through the page's own WebMCP tools: 15 shots, three frozen motion
+bursts, 15 voice lines, a music bed, SFX cues, four assembler passes. 257 tool
+calls, about $1.50, no pipeline script.
+
+Cutroom has about a hundred distinct actions across two rooms and five tabs,
+and finding any of them means clicking. WebMCP lets the page hand an agent the
+whole list instead.
 
 One **action registry** (`web/src/agent/registry.ts`) is the single source of
-truth for every feature: its name, its JSON Schema, where it lives in the UI,
-how a human performs it by hand, and how to run it. Three surfaces come off
-that one list. WebMCP tools, published on `document.modelContext`. A ⌘K
-command palette for humans. And a "show me" behaviour that navigates to a
-feature and rings its control.
+truth for every feature: name, JSON Schema, where it lives in the UI, how a
+human does it by hand, and how to run it. Three surfaces come off that one
+list. **23 WebMCP tools** on `document.modelContext`, a ⌘K palette for humans,
+and a "show me" behaviour that navigates to a feature and rings its control.
 
-Tools execute **through the UI you are looking at**. `generate_takes` opens
-the Film Editor, walks into the shot, switches to the Generate tab, fills the
-prompt, and presses submit. You learn the app by watching the agent drive it.
-Reads are the only silent calls, an Agent trail drawer logs every step, and
-paid backends refuse to spend without an explicit `confirm_cost`.
+Tools execute **through the UI you are looking at**. `generate_takes` opens the
+shot, switches to the Generate tab, fills the prompt, and presses submit, so
+you learn the app by watching the agent drive it. Reads are the only silent
+calls, an Agent trail logs every step, and paid backends refuse to spend
+without an explicit `confirm_cost`.
 
-Open the app in ChatGPT Desktop's browser (Settings › Browser › Enable site
-tools) or Chrome 149+ with `chrome://flags/#enable-webmcp-testing` on, then
-ask:
+Open the [live demo](https://cutroom-production-0f3c.up.railway.app) in ChatGPT
+Desktop's browser (Settings › Browser › Enable site tools) or Chrome 149+ with
+`chrome://flags/#enable-webmcp-testing`, then ask:
 
-> "Make a few more generative cuts of the David Ross close-up."
-> "Keep the first second of the newest one and freeze the rest."
-> "Cut act 1."
+> "Make a few more generative cuts of the two chairs shot."
+> "Keep the first second of the letter flood and freeze the rest."
+> "Cut the film."
 
 Architecture and tool catalogue: [`docs/WEBMCP-PLAN.md`](docs/WEBMCP-PLAN.md).
-Test evidence and the cross-client checklist:
-[`docs/TESTING-WEBMCP.md`](docs/TESTING-WEBMCP.md).
+Test evidence, the measured Chrome 152 API behaviour and the cross-client
+checklist: [`docs/TESTING-WEBMCP.md`](docs/TESTING-WEBMCP.md).
 
 ## Verification status
 

@@ -1,9 +1,11 @@
 # Devpost submission copy: Cutroom
 
 > Final text for every field of the WebMCP Challenge submission form.
-> Draft: 2026-09-01 (workstream F). Finalize against the shipped build at G3.
-> Placeholders in `<ANGLE BRACKETS>` are filled at finalization.
-> Deadline: **Thu 2026-09-03, 13:00 PDT.** Submit by 11:00 PDT.
+> Finalized 2026-09-01 against the shipped build (23 tools, hosted demo live).
+> Deadline **Thu 2026-09-03, 13:00 PDT**. Submit by 11:00 PDT.
+>
+> `<JUDGE_TOKEN>` stays a placeholder in this repo on purpose. Ryan pastes the
+> real token into the Devpost testing-instructions field, which is not public.
 
 ---
 
@@ -15,103 +17,104 @@ Cutroom
 
 ## Tagline (60 char limit)
 
+**Recommended:**
+
 ```
-Direct an animation studio by sentence, not by clicking.
+An agent made a 2-minute film inside this browser tab.
 ```
 
-(56 characters. Alternates if a shorter one is wanted:
-`An animation studio your agent can drive.` (40) ·
-`One sentence in. Six screens of clicking out.` (45))
+(54 characters. It is also literally true, which is the point.)
+
+Alternates: `Direct an animation studio by sentence, not by clicking.` (56) ·
+`One sentence in. Six screens of clicking out.` (45)
 
 ## Built with
 
 ```
 webmcp · document.modelContext · react · typescript · vite · react-router ·
 python · fastapi · sqlalchemy · sse · ffmpeg · pyav · comfyui · fal ·
-openrouter · elevenlabs · docker · railway · vitest · pytest · playwright
+openrouter · elevenlabs · docker · railway · vitest · playwright · pytest
 ```
 
 ---
 
 ## Description: the four required answers
 
-Devpost asks four questions. Each answer below is under 180 words. Paste them
-in order under one "About the project" field, keeping the bold question lines.
+Each answer is under 180 words. Paste them in order under "About the project",
+keeping the bold question lines.
 
 ### 1. Why your use case is a strong fit for WebMCP
 
-Cutroom is the room where I cut an anime short. It holds 97 shots, 567 takes,
-a cel compositor, a timeline, a job queue, and roughly a hundred distinct
-actions spread across two rooms, five tabs and four generation consoles.
-Everything works. Almost nothing is findable. That is the Photoshop problem,
-and it is exactly the shape WebMCP fits: the capability already exists, the
-discovery layer is the thing that is missing.
+Cutroom is a cutting room for AI-generated animation. Shot lab, cel
+compositor, motion-edit grammar, voice lane, music and SFX cue sheet,
+assembler, job queue. Roughly a hundred distinct actions across two rooms,
+five tabs and four generation consoles. Everything works. Almost nothing is
+findable. That is the Photoshop problem, and it is the exact shape WebMCP
+fits: the capability already exists, the discovery layer is what is missing.
 
 The page is also the only thing that knows the state that matters. Which shot
 is open. Which take is selected. Which backend a lane will actually bill.
 
-So the use case is a sentence: *"Make a few more generative cuts of the David
-Ross close-up."* By hand that is open the film, scroll 97 cards, recognize
-B10-S2, double-click in, Generate tab, Still console, retype the prompt,
-change the seed, submit, three times. Six screens, and you have to already
-know the shot ID. With WebMCP it is one turn, and the app shows its work while
-the agent does it.
+So the use case is a sentence: *"Make a few more generative cuts of the two
+chairs shot."* By hand that is open the film, find the shot, double-click in,
+Generate tab, Still console, retype the prompt, change the seed, submit, three
+times. Six screens, and you have to already know the shot ID. Through WebMCP
+it is one turn, and the app shows its work while the agent does it.
 
 ### 2. How it creates a better user experience
 
 Every tool executes through the UI you are looking at. Only reads are silent.
-When the agent generates takes it navigates to the Film Editor, opens shot
-B10-S2, switches to the Generate tab, selects the Still console, fills the
+When the agent generates takes it navigates to the Film Editor, opens the
+shot, switches to the Generate tab, selects the Still console, fills the
 prompt field, rings the submit button, and presses it. You watch your own app
 get driven.
 
 That buys two things. Trust, because you can see what changed and reverse it
 by hand. And learning, because the same machinery teaches: ask "how do I do
-that myself" and the `show_me` tool navigates to the control, pulses it, and
-returns one sentence of how-to. A ⌘K palette is the third projection of the
-same registry, so anything the agent can call is something you can find.
+that myself" and `show_me` navigates to the control, pulses it, and returns
+one sentence of how-to. A ⌘K palette is the third projection of the same
+registry, so anything the agent can call is something you can find.
 
 An Agent trail drawer logs every step with the control it touched. Click a
-step and that control rings again. New directors on the tool get a guided
-tour that happens to also do the work.
+step and that control rings again. Paid lanes refuse to spend without an
+explicit `confirm_cost` and say the number first.
 
 ### 3. What people and agents can do together that was hard before
 
-Direction is ambiguous on purpose. "The David Ross close-up, shot 37" names
-two different shots in my film: B10-S2 by description, B11-S4 by number. The
-resolver returns both with reasons and a confidence of `ambiguous`, and
-nothing renders until I answer. An agent that guessed would have spent GPU
-minutes on a cemetery wide.
+We made a film with it. **"Two Claudes"** is a 130-second limited-animation
+short about two chatbots wired to each other, and an agent produced it end to
+end on the live demo through these WebMCP tools: 15 shots generated, three
+motion bursts frozen under the first-second rule, 15 voice lines, a piano bed,
+SFX cues placed, four assembler passes. About $1.50 of API spend. Every step
+went through the same buttons a human clicks, on the hosted URL judges can
+open right now.
 
-Next, the film's own edit grammar. `direct_shot` compiles "hold his pose for
-the rest of the line" into an EditPlan and puts it on screen. It does not run
-it. I read the ops, then apply. The agent proposes, the grammar validates, I
-approve.
+I did not write a pipeline script for that. I wrote a page that publishes its
+own tools, and an agent used them the way a person would.
 
-Cost lives in the tool, not the prompt. Paid lanes refuse without
-`confirm_cost: true` and say what they will spend first.
-
-Generation takes minutes, so tools hand back job IDs and a bounded wait tool
-closes the loop. The agent is doing studio work, not form filling.
+The smaller wins are the ones I feel daily. Ambiguous shot names come back as
+candidates with reasons instead of a guess that burns GPU minutes. Edit
+instructions compile to a plan that renders on screen and waits for me. The
+agent proposes, the film's own grammar validates, I approve.
 
 ### 4. Briefly explain how you implemented WebMCP
 
-One registry, three surfaces. `web/src/agent/registry.ts` holds an
-`ActionDef` per feature: name, description, JSON Schema, annotations, where it
-lives in the UI (route, query params, and a `data-action` anchor), how a human
-performs it by hand, and an `execute` that drives imperative page handles the
-React pages publish on mount. The WebMCP tools, the ⌘K palette and `show_me`
-are projections of that one list.
+One registry, three surfaces. `web/src/agent/registry.ts` holds an `ActionDef`
+per feature: name, description, JSON Schema, annotations, `where` it lives in
+the UI (route, query params, a `data-action` anchor), `howTo` a human performs
+it, and an `execute` that drives imperative handles the React pages publish on
+mount. The 23 WebMCP tools, the ⌘K palette and `show_me` are projections of
+that one list.
 
 `web/src/agent/webmcp.ts` is the bridge. At app mount it reads
-`document.modelContext` (falling back to the deprecated
-`navigator.modelContext`) and calls `registerTool(tool, { signal })` once per
+`document.modelContext` and calls `registerTool(tool, { signal })` once per
 action under a single `AbortController`. Tools are app-level with explicit
 `shot` arguments and navigate themselves, following Chrome's guidance that
 tools be "atomic, composable, and distinct." `execute` never rejects, since a
 rejection surfaces as an opaque `UnknownError`; it resolves
 `{ ok: false, error, hint }`. Chrome delivers input as a JSON string, so we
-normalize. Vitest enforces Chrome's budgets on every entry.
+normalize. Vitest holds every entry to Chrome's budgets. 10,596 lines,
+41 files, all new.
 
 ---
 
@@ -119,72 +122,83 @@ normalize. Vitest enforces Chrome's budgets on every entry.
 
 Cutroom itself was built 2026-07-12 to 07-15 and sat unchanged until this
 week. Every line of the agent layer was written after the submission period
-opened, in a 45-hour sprint starting 2026-09-01 16:00 PDT:
-`web/src/agent/**` (contract, registry, WebMCP bridge, page handles, anchors
-and pulse, agent trail, ⌘K palette, shot resolver, cost guard, job settling,
-and <TOOL_COUNT> tool implementations), URL state for the Shot Editor and
-Film Editor so deep links exist at all, a cast index in the importer plus a
-`GET /api/projects/{pid}/cast` route, demo mode with judge and admin token
-roles, boot-time provider seeding with a spend cap, and the test suites that
-hold the whole thing to Chrome's tool budgets. `docs/PRIOR-WORK.md` lists it
-by file with commit ranges. Prior work is the snapshot commit `cebcf93`;
-everything after it is this week.
+opened, starting 2026-09-01 16:00 PDT: 46 commits, 112 files changed, 18,384
+insertions, of which `web/src/agent/**` is 10,596 lines across 41 files, all
+new. That covers the action registry and contract, the WebMCP bridge, page
+handles and anchors, the pulse and Agent trail, the ⌘K palette, a
+natural-language shot resolver with a cast index, a cost and doctrine guard,
+the async job pattern, and 23 tool implementations. Plus URL state for the
+Shot and Film Editors so deep links exist at all, demo mode with judge and
+admin token roles, boot-time provider seeding with a rolling spend cap, the
+vitest and Playwright suites (the repo had no front-end tests), and the
+"Two Claudes" demo film, which the tools then produced.
+`docs/PRIOR-WORK.md` lists it file by file with commit hashes.
 
 ---
 
 ## Testing instructions for judges
 
-```
-Live URL: <JUDGE_URL>
+Paste this into the Devpost testing-instructions field with the real token
+substituted. That field is not public, so the token is safe there.
 
-The link already carries the judge token (?token=...). No account, no signup.
+```
+Live URL (token included, one click, no signup):
+  https://cutroom-production-0f3c.up.railway.app/?token=<JUDGE_TOKEN>
+
 Open it in one of these two environments:
 
 ChatGPT Desktop (the fastest path)
   1. Settings > Browser > turn on "Enable site tools".
-  2. Open <JUDGE_URL> in the in-app browser.
-  3. Wait for the topbar chip to read "tools: <TOOL_COUNT> · native".
+  2. Open the URL above in the in-app browser.
+  3. Wait for the topbar chip to read "tools: 23 · native".
   4. Ask for one of the prompts below.
 
 Google Chrome 149 or later
-  1. chrome://flags/#enable-webmcp-testing  -> Enabled
+  1. chrome://flags/#enable-webmcp-testing   -> Enabled
   2. chrome://flags/#devtools-webmcp-support -> Enabled
-  3. Restart Chrome, then open <JUDGE_URL>.
-  4. DevTools > Application > WebMCP lists all <TOOL_COUNT> tools and runs
-     them by hand if you would rather not use an agent client. Try
-     find_shots {"query": "David Ross close-up"} then generate_takes.
+  3. Restart Chrome, then open the URL above.
+  4. DevTools > Application > WebMCP lists all 23 tools and runs them by
+     hand if you would rather not use an agent client. Try
+     find_shots {"query": "the two chairs shot"} and then generate_takes.
+  5. If your build does not list those flags, launching Chrome with
+     --enable-features=WebMCP is enough on its own. We measured this on
+     Chrome 152.0.7977.65; the flags only add the DevTools pane.
+
+What you are looking at
+  The demo has two projects. Start with "two-claudes": a 130-second
+  limited-animation short that an agent produced end to end on this very
+  instance, through these tools. Its finished cut is in the Cuts gallery.
+  Watch the page, not the chat. Every tool drives the visible UI: it
+  navigates, opens the tab, fills the field, rings the control, presses it.
 
 Notes
-  - The demo runs on a real film (97 shots, 567 takes) and does real
-    generation on metered lanes, so there is a daily spend cap. If a paid
-    lane reports "budget exhausted", the mock lane still returns real footage
-    instantly and every tool still works end to end.
-  - Generation tools ask for confirm_cost before they spend anything. That is
-    by design; say yes.
-  - Watch the page, not the chat. Every tool drives the visible UI.
-  - If your Chrome build does not list those two flags, launching Chrome with
-    --enable-features=WebMCP is enough on its own. We measured this on
-    Chrome 152.0.7977.65; the flags only add the DevTools pane.
+  - Generation is real and metered, so there is a daily spend cap. Stills
+    cost about $0.04, motion clips $0.05, voice and SFX $0.02. If a paid
+    lane reports "budget exhausted", the mock lane still returns real
+    footage instantly and every tool still works end to end.
+  - Generation tools ask for confirm_cost before spending. Say yes.
+  - Add ?agent_speed=watch to slow the agent's visible steps down to
+    human-readable pace, or ?agent_speed=fast to skip the pacing.
 ```
 
 ## Three prompts to try
 
 ```
-1. "Make a few more generative cuts of the David Ross close-up."
-2. "Keep the first second of the newest one and freeze the rest."
-3. "Cut act 1."
+1. "Make a few more generative cuts of the two chairs shot."
+2. "Keep the first second of the letter flood and freeze the rest."
+3. "Cut the film."
 ```
 
-Expected behaviour, in order: (1) `find_shots` resolves B10-S2, the app
-navigates to the Shot Editor and opens the Still console, three takes are
-submitted with fresh seeds and land in the takes rail. (2) `select_take` picks
-the newest motion take, the Motion edits tab opens, live seconds is set to
-1.0, and a frozen take comes back under the FIRST-SECOND LAW. (3) `cut_film`
-rings the Cut button, the assembler builds the act 1 animatic, and it plays in
-the Cuts gallery.
+Expected behaviour: (1) `find_shots` resolves B03-S1, the app navigates into
+the Shot Editor and opens the Still console, three takes are submitted with
+fresh seeds and land in the takes rail. (2) `select_take` picks the newest
+motion take on B05-S3, the Motion edits tab opens, live seconds is set to 1.0,
+and a frozen take comes back. (3) `cut_film` rings the Cut button, the
+assembler runs, and a 130-second animatic plays in the Cuts gallery.
 
-A fourth, if a judge wants to see the ambiguity handling: *"the David Ross
-close-up, shot 37."* Two shots match, the agent asks which, nothing renders.
+A fourth if a judge wants the audio lane: *"Give the whole film a quiet piano
+bed and a key press on the typing shot."* That runs `generate_music`,
+`generate_sfx` and `place_cue`, and the cue lands on B04-S2.
 
 ---
 
@@ -192,46 +206,68 @@ close-up, shot 37."* Two shots match, the agent asks which, nothing renders.
 
 | Field | Value |
 |---|---|
-| Live URL | `<JUDGE_URL>` |
-| Public repo | `<REPO_URL>` (MIT, license visible in the About panel) |
+| Live URL | `https://cutroom-production-0f3c.up.railway.app/?token=<JUDGE_TOKEN>` |
+| Public repo | <https://github.com/ryan-the-brodsky/cutroom> (MIT, detected in About) |
 | Demo video | `<YOUTUBE_URL>` (public, under 3:00, audio) |
-| Implementation plan | `<REPO_URL>/blob/main/docs/WEBMCP-PLAN.md` |
-| Prior vs new work | `<REPO_URL>/blob/main/docs/PRIOR-WORK.md` |
-| Test evidence | `<REPO_URL>/blob/main/docs/TESTING-WEBMCP.md` |
+| Implementation plan | <https://github.com/ryan-the-brodsky/cutroom/blob/main/docs/WEBMCP-PLAN.md> |
+| Prior vs new work | <https://github.com/ryan-the-brodsky/cutroom/blob/main/docs/PRIOR-WORK.md> |
+| Test evidence | <https://github.com/ryan-the-brodsky/cutroom/blob/main/docs/TESTING-WEBMCP.md> |
+| The demo film | <https://github.com/ryan-the-brodsky/cutroom/blob/main/docs/demo-films/two-claudes/README.md> |
 
 ## Code excerpt for the Devpost body
 
-Judges read code in the description. Paste this block under answer 4.
+Paste under answer 4.
 
 ```ts
-<EXCERPT from web/src/agent/webmcp.ts>
-```
+// web/src/agent/webmcp.ts
+function toTool(def: ActionDef<any>, ctx: ActionContext): ModelContextTool {
+  return {
+    name: def.name,
+    title: def.title,
+    description: def.description,
+    inputSchema: def.inputSchema,
+    annotations: {
+      readOnlyHint: def.annotations?.readOnlyHint ?? false,
+      untrustedContentHint: def.annotations?.untrustedContentHint ?? false,
+      // Chromium-only extra; harmless on spec-shaped implementations.
+      consequentialHint: def.annotations?.consequentialHint ?? false,
+    },
+    // NEVER reject: a rejection surfaces to the agent as an opaque UnknownError.
+    execute: async (input, options) => {
+      const signal = options?.signal ?? ctx.signal;
+      return perform(def.name, normalizeInput(input), { ...ctx, signal });
+    },
+  };
+}
 
-Fill at finalization with about 20 lines: the `document.modelContext` pickup,
-the `registerTool(tool, { signal })` loop over the registry, the JSON-string
-input normalization, and the never-reject `execute` wrapper.
+const mc = document.modelContext;
+for (const def of agentDefs()) {
+  await mc.registerTool(toTool(def, ctx), { signal: controller.signal });
+}
+```
 
 ---
 
-## Categories and tags on the Devpost form
+## Devpost form details
 
 - Team: solo (Ryan Brodsky).
 - Language: English.
 - Video: public YouTube, not unlisted. Check this twice; unlisted videos are
   on the organizers' published list of disqualifying mistakes.
-- License: MIT, `LICENSE` at repo root so GitHub's About panel shows it.
-- Repo: public **before** submitting. Verify in a logged-out browser.
+- License: MIT, `LICENSE` at repo root, already detected in the About panel.
+- Repo is public.
 
 ## Pre-submit checklist
 
-- [ ] `<JUDGE_URL>` opens logged out, in a fresh profile, and the tools chip
-      reads native.
+- [ ] Live URL opens logged out in a fresh profile and the tools chip reads
+      `tools: 23 · native`.
 - [ ] All three prompts run clean against the hosted URL, recorded in
       `docs/TESTING-WEBMCP.md`.
-- [ ] YouTube video is public, under 3:00, has audio, and shows the tool
-      call working inside the first 10 seconds.
-- [ ] Repo public, MIT license detected by GitHub, README agent section live.
-- [ ] `docs/PRIOR-WORK.md` has real commit hashes, not placeholders.
-- [ ] `<TOOL_COUNT>` replaced everywhere in this file.
+- [ ] The Two Claudes cut is in the Cuts gallery on the hosted instance and
+      plays.
+- [ ] Real judge token pasted into the Devpost testing-instructions field.
+      Confirm it is still `<JUDGE_TOKEN>` in the repo.
+- [ ] YouTube video public, under 3:00, audio, tool call working by 0:10.
+- [ ] `docs/PRIOR-WORK.md` hashes match `git log`.
 - [ ] Devpost form submitted by 11:00 PDT Thursday. Screenshot the
       confirmation.

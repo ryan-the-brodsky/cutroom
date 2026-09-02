@@ -1,114 +1,142 @@
 # Demo runbook
 
-> Deterministic reset and run sheet for recording `docs/VIDEO-SCRIPT.md`, and
-> for any live demo of the WebMCP layer. Run the whole thing once dry before
-> the camera rolls. Budget 25 minutes for a cold reset, 8 minutes for a warm
-> one.
+> Deterministic run sheet for recording `docs/VIDEO-SCRIPT.md`, and for any
+> live demo of the WebMCP layer. Run it once dry before the camera rolls.
 >
-> Placeholders in `<ANGLE BRACKETS>` are filled from `docs/DEPLOYMENT.md` and
-> the deploy once workstream D lands them.
+> Primary project is **`two-claudes`**, the 130-second short an agent produced
+> end to end on this instance through the WebMCP tools. It carries no private
+> footage. The Cubs film (`next-year`) appears only in the optional segment.
+>
+> Hosting details, variables and the ship-a-change procedure live in
+> [`DEPLOYMENT.md`](DEPLOYMENT.md) § "Hosted demo (Railway)". This file is the
+> demo, not the deploy.
+
+| | |
+|---|---|
+| Live URL | <https://cutroom-production-0f3c.up.railway.app> |
+| Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and `~/.claude/.env`, never in this repo) |
+| Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
+| Tools | 23 |
 
 ---
 
 ## 0. Pre-flight checklist
 
-Tick every line before you start recording. Most failed demos in rehearsal came
-from lines 4, 6 and 8.
+Tick every line before recording. In rehearsal the failures were lines 4, 6
+and 8.
 
-- [ ] **1. Hosted URL responds.** `curl -sI <JUDGE_URL> | head -1` returns
-      `200`. HTTPS, not localhost. WebMCP requires a secure context, so an
-      `http://` LAN address will silently have no `document.modelContext`.
-- [ ] **2. Tools chip reads native.** Open `<JUDGE_URL>`. The topbar chip says
-      `tools: <TOOL_COUNT> · native`. If it says `unavailable`, the flag is off
-      or you are on an insecure origin. If it says `polyfill`, you passed
-      `?webmcp=polyfill`; drop it, the video must show the native API.
-- [ ] **3. Chrome flags on** (only for the Chrome path):
-      `chrome://flags/#enable-webmcp-testing` = Enabled,
-      `chrome://flags/#devtools-webmcp-support` = Enabled, Chrome restarted.
-      Confirm the Chrome version is 149 or later. Measured on Chrome
-      152.0.7977.65 (see `docs/TESTING-WEBMCP.md` §1): launching with
-      `--enable-features=WebMCP` alone is enough for the JS API, and the two
-      flags above only light up the DevTools pane. No origin-trial token.
-- [ ] **4. ChatGPT site tools on** (for the hero path): ChatGPT Desktop,
-      Settings › Browser › **Enable site tools**. Confirm the account is not
-      Enterprise or Edu, and the model is GPT-5.6 Sol or Terra. Open
-      `<JUDGE_URL>` in the in-app browser and confirm the tool list is picked
-      up before you start.
-- [ ] **5. Lane defaults are what you intend.** In Settings › Backends, check
-      the demo project's lane defaults. For the **recording**, still and motion
-      should be on the paid lanes so the takes are real. For a **rehearsal**,
-      set every lane to `mock` so nothing is spent. Screenshot the lane table
-      either way, so you know what the run cost.
-- [ ] **6. Budget not exhausted.** `GET <JUDGE_URL>/api/system/budget` (admin
-      token) reports spend in the rolling 24 hours against
-      `CUTROOM_DEMO_BUDGET_USD`. If less than $2 of headroom remains, either
-      raise the cap or switch to mock lanes. A "budget exhausted" 402 in the
+- [ ] **1. Instance is up.** Both, not just the first:
+      ```bash
+      curl -sf https://cutroom-production-0f3c.up.railway.app/api/health
+      curl -s -o /dev/null -w '%{http_code}\n' https://cutroom-production-0f3c.up.railway.app/
+      ```
+      `{"ok":true}` and `200`. Health alone passes while the SPA is missing;
+      that shipped once.
+- [ ] **2. Tools chip reads native.** Open the judge link. The topbar says
+      `tools: 23 · native`. `unavailable` means an insecure origin or the flag
+      is off. `polyfill` means you left `?webmcp=polyfill` on; drop it, the
+      video must show the native API.
+- [ ] **3. Chrome flags on** (Chrome path only):
+      `chrome://flags/#enable-webmcp-testing` and
+      `chrome://flags/#devtools-webmcp-support` Enabled, Chrome restarted,
+      version 149+. Measured on Chrome 152.0.7977.65 (see
+      `docs/TESTING-WEBMCP.md` §1): `--enable-features=WebMCP` alone is enough
+      for the JS API, and the two flags only light up the DevTools pane. No
+      origin-trial token.
+- [ ] **4. ChatGPT site tools on** (hero path): ChatGPT Desktop, Settings ›
+      Browser › **Enable site tools**. Not an Enterprise or Edu account. Model
+      is GPT-5.6 Sol or Terra. Open the judge link in the in-app browser and
+      confirm the tool list is picked up before you start.
+- [ ] **5. Lane defaults are what you intend.** Settings › Backends, and the
+      project's lane defaults. For the **recording** the paid lanes should be
+      live so the takes are real: still `openrouter-image:google/gemini-2.5-flash-image`,
+      motion `fal:fal-ai/wan/v2.2-a14b/image-to-video/turbo`, vo/music/sfx
+      `elevenlabs`, direction `openrouter:z-ai/glm-5.3-flash`. For a
+      **rehearsal**, set every lane to `mock` so nothing is spent. Screenshot
+      the lane table either way so you know what the run cost.
+- [ ] **6. Budget headroom.** `GET /api/system` returns
+      `budget: { spent, limit }` for the rolling 24 hours against
+      `CUTROOM_DEMO_BUDGET_USD` (10).
+      ```bash
+      curl -s -H "Authorization: Bearer $CUTROOM_ADMIN_TOKEN" \
+        https://cutroom-production-0f3c.up.railway.app/api/system | python3 -m json.tool
+      ```
+      Unit costs: stills $0.04, motion $0.05 per clip, voice, music and SFX
+      $0.02 per take. A full recording pass is well under a dollar. If under $2
+      of headroom remains, raise the cap or move to mock lanes. A 402 in the
       middle of Block A ruins the take.
-- [ ] **7. Nothing is paused.** No `PAUSED` sentinel, no per-project pause. The
-      topbar shows no pause banner.
-- [ ] **8. Agent speed is `watch`.** Settings, or `?agent_speed=watch`. On
-      `fast` the navigation is invisible on video, which defeats the whole
-      point of the demo.
-- [ ] **9. Thumbnails warm.** No black cards on the Film Editor board. See §2.
+- [ ] **7. Nothing paused.** No `PAUSED` sentinel, no per-project pause, no
+      pause banner in the topbar.
+- [ ] **8. Agent speed is `watch`.** Append `?agent_speed=watch` to the URL. On
+      `fast` the navigation is invisible on video, which defeats the demo.
+- [ ] **9. Thumbnails warm.** No black cards on the Film Editor board. There is
+      **no** thumbs/warm endpoint; imports chain the job. See §2.
 - [ ] **10. Jobs queue empty.** Jobs page shows nothing running. A leftover job
       confuses the topbar chip in Block D.
-- [ ] **11. Screen set up.** See §3.
-- [ ] **12. Do Not Disturb on.** Notifications, Slack, mail, calendar alerts.
+- [ ] **11. The finished cut is in the Cuts gallery** on `two-claudes` and
+      plays. Block B is built on it.
+- [ ] **12. Screen set up** (§3) and Do Not Disturb on.
 
 ---
 
-## 1. Reset the hosted demo instance
+## 1. Reset
 
-The demo instance re-imports from a bundle, so a reset is destructive to
-anything a judge or a rehearsal created. That is intended.
+The demo instance carries real produced work. **A full reset destroys the Two
+Claudes renders**, which cost about $1.50 and roughly forty minutes of agent
+driving to make. Do not run one casually. For the recording you almost
+certainly want §5 (between-takes cleanup) instead.
 
-```bash
-# <FROM docs/DEPLOYMENT.md once workstream D writes the deploy section>
-#
-# Expected shape:
-#   1. railway ... run  cutroom demo-reset          # drop projects, re-import
-#      from CUTROOM_DEMO_BUNDLE, then warm thumbs
-#   2. or, blunt: delete the Railway volume's data dir and restart the
-#      service; boot re-downloads the bundle and imports project `next-year`.
-#
-# <RESET_COMMAND>
-# <VERIFY_COMMAND>
-```
+**Warm cleanup (what you normally want).** Delete only the takes the previous
+run created, so the takes rail is not full of near-identical stills:
+Shot Editor › takes rail › filter `still` › delete today's timestamps. Leave
+keepers and timeline sources alone.
 
-Verify after reset:
+**Re-seed a project from script (non-destructive to other projects).** This
+recreates shots, cast and lane pins; it does not touch media:
 
 ```bash
-curl -s "<JUDGE_URL>/api/projects?token=<JUDGE_TOKEN>" | head -c 400
-# expect one project: next-year, 97 shots
+python3 scripts/seed-film.py \
+  --url https://cutroom-production-0f3c.up.railway.app \
+  --token "$CUTROOM_ADMIN_TOKEN" --project two-claudes \
+  --shots docs/demo-films/two-claudes/shots.jsonl \
+  --cast  docs/demo-films/two-claudes/characters.jsonl \
+  --lane still=openrouter-image:google/gemini-2.5-flash-image \
+  --lane motion=fal:fal-ai/wan/v2.2-a14b/image-to-video/turbo \
+  --lane vo=elevenlabs \
+  --lane direction=openrouter:z-ai/glm-5.3-flash
 ```
 
-Then in the browser: the Film Editor board shows 97 cards, act 1 is populated,
-shot B10-S2 exists and shows a keeper still.
+It is idempotent, so re-running updates in place.
 
-**If you are not resetting** (warm run, same day), do this instead so the demo
-is repeatable: delete the takes generated by the previous run on B10-S2, so
-the takes rail is not already full of near-identical stills. Shot Editor
-B10-S2 › takes rail › filter `still` › delete the ones with today's timestamp.
-Leave the keeper alone.
+**Full reset (destructive).** Only if the instance is corrupt: clear the
+Railway volume's data dir and restart the service, then re-seed with the
+command above and re-run production (§4, Run 6). Budget an hour and the API
+spend. Verify after:
+
+```bash
+curl -s "https://cutroom-production-0f3c.up.railway.app/api/projects?token=<JUDGE_TOKEN>" | head -c 400
+```
+
+Expect `two-claudes` with 15 shots, and `next-year` if it is loaded.
 
 ---
 
 ## 2. Pre-warm
 
-Cold thumbnails are the single most visible ugliness in a first-visit
-recording: 97 black cards racing ffmpeg.
+Cold thumbnails are the most visible ugliness in a first-visit recording.
+There is no warm endpoint to call; the importer chains the job. So warm by
+visiting:
 
-1. Trigger the warm job: Film Editor › (admin) `thumbs.warm`, or
-   `POST <JUDGE_URL>/api/projects/next-year/thumbs/warm`.
-2. Watch the Jobs page until it completes. On a cold instance this takes a few
-   minutes.
-3. Hard-reload the Film Editor and scroll the entire board top to bottom once,
-   slowly. Every card should show a frame. Scroll back to the top.
-4. Open shot B10-S2 once, let the monitor load the keeper, then go back. This
-   warms the media the first tool call will need.
-5. Open the Cuts gallery once so its poster thumbs are cached.
-6. **Then hard-reload one more time** so the recording starts from a clean app
-   mount and the tool registration happens on camera-side load.
+1. Hard-reload the Film Editor for `two-claudes` and scroll the whole board top
+   to bottom once, slowly. Every card should show a frame. Scroll back up.
+2. Open B03-S1 once and let the monitor load the keeper, then go back. That is
+   the shot Block A opens.
+3. Open B05-S3 once and let its motion take load. That is Block D.
+4. Open the Cuts gallery and play two seconds of the newest cut, so its poster
+   thumb and the video are cached.
+5. **Then hard-reload once more** with `?agent_speed=watch`, so the recording
+   starts from a clean app mount and tool registration happens on camera-side
+   load.
 
 ---
 
@@ -116,162 +144,185 @@ recording: 97 black cards racing ffmpeg.
 
 **Primary layout (ChatGPT path):**
 
-- ChatGPT Desktop, maximized, in-app browser open on `<JUDGE_URL>`. This is
-  the only window in frame for Blocks A, C, D.
-- The Agent trail drawer expanded (bottom right). It is the proof of work.
-- The topbar tools chip visible.
-- Nothing else on the desktop. No dock badges.
+- ChatGPT Desktop maximized, in-app browser on the judge link with
+  `&agent_speed=watch`. The only window in frame for Blocks A and D.
+- Agent trail drawer expanded, bottom right. It is the proof of work.
+- Topbar tools chip visible.
+- Nothing else on the desktop, no dock badges.
 
-**Secondary windows (Block E only, brought forward at 1:52):**
+**Secondary windows (Block E, brought forward at 1:44):**
 
-- Editor with `web/src/agent/registry.ts` open at one complete `ActionDef`,
-  and `web/src/agent/webmcp.ts` open at the `registerTool` loop. Font large
-  enough to read at 1080p: 16pt minimum.
-- Chrome (separate from ChatGPT) on `<JUDGE_URL>` with DevTools docked right,
-  Application › WebMCP selected, the tool list scrolled to show `find_shots`,
-  `generate_takes`, `freeze_tail`.
+- Editor with `web/src/agent/registry.ts` open at one complete `ActionDef` and
+  `web/src/agent/webmcp.ts` at the `registerTool` loop. 16pt minimum so it
+  reads at 1080p.
+- A separate Chrome on the judge link, DevTools docked right, Application ›
+  WebMCP selected, list scrolled to show `find_shots`, `generate_takes`,
+  `freeze_tail`. The count of 23 should be visible.
 - A terminal running Claude Code with `chrome-devtools-mcp` v1.8.0 and
-  `--categoryExperimentalWebmcp=true`, already connected to that Chrome tab.
-  Test the connection before recording: ask it to run
-  `find_shots {"query": "dial shot"}` and confirm the tab responds.
+  `--categoryExperimentalWebmcp=true`, already connected to that tab. Test
+  before recording: `find_shots {"query": "the two chairs shot"}`.
 
-**Chrome-only layout (fallback):** one Chrome window, DevTools docked right at
-about 40% width so both the page and the WebMCP pane are legible.
+**Chrome-only fallback:** one Chrome window, DevTools docked right at about 40%
+width so the page and the WebMCP pane are both legible.
+
+**B-roll:** the production-run artifacts in `/tmp/cutroom-drive/` (see
+`VIDEO-SCRIPT.md` Block B). Copy that directory somewhere durable before
+recording; it is in `/tmp`.
 
 ---
 
-## 4. The run
+## 4. The runs
 
-Run these in order. Do not improvise phrasings on camera; the resolver and the
-evals are pinned to these sentences.
+Do not improvise phrasings on camera. The resolver and the evals are pinned to
+these sentences.
 
 ### Run 1 (Block A) · hero turn
 
-**Prompt, typed exactly:**
-
 ```
-Make a few more generative cuts of the David Ross close-up.
+Make a few more generative cuts of the two chairs shot.
 ```
 
-**Expected tool sequence:**
-
-| # | Tool | Args | Expected result |
+| # | Tool | Args | Expected |
 |---|---|---|---|
-| 1 | `find_shots` | `{"query":"David Ross close-up"}` | `B10-S2` first, confidence `exact` or `high`, with ordinal, beat, act, type HERO, summary, `characters:["David Ross"]` |
-| 2 | `open_shot` | `{"shot":"B10-S2","tab":"generate","sub":"still"}` | resolved sid plus what is on screen |
-| 3 | `generate_takes` | `{"shot":"B10-S2","lane":"still","count":3}` | on paid lanes, first returns `{ok:false, error:"needs_confirmation", backend, cost_class}`; agent re-calls with `confirm_cost:true` |
-| 4 | `generate_takes` | same plus `confirm_cost:true` | 3 job ids, backend name, cost class, and settled takes with thumbs if the backend is fast |
+| 1 | `find_shots` | `{"query":"the two chairs shot"}` | `B03-S1` first (two wooden chairs in an amber spotlight, act 2), with ordinal, beat, act, type, summary |
+| 2 | `generate_takes` | `{"shot":"B03-S1","lane":"still","count":3}` | on paid lanes returns `{ok:false, error:"needs_confirmation", backend, cost_class}` first |
+| 3 | `generate_takes` | same plus `confirm_cost:true` | 3 job ids, backend name, cost class, settled takes with thumbs |
 
-Steps 2 and 3 may be merged if the agent calls `generate_takes` directly; the
-tool navigates on its own. Either sequence is fine on camera. `count: "a few"`
-also resolves to 3.
+The agent may call `open_shot` between 1 and 2; either sequence is fine, the
+tools navigate themselves. `count: "a few"` also resolves to 3.
 
-**Expected visible result:** the board scrolls, B10-S2 rings, the Shot Editor
-mounts, the Generate tab opens, the Still sub-tab opens, the prompt field
-fills, the submit control rings and fires three times, three new take cards
-land in the rail, and the Agent trail counts 4 to 6 steps.
+**Visible:** board scrolls, B03-S1 rings, Shot Editor mounts, Generate tab,
+Still sub-tab, prompt fills, submit rings and fires three times, three take
+cards land, trail counts 4 to 6 steps.
 
 **Fallbacks:**
-- *Agent asks which shot before doing anything*: it hit `ambiguous`. Answer
-  "the close-up, B10-S2" and continue. Do not re-record; this is a good look.
-- *`needs_confirmation` and the agent stops*: say "yes, go ahead." That
-  exchange is worth keeping in the video; it is the human-in-the-loop story.
-- *402 budget exhausted*: stop, switch the still lane to `mock` in Settings,
-  hard-reload, re-run. Mock returns real footage from the film in under a
-  second, so the shot still reads correctly on camera.
-- *Nothing happens and no tool chip appears*: the client did not see the tool
-  list. Reload the page in the in-app browser and wait for the topbar chip.
+- *Agent asks which shot first*: it hit `ambiguous`. Answer "B03-S1" and
+  continue. Do not re-record, this is a good look.
+- *Stops on `needs_confirmation`*: say "yes, go ahead". Keep that exchange in
+  the video; it is the human-in-the-loop story.
+- *402 budget exhausted*: switch the still lane to `mock` in Settings, reload,
+  re-run. Mock returns real footage from the film in under a second.
+- *No tool chip at all*: the client never saw the tool list. Reload in the
+  in-app browser and wait for the topbar chip before typing.
 
-### Run 2 (Block C) · freeze the tail
-
-**Prompt:**
+### Run 2 (Block D) · freeze the tail
 
 ```
-Keep the first second of the newest one and freeze the rest.
+Keep the first second of the letter flood and freeze the rest.
 ```
 
-**Expected tool sequence:**
-
-| # | Tool | Args | Expected result |
+| # | Tool | Args | Expected |
 |---|---|---|---|
-| 1 | `select_take` | `{"shot":"B10-S2","take":"newest motion"}` | selected path, kind `motion`, duration |
-| 2 | `freeze_tail` | `{"shot":"B10-S2","live_seconds":1.0}` | job id, then the settled frozen take |
+| 1 | `select_take` | `{"shot":"B05-S3","take":"newest motion"}` | selected path, kind `motion`, duration |
+| 2 | `freeze_tail` | `{"shot":"B05-S3","live_seconds":1.0}` | job id, then the settled frozen take |
 
-**Expected visible result:** the takes rail filter moves to motion, the newest
-motion take highlights and loads in the monitor, the Motion edits tab opens,
-the live-seconds field shows `1.0`, the freeze control rings and fires, a new
-take lands and plays: one second live, then a true hold.
+**Visible:** takes filter moves to motion, the newest motion take highlights
+and loads, Motion edits tab opens, live seconds shows `1.0`, freeze control
+rings and fires, the new take plays as one second of flood then a true hold.
+
+Motion takes exist on **B02-S2, B04-S2, B05-S3**. B05-S3 is the letter flood
+and the one the script uses.
 
 **Fallbacks:**
-- *`freeze_tail` refuses with a clip-extension guard message*: the selected
-  take is a still, not a clip. Say "use the newest animated take" and re-run.
-  This guard is deliberate; do not disable it for the demo.
-- *No motion takes exist on B10-S2 after a reset*: pre-generate one during
-  setup (§2 step 4) or run this block on a shot that has one. Check during
-  pre-flight, not on camera.
+- *Clip-extension guard message*: the selected take is a still. Say "use the
+  newest animated take" and re-run. Do not disable the guard for the demo.
+- *Resolver picks a crop intermediate*: crop intermediates are excluded from
+  "the newest clip" by design. If it still lands wrong, name the take
+  explicitly from the rail.
 
-### Run 3 (Block C, second half) · show me
-
-**Prompt:**
+### Run 3 (Block D, second half) · show me
 
 ```
 How would I do that myself?
 ```
 
-**Expected tool sequence:** `show_me` with `{"feature":"freeze tail"}`.
-
-**Expected visible result:** navigation to Shot Editor › Motion edits, the
-freeze control rings, and the tool returns the `howTo` sentence plus
+`show_me` with `{"feature":"freeze tail"}`. Navigates to Shot Editor › Motion
+edits, rings the freeze control, returns the `howTo` sentence and
 `where.label`. Nothing runs.
 
-**Fallback:** if the agent answers from memory instead of calling the tool,
-rephrase to "show me where that control is." If it still will not call, use
-`list_features` first: "what can you do here?"
+**Fallback:** if the agent answers from memory, rephrase to "show me where that
+control is". If it still will not call, prime it with "what can you do here?",
+which calls `list_features`.
 
-### Run 4 (Block D) · cut act 1
-
-**Prompt:**
+### Run 4 · the audio lane (optional, for the fourth prompt)
 
 ```
-Cut act 1.
+Give the whole film a quiet piano bed and a key press on the typing shot.
 ```
 
-**Expected tool sequence:**
+Expect `generate_music` for the bed, `generate_sfx` plus `place_cue` for the
+key press on **B04-S2** (the hands on the keyboard), and `list_cues` to show
+the cue sheet. The Audio tab's music and SFX sections fill and submit on
+screen; the cue lands on the film cue strip under the Cuts gallery.
 
-| # | Tool | Args | Expected result |
+### Run 5 (Block B tail) · cut the film
+
+```
+Cut the film.
+```
+
+| # | Tool | Args | Expected |
 |---|---|---|---|
-| 1 | `cut_film` | `{"scope":"act1","res":"720"}` | job id |
+| 1 | `cut_film` | `{"scope":"full","res":"720"}` | job id |
 | 2 | `wait_for_jobs` | `{"jobs":[...],"timeout_s":60}` | status, then the animatic path and duration |
 
-**Expected visible result:** navigation to the Film Editor, the scope control
-sets to act 1, the Cut button rings and fires, a job chip appears in the
-topbar, and on completion the animatic appears in the Cuts gallery. Expect
-roughly 194 seconds of film at 720p with 24 VO items.
+**Visible:** Film Editor, scope sets, Cut button rings and fires, job chip in
+the topbar, the animatic appears in the Cuts gallery. Expect about 130
+seconds at 720p. The reference cuts are `/tmp/cutroom-drive/cut3/two-claudes-cut3.mp4`
+(130.0s) and `cut1/animatic1.mp4` (124.5s, before the last sources were set).
 
 **Fallbacks:**
-- *Assembly takes longer than 60s and `wait_for_jobs` times out*: the agent
-  should report `running` with the hint to call again. Have it call
-  `get_jobs`. On video, cut the wait and caption it "sped up".
-- *Assembly fails*: check the Jobs log tail. Most likely a missing VO asset
-  after a partial reset. Fall back to cutting a smaller scope, or play the
-  animatic produced during the rehearsal run.
+- *`wait_for_jobs` times out at 60s*: the agent should report `running` with a
+  hint to call again. Have it call `get_jobs`. On video, cut the wait and
+  caption it "sped up".
+- *Assembly fails*: check the Jobs log tail. Most likely a missing VO asset.
+  Fall back to playing the existing cut from the gallery.
 
-### Run 5 (Block E) · Claude Code through chrome-devtools-mcp
+### Run 6 · reproduce the whole production (not on camera)
 
-In the terminal, against the Chrome tab:
+This is how the film was made, and how to remake it after a destructive reset.
+It runs the tools from real Chrome against the native API, one screenshot and
+one JSON result per call:
+
+```bash
+python3 scripts/make-run-steps.py docs/demo-films/two-claudes/shots.jsonl > /tmp/run.json
+cd web && node scripts/agent-drive.mjs \
+  --url https://cutroom-production-0f3c.up.railway.app/ \
+  --token "$CUTROOM_ADMIN_TOKEN" --steps /tmp/run.json --out /tmp/cutroom-drive/full --headed
+```
+
+`make-run-steps.py` takes `--skip-stills`, `--no-motion`, `--no-vo`,
+`--no-cut`, `--only B01-S1,B01-S2` and `--motion-waits N` for partial passes.
+`agent-drive.mjs` also takes `--list` and `--call <tool> '<json>'` for one-off
+calls. Admin is exempt from the demo rate limits, which is why production uses
+the admin token.
+
+### Run 7 (Block E) · Claude Code through chrome-devtools-mcp
 
 ```
-Use the page tools to find the dial shot and tell me what plays on it.
+Use the page tools to find the two chairs shot and tell me what plays on it.
 ```
 
-**Expected tool sequence:** `find_shots` then `describe_shot`. Read-only, so
-no confirmation and no spend. The browser window navigates while the terminal
-prints. That side-by-side is the whole point of the block.
+`find_shots` then `describe_shot`. Read-only, so no confirmation and no spend.
+The browser navigates while the terminal prints. That side by side is the whole
+point of the block.
 
-**Fallback:** if `chrome-devtools-mcp` does not list the page tools, confirm
-the flag `--categoryExperimentalWebmcp=true` is set and that the tab is the
-active one. If it still fails, cut Block E down to the DevTools pane alone
-(2:14 to 2:20) and extend Block F.
+**Fallback:** if the page tools do not appear, confirm
+`--categoryExperimentalWebmcp=true` and that the tab is active. If it still
+fails, cut Block E to the DevTools pane alone and extend Block F.
+
+### Optional segment · the Cubs film
+
+Only `[if the next-year project is loaded]`. Switch projects, then:
+
+```
+Make a few more generative cuts of the David Ross close-up.
+```
+
+`find_shots` resolves `B10-S2`. For the ambiguity beat instead, use *"the
+David Ross close up, shot 37"*: name says B10-S2, number says B11-S4, the
+resolver returns both with reasons and confidence `ambiguous`, and nothing
+renders until you answer.
 
 ---
 
@@ -279,23 +330,22 @@ active one. If it still fails, cut Block E down to the DevTools pane alone
 
 If a run goes wrong and you need to re-record a block:
 
-1. Do **not** run the full reset. It costs 25 minutes and re-warms thumbs.
-2. Delete only the takes that run created: Shot Editor › takes rail › the
-   cards with the current timestamp.
-3. Clear the Agent trail (drawer › clear) so the step count starts from zero
-   on camera.
-4. Hard-reload. Confirm the tools chip re-reads native.
-5. In ChatGPT, start a new conversation. A stale conversation will reference
-   takes that no longer exist.
+1. Do **not** run a full reset (§1). It destroys the produced film.
+2. Delete only the takes that run created: takes rail, current timestamps.
+3. Clear the Agent trail (drawer › clear) so the step count starts at zero.
+4. Hard-reload with `?agent_speed=watch`. Confirm the chip re-reads native.
+5. In ChatGPT, start a new conversation. A stale one references takes that no
+   longer exist.
 
 ## 6. After recording
 
-- [ ] Note the actual spend for the session against the budget.
-- [ ] Set every lane back to `mock` **or** confirm the cap is set where you
-      want it for judging week. Judges will generate; that is expected and
-      budgeted, but decide the number deliberately.
-- [ ] Run the full reset one final time so judges land on the same clean state
-      the video shows.
-- [ ] Re-run pre-flight lines 1, 2 and 9 against the reset instance.
-- [ ] Record the run in `docs/TESTING-WEBMCP.md` with the date, the client, the
-      tool sequences that actually fired, and anything that surprised you.
+- [ ] Note the session spend against the budget (`GET /api/system`).
+- [ ] Decide the cap for judging week deliberately. Judges will generate; that
+      is expected and budgeted.
+- [ ] Confirm the Two Claudes cut is still the newest in the Cuts gallery, so
+      judges land on the state the video shows.
+- [ ] Re-run pre-flight lines 1, 2, 9 and 11.
+- [ ] Copy `/tmp/cutroom-drive/` somewhere durable. It is B-roll and it is in
+      `/tmp`.
+- [ ] Record the run in `docs/TESTING-WEBMCP.md`: date, client, the tool
+      sequences that actually fired, and anything that surprised you.
