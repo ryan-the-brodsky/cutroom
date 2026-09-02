@@ -265,6 +265,51 @@ v4.5's `style: "anime"` overrode the plate outright, v6 invented camera moves
 and broke a shot's stated rule. They are deliberately absent from the code;
 the evidence stays in RESULTS.md.
 
+## Image models  (the registry the still lane picks from)
+
+The same idea one lane down. A director asked for two monitors showing the word
+GOODBYE in perfectly legible letters and the agent used the default model,
+because nothing told it that legibility is a place these models differ. The
+**image model registry** (`cutroom/adapters/image_models.py`, served at
+`GET /api/image-models`, listed on the `openrouter-image` row of
+`GET /api/backends`, and offered as the choices in
+`GET /api/backends/openrouter-image/models?lane=still`) is what tells it.
+Prices are **measured**, from OpenRouter's own `usage.cost`, in
+[`research/image-models/RESULTS.md`](research/image-models/RESULTS.md).
+
+| rank | key | model id | $/still | latency | good at | fails by | fallback |
+|---|---|---|---|---|---|---|---|
+| 1 | `flash` | `google/gemini-2.5-flash-image` | **$0.0387** | 7–12 s | the cheap default; one short word on a screen comes out legible | drops a letter once the frame carries several strings ("SYSTEM OFLINE", measured); drifts photoreal on text-heavy plates | `pro` |
+| 2 | `pro` | `google/gemini-3-pro-image` | **$0.1387** | 41–65 s | `legible_text`, `typography`, `complex_composition`. The only model that got both text plates perfect, in the cleanest anime register | bakes its own letterbox bars into the 16:9 canvas; 3.6× the price and takes a minute | `flash3` |
+| 3 | `flash3` | `google/gemini-3.1-flash-image` | **$0.0672** | 12–14 s | `typography`, `complex_composition`. Spells like `pro` on distinct strings at half the price | a repeated line ghosts into the one below it; invents people the prompt never mentioned | `pro` |
+
+**`flash` by default, `pro` when the letters have to be readable.** That
+sentence is carried by `generate_takes`, `describe_shot`, `list_backends` and
+both director system prompts, so an agent that has never read this file still
+knows to pass `model: "pro"` for a sign, a screen or a title. When a still
+prompt contains text words and the cheap model drew it anyway, the tool result
+comes back with `hint: "This shot asks for readable text: consider
+model:\"pro\" (≈$0.14 per still)."`
+
+`generate_takes` and `POST /generate/still|i2i` accept a registry key
+(`"pro"`) or a full OpenRouter id; anything the registry does not know passes
+through, so an operator can still name a model nobody has measured. Narrow the
+list with `CUTROOM_IMAGE_MODELS=flash,pro`.
+
+**A still records what it actually cost.** The adapter sends
+`usage: {include: true}`, so OpenRouter's own billed number lands on the Take
+as `params.cost_usd` (the registry's measured price is the fallback), the 24h
+ledger charges that number, and `/api/projects/{pid}/spend` prices each take at
+what ran rather than one flat figure per backend, which matters the moment a
+$0.139 `pro` still sits next to a $0.039 `flash` one on the same backend.
+
+`google/gemini-3.1-flash-lite-image`, `openai/gpt-5-image` and
+`openai/gpt-5-image-mini` were measured and **rejected**: lite and the mini
+ignore the anime register (and the mini ignored the 16:9 request outright), and
+`gpt-5-image` refused the plate on policy ("I can't create images that include
+extensive on-screen text") and billed $0.021 for the refusal. They are
+deliberately absent from the code; the evidence stays in RESULTS.md.
+
 ## Direction providers  (lane: direction)
 
 - **anthropic** — hosted-safe agent chat + EditPlan planner.

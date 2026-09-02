@@ -11,6 +11,7 @@ import type { ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { getToken } from "../../api";
 import { cut, maybeNum } from "./util";
+import { imageModelRows, imageModels } from "./images";
 import { modelCost, motionModels } from "./plan";
 import { ROUTES, timelinePath } from "../../routes";
 
@@ -59,7 +60,7 @@ export const listBackends: ActionDef<Record<string, never>> = {
     "costs money per job. Nothing is probed, so it is instant and never bills. " +
     "Call it before naming a backend in generate_takes or set_lane_default, or " +
     "to answer \"what can this machine actually run?\". Also lists the motion " +
-    "models with their price and what each is good at.",
+    "and image models with their price and what each is good at.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
   where: { route: SETTINGS_ROUTE, anchor: ANCHORS.settingsBackend,
@@ -82,6 +83,9 @@ export const listBackends: ActionDef<Record<string, never>> = {
     const enabled = rows.filter((b) => b.enabled !== false);
     const models = rows.some((b) => b.type === "fal" && b.enabled !== false)
       ? await motionModels(ctx) : [];
+    const imgModels = rows.some((b) => b.type === "openrouter-image"
+                                       && b.enabled !== false)
+      ? await imageModels(ctx) : [];
     return ok(`${rows.length} backend${rows.length === 1 ? "" : "s"}, ${enabled.length} enabled`, {
       backends: rows.slice(0, 12).map((b) => ({
         id: b.id,
@@ -104,8 +108,12 @@ export const listBackends: ActionDef<Record<string, never>> = {
               note: cut(m.note, 40), fallback: m.fallback,
             })) }
         : {}),
+      // Same story on the still lane: one openrouter-image row serves every
+      // image model, and only some of them can spell.
+      ...(imgModels.length ? { image_models: imageModelRows(imgModels) } : {}),
       hint: "set_lane_default points a lane at one of these; generate_takes takes " +
-        "an explicit backend, and model:\"seedance\"/\"wan\" for motion.",
+        "an explicit backend, model:\"seedance\"/\"wan\" for motion, and " +
+        "model:\"pro\" for a still whose text must be readable.",
     });
   },
 };

@@ -692,6 +692,27 @@ function defaultApi(path: string, body?: unknown): unknown {
   if (/^\/api\/jobs\/[^/]+$/.test(path)) {
     return { id: path.split("/").pop(), status: "done", type: "gen.still", result: {} };
   }
+  if (path === "/api/image-models") {
+    // The still lane's registry, as the server serves it (workstream U).
+    return {
+      default: "flash", text_model: "pro",
+      registers: ["legible_text", "typography", "complex_composition",
+                  "cheap_default"],
+      models: [
+        { id: "google/gemini-2.5-flash-image", key: "flash", rank: 1,
+          label: "Gemini 2.5 Flash Image", note: "the cheap default",
+          cost_per_still_usd: 0.0387, fallback: "pro",
+          failure_modes: "drops a letter when the frame carries several strings",
+          registers: ["cheap_default"], enabled: true },
+        { id: "google/gemini-3-pro-image", key: "pro", rank: 2,
+          label: "Gemini 3 Pro Image", note: "readable text",
+          cost_per_still_usd: 0.1387, fallback: "flash3",
+          failure_modes: "bakes letterbox bars into the frame",
+          registers: ["legible_text", "typography", "complex_composition"],
+          enabled: true },
+      ],
+    };
+  }
   if (path === "/api/lanes") {
     return {
       still: [{ id: "mock", type: "mock", enabled: true }],

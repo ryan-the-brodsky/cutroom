@@ -101,7 +101,12 @@ model while the budget holds, the cheap one when it runs thin, and the one
 measured best for dark close-ups whenever the shot is one. `apply_motion_plan`
 spends it and stops at the number. When a clip comes back unfaithful to its
 plate, every result names the model to rerun on: that is a model property, not
-a prompt someone worded badly.
+a prompt someone worded badly. Stills got the same registry after a director
+asked for two monitors reading GOODBYE in legible letters and the agent took
+the default: legibility is a model property too, so the tools now carry the
+measured price of each image model and tell the agent to pass `model:"pro"`
+when the letters have to be readable
+(`docs/research/image-models/RESULTS.md`).
 
 Then a judge in ChatGPT's browser asked the site to build a new comical short
 about the French Revolution, and hit the wall: every tool assumed a film

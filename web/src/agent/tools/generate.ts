@@ -9,6 +9,7 @@ import {
   clampSeconds, framesForSeconds, motionModels, motionProfile, unfaithfulHint,
   type MotionModel, type MotionProfile,
 } from "./plan";
+import { imageModels, textHint, wantsText, type ImageModel } from "./images";
 import { resolveRefImage, roleOf } from "./references";
 import {
   SHOT_ROUTE, asError, costGate, cut, fetchShot, freshSeeds, lookupShot, maybeNum,
@@ -70,11 +71,11 @@ export const generateTakes: ActionDef<GenArgs> = {
   description:
     "Generate new takes for a shot — stills, restyles of an existing take, or " +
     "animated cel clips. Opens the Generate console, fills it, and submits one " +
-    "job per take with a fresh seed. Returns job ids and takes. Count 1–4 " +
-    "(default 3). Prompt defaults to the shot's own. Clips play in full at the " +
-    "backend's length. Paid backends need confirm_cost. Attach references first " +
-    "(attach_reference) when a character, prop or place must match a specific " +
-    "image; restyle edits a frame, references guide a new one.",
+    "job per take with a fresh seed. Count 1–4 (default 3); the prompt defaults " +
+    "to the shot's own; clips play in full; paid backends need confirm_cost. " +
+    "Text that must be readable (signs, screens, titles) needs model:\"pro\"; " +
+    "the cheap default misspells past one string. attach_reference pins a face " +
+    "or place to an image; restyle edits a frame.",
   inputSchema: {
     type: "object",
     properties: {
@@ -91,7 +92,7 @@ export const generateTakes: ActionDef<GenArgs> = {
       live_seconds: { type: "number", description: "For animate: freeze after this many seconds. Only for a model that drifts after N seconds — clips play in full otherwise." },
       seeds: { type: "array", items: { type: "integer" }, description: "Exact seeds to use, one per take. Omit for fresh random seeds (the usual case)." },
       backend: { type: "string", description: "Force a specific backend id instead of the project's lane default (e.g. \"mock\", \"comfyui\", \"fal\")." },
-      model: { type: "string", description: "Force a model: a registry key (\"seedance\", \"wan\") or a full endpoint id. list_backends shows the options with cost." },
+      model: { type: "string", description: "Force a model. Stills: \"pro\" for readable text, \"flash\" (cheap default). Motion: \"seedance\", \"wan\". A full endpoint id works too." },
       confirm_cost: { type: "boolean", description: "Set true to approve a paid backend. Required whenever the lane resolves to a backend that bills money." },
       references: { type: "array", items: { type: "object" }, description: "One-off reference images for this call only: [{image, role}], role character/prop/setting/style. attach_reference makes one stick." },
     },
@@ -180,6 +181,15 @@ export const generateTakes: ActionDef<GenArgs> = {
       return err("needs_plate", {
         hint: "Animate needs an approved plate — set a keeper still on this shot first (set_keeper).",
       });
+    }
+
+    // ---- 4a. legibility is a model property. A shot whose prompt asks for
+    // letters someone has to read, drawn on the cheap model, gets told which
+    // model spells, once, in the result, with the price attached.
+    let stillHint: string | undefined;
+    if (lane !== "animate" && wantsText(prompt, detail.image_prompt)) {
+      const imgModels: ImageModel[] = await imageModels(ctx);
+      stillHint = textHint(imgModels, args?.model);
     }
 
     // ---- 4b. one-off references, resolved before the view moves. A reference
@@ -354,9 +364,15 @@ export const generateTakes: ActionDef<GenArgs> = {
         tab: `${s.tab} → ${s.sub}`,
         ...(failed.length ? { failed: failed.map((f) => cut(f.error, 80)) } : {}),
         ...(failures.length ? { submit_errors: failures.slice(0, 2) } : {}),
-        ...(running > 0
-          ? { hint: `${running} job${running === 1 ? "" : "s"} still running — call wait_for_jobs with these ids.` }
-          : {}),
+        ...((() => {
+          const parts = [
+            stillHint,
+            running > 0
+              ? `${running} job${running === 1 ? "" : "s"} still running — call wait_for_jobs with these ids.`
+              : "",
+          ].filter(Boolean);
+          return parts.length ? { hint: parts.join(" ") } : {};
+        })()),
       },
     );
   },

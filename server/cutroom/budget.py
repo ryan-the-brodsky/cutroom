@@ -135,9 +135,16 @@ def state() -> dict:
 
 
 def charge(backend_id: str | None, takes: int = 1, project: str | None = None,
-           job: str | None = None) -> float:
-    """Record estimated spend. Free backends are not written to the ledger."""
-    usd = cost_usd(backend_id) * max(0, int(takes))
+           job: str | None = None, unit_usd: float | None = None) -> float:
+    """Record estimated spend. Free backends are not written to the ledger.
+
+    `unit_usd` is the price of ONE take when the adapter came back with a real
+    number: the provider's own billed cost, or the image registry's measured
+    price for the model that ran. Without it a $0.15 Nano Banana Pro still and
+    a $0.04 flash still both read as the backend's one flat guess.
+    """
+    per = cost_usd(backend_id) if unit_usd is None else max(0.0, float(unit_usd))
+    usd = per * max(0, int(takes))
     if usd <= 0:
         return 0.0
     cutoff = time.time() - WINDOW

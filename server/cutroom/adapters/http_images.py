@@ -11,6 +11,7 @@ import httpx
 
 from .. import refs as refs_mod
 from .. import style as style_mod
+from . import image_models
 from .base import Adapter, AdapterError, GenRequest, GenResult
 
 
@@ -113,12 +114,23 @@ class OpenRouterImageAdapter(Adapter):
                 "note": "configured" if self.cfg.api_key else "missing key"}
 
     async def list_models(self, lane: str) -> list[dict]:
-        model = self.opt("model", default="google/gemini-2.5-flash-image")
-        return [{"id": model, "label": model}]
+        """The image registry, so the picker shows real choices with prices
+        instead of one line reading "default". The configured model is added
+        when it is something the registry has never heard of."""
+        rows = image_models.as_choices()
+        model = self.opt("model", default="")
+        if model and not any(r["id"] == model for r in rows):
+            rows.append({"id": model, "label": model})
+        return rows
 
     async def generate(self, req: GenRequest) -> GenResult:
         base = (self.cfg.base_url or "https://openrouter.ai/api/v1").rstrip("/")
-        model = req.model or self.opt("model", default="google/gemini-2.5-flash-image")
+        # A registry key ("pro") is the spelling an agent types; anything the
+        # registry does not know passes through untouched.
+        model = image_models.resolve_id(req.model) \
+            or image_models.resolve_id(self.opt("model", default="")) \
+            or (image_models.default_model() or {}).get(
+                "id", "google/gemini-2.5-flash-image")
         # Reference frames pull the palette toward the references (measured: three night
         # interiors darkened a daylight scene), so the film-wide style frames are
         # opt-in per backend. Per-shot references are not: the director asked for
@@ -127,7 +139,11 @@ class OpenRouterImageAdapter(Adapter):
         content = content_parts(req, refs)
         payload = {"model": model,
                    "messages": [{"role": "user", "content": content}],
-                   "modalities": ["image", "text"]}
+                   "modalities": ["image", "text"],
+                   # Ask for the real bill. Without this OpenRouter returns
+                   # token counts only, and every still on every model would be
+                   # priced at the backend's one flat guess.
+                   "usage": {"include": True}}
         # Film frames are widescreen: ask for it (OpenRouter forwards image_config to
         # Gemini-class models; verified 2026-09-01 → 1344x768 for "16:9"). Per-request
         # params win, then the backend option, then 16:9.
@@ -158,8 +174,16 @@ class OpenRouterImageAdapter(Adapter):
             raw = base64.b64decode(url.split(",", 1)[1])
         out = req.workdir / f"openrouter_{uuid.uuid4().hex[:8]}.png"
         out.write_bytes(raw)
+        # What this still actually cost: OpenRouter's own number when it came
+        # back, the registry's measured price otherwise.
+        billed = usage.get("cost")
+        cost_usd = round(float(billed), 6) if isinstance(billed, (int, float)) \
+            else image_models.cost_for(model)
         return GenResult(files=[out], meta={"backend": self.cfg.id, "model": model,
                                             "style_refs": len(refs or []),
                                             "references": len(req.references or []),
                                             "usage": usage,
+                                            "cost_usd": cost_usd,
+                                            "cost_source": "usage"
+                                            if billed is not None else "registry",
                                             "generation_id": data.get("id")})

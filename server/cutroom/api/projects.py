@@ -596,7 +596,13 @@ def project_spend(pid: str):
             seen.add(key)
             if bid not in per_backend_cost:
                 per_backend_cost[bid] = budget.cost_usd(bid)
-            usd = per_backend_cost[bid]
+            # A take that recorded its own price (the provider's billed number,
+            # or the image registry's measured one) is priced at that: on one
+            # backend a Nano Banana Pro still costs three and a half flash
+            # stills, and the flat per-backend figure cannot see the difference.
+            own = (tk.params or {}).get("cost_usd")
+            usd = float(own) if isinstance(own, (int, float)) and own > 0 \
+                else per_backend_cost[bid]
             if usd <= 0:
                 continue                      # local / mock: never billed
             lane = SPEND_LANES.get(tk.kind, tk.kind)
@@ -606,7 +612,7 @@ def project_spend(pid: str):
             lr["usd"] += usd
             lr["calls"] += 1
             br = by_backend.setdefault(bid, {"usd": 0.0, "calls": 0,
-                                             "cost_usd": usd})
+                                             "cost_usd": per_backend_cost[bid]})
             br["usd"] += usd
             br["calls"] += 1
     for d in (by_lane, by_backend):

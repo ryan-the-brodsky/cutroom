@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..adapters import build_adapter
+from ..adapters import image_models as im
 from ..adapters import motion_models as mm
 from ..adapters.motion_profiles import describe, profile_for
 from ..adapters.registry import ADAPTER_TYPES
@@ -49,6 +50,13 @@ def list_backends(request: Request):
                                 model=(b.options or {}).get("model"))
                 d["motion_profile"] = prof
                 d["motion_profile_summary"] = describe(prof)
+            if b.type == "openrouter-image":
+                # An openrouter-image row serves any registry model, and they
+                # differ in price and in whether text comes out readable, so
+                # the choice travels with the backend, as it does for fal.
+                d["image_models"] = [im.public(m) for m in im.all_models()]
+                d["image_model"] = (b.options or {}).get(
+                    "model") or im.resolve_id(im.DEFAULT_MODEL_KEY)
             out.append(d)
         return out
 
@@ -61,6 +69,18 @@ def motion_models():
             "registers": list(mm.REGISTERS),
             "default": mm.DEFAULT_MODEL_KEY,
             "doctrine": mm.UNFAITHFUL_DOCTRINE}
+
+
+@router.get("/image-models")
+def image_models():
+    """The still registry an agent picks from: measured price per still, what
+    each model is good at, what it does when it fails, and the fallback. The
+    motion lane's twin, for the still and i2i lanes."""
+    return {"models": [im.public(m) for m in im.all_models()],
+            "registers": list(im.REGISTERS),
+            "default": im.DEFAULT_MODEL_KEY,
+            "text_model": im.TEXT_MODEL_KEY,
+            "doctrine": im.TEXT_DOCTRINE}
 
 
 @router.get("/backends/types")

@@ -182,20 +182,28 @@ def shot_references(project_id: str, shot_sid: str | None, adapter, p: dict,
 
 def record_take(project_id: str, shot_sid: str | None, kind: str, rel: str,
                 *, backend_id=None, model=None, prompt=None, params=None,
-                sources=None, seed=None, job_id=None, meta=None) -> None:
+                sources=None, seed=None, job_id=None, meta=None,
+                cost_usd=None) -> None:
     # Cost accounting: one produced take = one unit of the backend's
-    # options.cost_usd. This is the single hook the demo spend cap counts —
-    # imported takes carry no backend_id and free backends cost 0, so neither
-    # reaches the ledger.
+    # options.cost_usd, unless the adapter came back with the real number
+    # (`cost_usd`): an image model's price is a property of the MODEL, and a
+    # Nano Banana Pro still costs three and a half flash stills. This is the
+    # single hook the demo spend cap counts — imported takes carry no
+    # backend_id and free backends cost 0, so neither reaches the ledger.
     if backend_id:
         try:
-            budget.charge(backend_id, 1, project_id, job_id)
+            budget.charge(backend_id, 1, project_id, job_id, unit_usd=cost_usd)
         except Exception:                       # ledger must never fail a job
             pass
+    params = dict(params or {})
+    if cost_usd is not None:
+        # On the take itself, so /spend prices what actually ran instead of
+        # the backend's one flat guess.
+        params["cost_usd"] = round(float(cost_usd), 6)
     with session_scope() as s:
         s.add(Take(project_id=project_id, shot_sid=shot_sid, kind=kind,
                    path=rel, backend_id=backend_id, model=model,
-                   prompt=prompt, params=params or {}, sources=sources or [],
+                   prompt=prompt, params=params, sources=sources or [],
                    seed=seed, job_id=job_id, meta=meta or {}))
 
 
@@ -237,7 +245,8 @@ async def gen_still(ctx, p: dict) -> dict:
                 store.copy_in(f, rel)
                 record_take(project, p.get("shot"), "still", rel,
                             backend_id=choice.cfg.id,
-                            model=choice.model or res.meta.get("model"),
+                            model=res.meta.get("model") or choice.model,
+                            cost_usd=res.meta.get("cost_usd"),
                             prompt=prompt,
                             params={**(res.meta.get("options") or {}),
                                     "style_applied": style_applied,
@@ -284,12 +293,16 @@ async def gen_i2i(ctx, p: dict) -> dict:
                 rel = store.unique_rel(f"renders/i2i/{name}_s{seed}{f.suffix}")
                 store.copy_in(f, rel)
                 record_take(project, p.get("shot"), "i2i", rel,
-                            backend_id=choice.cfg.id, model=choice.model,
+                            backend_id=choice.cfg.id,
+                            model=res.meta.get("model") or choice.model,
+                            cost_usd=res.meta.get("cost_usd"),
                             prompt=prompt,
                             params={"denoise": denoise,
                                     "style_applied": style_applied,
                                     **({"references_used": refs_used}
-                                       if refs_used else {})},
+                                       if refs_used else {}),
+                                    **({"usage": res.meta["usage"]}
+                                       if res.meta.get("usage") else {})},
                             sources=[p["source"]],
                             seed=seed, job_id=ctx.job_id,
                             meta=choice.take_meta())

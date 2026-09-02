@@ -36,7 +36,9 @@ OPS: dict[str, dict[str, tuple[bool, str]]] = {
         "name": (False, "output name"),
         "seeds": (False, "list of seeds"),
         "width": (False, ""), "height": (False, ""),
-        "backend": (False, "backend id"), "model": (False, "model override"),
+        "backend": (False, "backend id"),
+        "model": (False, "image model: \"pro\" for readable text, "
+                         "\"flash\" (default) otherwise"),
         "negative": (False, ""),
     },
     "gen_i2i": {

@@ -5,6 +5,7 @@
 import type { ActionContext, ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok, shotTabAnchor } from "../contract";
 import { deps } from "./deps";
+import { imageModelRows, imageModels, textHint, wantsText } from "./images";
 import { findModel, motionModels, motionProfile, readSpend, unfaithfulHint } from "./plan";
 import {
   FILM_ROUTE, SHOT_ROUTE, compactCandidate, cut, fetchShot, lookupShot,
@@ -191,6 +192,10 @@ export const describeShot: ActionDef<DescribeArgs> = {
 
     const audio = await audioSummary(ctx, pid, shot.sid);
     const style = await styleName(ctx, pid);
+    // The still lane has a registry too, and the models differ on whether text
+    // comes out readable. Report it here, before anything is generated.
+    const imgModels = await imageModels(ctx);
+    const needsText = wantsText(d.image_prompt);
 
     const line = d.dialogue?.[0];
     return ok(`${shot.sid} · ${d.type || shot.type} · ${d.seconds ?? shot.seconds}s · ` +
@@ -233,9 +238,12 @@ export const describeShot: ActionDef<DescribeArgs> = {
             ? Math.round((prof.cost_per_second_usd * (prof.seconds_default ?? 5)) * 1000) / 1000
             : undefined),
       },
+      image_models: imageModelRows(imgModels),
       ...(spend ? { project_spend_usd: spend.total_usd } : {}),
       ...(madeBy && unfaithfulHint(models, madeBy)
         ? { next_if_unfaithful: unfaithfulHint(models, madeBy) } : {}),
+      ...(needsText && textHint(imgModels, null)
+        ? { hint: textHint(imgModels, null) } : {}),
     });
   },
 };

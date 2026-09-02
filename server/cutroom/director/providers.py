@@ -41,6 +41,9 @@ Doctrine (binding):
 - Faithfulness problems are usually the MODEL, not the prompt: if a
   clip ignores or replaces its plate, switch to the registry's fallback
   model and rerun before rewriting the sentence.
+- Text that must be readable (signs, screens, titles) needs the text-capable
+  image model: pass model:"pro" on the still. The default is the cheap model;
+  it misspells the moment a frame carries more than one string.
 - Cel discipline: animate regions, not whole plates, for local motion.
 - INK-FIRST: entering elements must exist in the start frame.
 - Never overwrite takes; every op creates new outputs.
