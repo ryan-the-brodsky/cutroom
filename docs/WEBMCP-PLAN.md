@@ -881,3 +881,10 @@ evidence in this plan still describe the shipped build exactly.
 - **Wed 17:00 PT — Settings for judges (T).** Viewers see "What powers this studio": enabled
   services with lanes, model, cost, health; the motion registry; lane routing; the style
   register; the budget. Owner controls only for admins. Pinned `genga-studio-demo:sha-ef48f51`.
+- **Wed 18:40 PT — the "freezes after a few seconds" bug.** Root cause: 5 s requests became
+  3 s clips (client seconds → frames on one profile, server frames → seconds on another),
+  then the assembler held the last frame for the rest of each 8–9 s shot. Fixed: seconds
+  travel end to end, the planner covers each shot's length (Seedance up to 12 s), the client
+  clamps against the chosen model, the derived ambient prompt asks for visible continuous
+  motion. Image model registry (U): `flash` default $0.039/still, `pro` (gemini-3-pro-image,
+  $0.139) for frames with several strings of text; measured on the GOODBYE plate. 52 tools.
