@@ -888,3 +888,13 @@ evidence in this plan still describe the shipped build exactly.
   clamps against the chosen model, the derived ambient prompt asks for visible continuous
   motion. Image model registry (U): `flash` default $0.039/still, `pro` (gemini-3-pro-image,
   $0.139) for frames with several strings of text; measured on the GOODBYE plate. 52 tools.
+- **Wed 16:08 PT — the volume filled.** Motion pass 5 died on `OSError: Errno 28` for 12 of
+  15 shots, the final cut failed inside ffmpeg with "No space left on device", and the UI
+  "cut the film" button silently did nothing because even enqueuing failed. The Railway
+  volume is 454 MB (Hobby-era; `railway volume list` reported a stale 193 MB used while
+  the box had 4 MB free). Fixes: `GET /api/system` reports `disk` for /data and scratch;
+  admin `POST /projects/{pid}/purge` (keep newest cuts, drop crop/matte intermediates,
+  opt-in drop superseded motion clips per shot) and `POST /system/purge-orphans`; boot
+  sweeps leftover scratch. Purged 9 cuts + 64 intermediates + 47 clips + the old
+  revolution-of-rags dir (~360 MB). Pinned `sha-364ad7a`. Growing the volume needs the
+  Railway dashboard.

@@ -341,7 +341,9 @@ paste. Esc closes it.
   tool says `needs_click:true`). Click it, or re-ask with `muted:true`.
 - *No cuts yet*: `play_cut` returns `no_cuts`. Run 5 first.
 - *You want the pre-render state instead*: `preview_timeline` plays the live
-  compiled preview on the Timeline. Video only, no audio.
+  compiled preview on the Timeline — picture and sound, straight from the clip
+  model, with no render step. If the browser refuses to start audio without a
+  click, the tool says `needs_click:true`; press ▶ under the monitor.
 
 ### Run 5d · references (a picture the model has to match)
 
@@ -432,3 +434,25 @@ If a run goes wrong and you need to re-record a block:
       `/tmp`.
 - [ ] Record the run in `docs/TESTING-WEBMCP.md`: date, client, the tool
       sequences that actually fired, and anything that surprised you.
+
+## Disk on the demo box
+
+The data volume is small (454 MB). Motion passes are the biggest consumers (~10 MB per
+9 s clip, several clips per shot per pass); cuts are ~25–40 MB each. Before a motion
+pass or a cut, check free space:
+
+```
+GET /api/system   → disk.data.free_mb
+```
+
+Free space without touching the film (admin token):
+
+```
+POST /api/projects/{pid}/purge?keep_cuts=2                       # older cuts + crop/matte intermediates
+POST /api/projects/{pid}/purge?keep_cuts=1&superseded_motion=true # also drop motion clips that are
+                                                                   # neither a shot's source nor its newest
+POST /api/system/purge-orphans                                    # project dirs with no DB row
+```
+
+Keepers, timeline sources and VO files are never removed. A redeploy also sweeps stale
+scratch dirs at boot. Growing the volume is a Railway dashboard action.
