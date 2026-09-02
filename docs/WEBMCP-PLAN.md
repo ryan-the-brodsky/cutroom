@@ -320,6 +320,11 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 38 | `set_project_cast` | consequential | `project?`, `characters[]` ({id?, name, descriptor, aliases?}) | Film Editor (the cast index is not a screen) | the cast with the aliases it derived |
 | 39 | `list_projects` | readOnly | — | none | every film: id, title, shot count, paused, url |
 
+| 40 | `play_cut` | — | `project?`, `cut?` ("latest" \| file name \| index from newest, 1 = newest), `from?` (seconds \| "mm:ss" \| shot sid \| "act2" \| "start"/"end" \| a description), `to?` (seconds), `muted?` | Film Editor → Cuts → the poster pulses → the screening room opens over it | cut, duration, from, from_meaning, now_playing_shot, chapters (count); `needs_click:true` when the browser refused autoplay |
+| 41 | `play_take` | — | `shot`, `take?` (same words as `select_take`), `from?` | Film Editor (shot selected) → the screening room | shot, take, kind, is_still, seconds, from |
+| 42 | `stop_playback` | — | — | Screening room → ✕ close | was_playing, closed, stopped_at. Safe when nothing is playing |
+| 43 | `preview_timeline` | — | `project?`, `from?` (same grammar), `play?` (default true), `scope_sec?` | Timeline → playhead to `from`, clip selected, ▶ | from, now_playing_shot, duration, clips, note ("live compiled preview, video only; use play_cut for the rendered cut with audio") |
+
 (19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
 "16" was the working count — the number is not load-bearing. Stay under ~25 for v1.
 Rows 20–23 are workstream H's music/SFX set, appended 2026-09-01 — 23 tools total.
@@ -344,9 +349,28 @@ viewer-allowed too, since a visitor who just wrote a script has to be able to
 name its cast and per-project ownership is not modelled. `write_script`'s
 descriptions carry the house prompt style — setting sentence, "Subject: …",
 framing, "cinematic anime film still", radio ≤ 25 words, dialogue ≤ 12 — so an
-LLM that has never seen the app writes prompts the still lane can use.)
+LLM that has never seen the app writes prompts the still lane can use.
 
-### Feature registry (`web/src/agent/features.ts`)
+Rows 40-43 are workstream M's screening room, appended 2026-09-02, for 43 tools
+total. They exist because "play the film" produced a thumbnail-sized `<video>`
+inside a Cuts-gallery card: the only playback surface an agent could reach was
+a 300px poster. `ScreeningRoom` (`web/src/components/ScreeningRoom.tsx`, grown
+out of `Spotlight`) is a full-viewport overlay driven by a tiny observable
+store (`web/src/screen/store.ts`), so the gallery, the take rail and the tools
+all open it the same way and the room hands its `<video>` back for a tool to
+seek and press play. It registers `ScreenPageHandles` (`kind: "screen"`) while
+open. It is an overlay, not a page, so `current()` still reports the editor
+underneath. Its chapter strip is the cut's own EDL: the assembler now records
+`meta.edl` on the animatic take, and `GET /projects/{pid}/cuts/{name}/edl`
+serves it (recomputing from the film, minus audio-fit stretch, for cuts
+assembled before that). Deep link: `?screen=<rel>&t=<seconds>` on any project
+route. The `from` grammar is shared by all four tools and falls through to the
+shot resolver, which is what makes "show me the film from the lighthouses" land
+on a frame. Row 43 is the same problem on the Timeline, whose transport existed
+only as palette-only registry rows: `TimelinePageHandles` (`kind: "timeline"`)
+exposes it in seconds, so nothing has to know the fps.)
+
+### Feature registry (`web/src/agent/features.ts`, `features.screen.ts`)
 
 A tool executes; a **feature** teaches. Every user-facing action that is not a
 tool — 111 of them, from ⏸ pause to the cel workbench's ⌘Z undo to the options
@@ -361,7 +385,12 @@ subset that happens to be automatable, and ⌘K lists every one of them.
 a query it searches everything and flags palette-only rows. A unit test
 (`web/src/agent/__tests__/features.test.ts`) asserts that every anchor in the
 registry — tools included — is actually rendered as a `data-action` somewhere in
-`web/src`, which is the one failure that is invisible in the browser.)
+`web/src`, which is the one failure that is invisible in the browser.
+`features.screen.ts` (workstream M) adds three more, merged into `ALL_ACTIONS`
+from `tools/index.ts` alongside `FEATURES`: "Screening room" (opens the newest
+cut), "Next / previous chapter" and "Close the screening room". They are a
+separate file because they act rather than walk: the room is an overlay, so
+there is no route to navigate to.)
 
 **Descriptions** are written by workstream C to the budgets, in the verb-first house style,
 e.g. `generate_takes`: "Generate new takes for a shot in Cutroom — stills, restyles of an

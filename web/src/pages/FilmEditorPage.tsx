@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, mediaUrl, thumbUrl } from "../api";
+import { api, thumbUrl } from "../api";
 import {
   ANCHORS,
   type CuePlacement, type CueRecord, type FilmShotLite,
@@ -8,6 +8,7 @@ import {
 import { usePageHandles } from "../agent/pageHandles";
 import { pick, useQueryState } from "../agent/urlState";
 import Player from "../components/Player";
+import * as screen from "../screen/store";
 import { pushToast, useAsync, useJobWatch, usePoll } from "../hooks";
 import type { FilmEntry, Take } from "../types";
 
@@ -41,7 +42,6 @@ export default function FilmEditorPage() {
   const setView = (v: (typeof VIEWS)[number]) => setQ({ view: v });
   const setScope = (s: string) => setQ({ scope: s });
   const setRes = (r: "720" | "1080") => setQ({ res: r });
-  const [playingCut, setPlayingCut] = useState<string | null>(null);
   const [cutJob, setCutJob] = useState<string | null>(null);
   const { busy, error, run } = useAsync();
 
@@ -286,17 +286,26 @@ export default function FilmEditorPage() {
       <div className="grid cards">
         {(animatics || []).map((a) => (
           <div className="card" key={a.id} data-cut={a.path}>
-            {playingCut === a.path ? (
-              <video src={mediaUrl(pid, a.path)} controls autoPlay
-                     style={{ width: "100%", borderRadius: 5 }} />
-            ) : (
-              <img className="thumb" src={thumbUrl(pid, a.path)}
-                   style={{ cursor: "pointer" }}
-                   data-action="film.cut.play" data-path={a.path}
-                   onClick={() => setPlayingCut(a.path)} alt={a.path} />
-            )}
-            <div className="muted small">{a.path.split("/").pop()}
-              {a.meta?.total ? ` · ${Math.round(a.meta.total)}s` : ""}</div>
+            {/* A cut is watched in the screening room, not in a card-sized box:
+                the poster opens the full-screen player with the film's own
+                chapter strip under it. */}
+            <img className="thumb" src={thumbUrl(pid, a.path)}
+                 style={{ cursor: "pointer" }}
+                 title="watch it (full screen)"
+                 data-action={ANCHORS.filmCutPlay} data-path={a.path}
+                 onClick={() => screen.open(a.path, {
+                   pid, seconds: a.meta?.total ?? null,
+                   label: a.path.split("/").pop() || a.path,
+                 })} alt={a.path} />
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span className="muted small">{a.path.split("/").pop()}
+                {a.meta?.total ? ` · ${Math.round(a.meta.total)}s` : ""}</span>
+              <button className="small" title="watch it (full screen)"
+                      onClick={() => screen.open(a.path, {
+                        pid, seconds: a.meta?.total ?? null,
+                        label: a.path.split("/").pop() || a.path,
+                      })}>⛶ watch</button>
+            </div>
           </div>
         ))}
         {(animatics || []).length === 0 && (

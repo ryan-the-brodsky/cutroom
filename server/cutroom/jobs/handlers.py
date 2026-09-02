@@ -710,9 +710,23 @@ async def animatic_assemble(ctx, p: dict) -> dict:
     info = await asyncio.to_thread(
         e_asm.build_animatic, entries, store.resolve(out_rel), dims, 24, 0.3,
         cues, 0.4, ctx.log)
+    # The EDL rides along in the take's meta: it is what the screening room's
+    # chapter strip is built from, and recomputing it later from the film would
+    # miss the audio-fit stretch this pass applied. Sources are stored
+    # project-relative, the way every other path in the API is.
+    edl_meta = []
+    for e in info["edl"]:
+        src = e.get("source")
+        try:
+            rel = store.rel(Path(src)) if src else None
+        except Exception:
+            rel = None
+        edl_meta.append({"sid": e["sid"], "start": e["start"],
+                         "seconds": e["seconds"], "source": rel})
     record_take(project, None, "animatic", out_rel,
                 params={"scope": scope, "res": res}, job_id=ctx.job_id,
-                meta={"total": info["total"], "shots": info["shots"]})
+                meta={"total": info["total"], "shots": info["shots"],
+                      "edl": edl_meta})
     return {"take": out_rel, "cues": len(cues),
             **{k: info[k] for k in
                ("total", "shots", "audio_items", "edl")}}

@@ -12,7 +12,7 @@
 import { useEffect, useRef } from "react";
 import type {
   AnyPageHandles, CompPageHandles, FilmPageHandles, PageHandles, ProjectsPageHandles,
-  ShotPageHandles,
+  ScreenPageHandles, ShotPageHandles, TimelinePageHandles,
 } from "./contract";
 
 type Listener = (h: AnyPageHandles | null) => void;
@@ -23,7 +23,7 @@ type Listener = (h: AnyPageHandles | null) => void;
  * "the page the human is on" (shot or film); sub-surfaces are asked for by kind.
  */
 const mounted: AnyPageHandles[] = [];
-const PAGE_KINDS = new Set(["shot", "film"]);
+const PAGE_KINDS = new Set(["shot", "film", "timeline"]);
 
 const currentPage = (): AnyPageHandles | null => {
   for (let i = mounted.length - 1; i >= 0; i--) {
@@ -65,6 +65,9 @@ function matches(h: AnyPageHandles | null, kind: string, match?: Record<string, 
   if (kind === "shot" && match && typeof match.sid === "string") {
     return String((h as ShotPageHandles).sid).toLowerCase() === match.sid.toLowerCase();
   }
+  if (kind === "screen" && match && typeof match.rel === "string") {
+    return String((h as ScreenPageHandles).rel) === match.rel;
+  }
   if (kind === "comp" && match) {
     const c = h as CompPageHandles;
     if (typeof match.cid === "string" && String(c.cid) !== match.cid) return false;
@@ -81,8 +84,10 @@ const findMounted = (kind: string, match?: Record<string, unknown>): AnyPageHand
  * Resolve once a page of `kind` (and matching identity) has mounted.
  * Rejects after `timeoutMs` — `perform()` turns that into a clean error envelope.
  */
+export type HandleKind = "shot" | "film" | "comp" | "projects" | "screen" | "timeline";
+
 export function waitForHandles(
-  kind: "shot" | "film" | "comp" | "projects",
+  kind: HandleKind,
   match?: Record<string, unknown>,
   timeoutMs = 5000,
 ): Promise<AnyPageHandles> {
@@ -110,7 +115,7 @@ export function waitForHandles(
 /** The `PageHandles` façade handed to every tool as `ctx.page`. */
 export const pageHandles: PageHandles = {
   current: currentPage,
-  waitFor: ((kind: "shot" | "film" | "comp" | "projects",
+  waitFor: ((kind: HandleKind,
              match?: Record<string, unknown>, timeoutMs?: number) =>
     waitForHandles(kind, match, timeoutMs)) as PageHandles["waitFor"],
 };
@@ -124,6 +129,8 @@ export function usePageHandles(handles: ShotPageHandles): void;
 export function usePageHandles(handles: FilmPageHandles): void;
 export function usePageHandles(handles: CompPageHandles): void;
 export function usePageHandles(handles: ProjectsPageHandles): void;
+export function usePageHandles(handles: ScreenPageHandles): void;
+export function usePageHandles(handles: TimelinePageHandles): void;
 export function usePageHandles(handles: AnyPageHandles): void {
   const live = useRef(handles);
   live.current = handles;
@@ -143,7 +150,8 @@ export function usePageHandles(handles: AnyPageHandles): void {
   }
   const kind = handles.kind;
   const identity = kind === "shot" ? (handles as ShotPageHandles).sid
-    : kind === "comp" ? (handles as CompPageHandles).cid : "";
+    : kind === "comp" ? (handles as CompPageHandles).cid
+    : kind === "screen" ? (handles as ScreenPageHandles).rel : "";
   useEffect(() => {
     const mine = proxy.current!;
     mounted.push(mine);

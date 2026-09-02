@@ -383,6 +383,73 @@ def list_takes(pid: str, shot: str | None = None, kind: str | None = None,
                  "created_at": t.created_at, "meta": t.meta} for t in rows]
 
 
+def _recompute_edl(session, pid: str, scope: str) -> list[dict]:
+    """The shot boundaries of a cut, rebuilt from the film as it stands.
+
+    Only used for cuts assembled before the EDL was recorded in the take's
+    meta. It is an approximation on one axis: the assembler stretches a shot
+    to fit its VO (audio-fit), and that stretch is not reproducible from the
+    shot list alone. Fresh cuts always take the stored EDL instead.
+    """
+    store = get_storage().project(pid)
+    takes = film.takes_by_shot(session, pid)
+    out: list[dict] = []
+    t = 0.0
+    for shot in film.shots_ordered(session, pid):
+        if scope.startswith("act") and str(shot.act) != scope[3:]:
+            continue
+        ov = shot.override or {}
+        seconds = float(ov.get("seconds", shot.seconds))
+        src = film.active_source(store, shot, takes.get(shot.sid, []))
+        out.append({"sid": shot.sid, "start": round(t, 3),
+                    "seconds": round(seconds, 3), "source": src})
+        t += seconds
+    return out
+
+
+@router.get("/projects/{pid}/cuts/{name:path}/edl")
+def cut_edl(pid: str, name: str):
+    """A cut's chapter list: which shot is on screen, from when, for how long.
+
+    `name` is the cut's rel path or just its file name; "latest" takes the
+    newest animatic. This is what the screening room's chapter strip draws and
+    what "play the film from B03-S2" seeks against.
+    """
+    project_or_404(pid)
+    want = (name or "").strip("/")
+    base = want.split("/")[-1]
+    with session_scope() as s:
+        rows = s.execute(select(Take)
+                         .where(Take.project_id == pid, Take.kind == "animatic")
+                         .order_by(Take.created_at.desc())).scalars().all()
+        if not rows:
+            raise HTTPException(404, "this film has no cuts yet")
+        if want in ("", "latest", "newest"):
+            take = rows[0]
+        else:
+            take = next((t for t in rows
+                         if t.path == want or t.path.split("/")[-1] == base), None)
+        if take is None:
+            raise HTTPException(404, f"no cut named {name}")
+        meta = take.meta or {}
+        scope = (take.params or {}).get("scope", "full")
+        edl = meta.get("edl") or _recompute_edl(s, pid, scope)
+        total = meta.get("total")
+        if total is None and edl:
+            total = round(edl[-1]["start"] + edl[-1]["seconds"], 3)
+        return {"cut": take.path, "scope": scope, "total": total,
+                "shots": len(edl), "edl": edl,
+                "recomputed": not meta.get("edl")}
+
+
+#: take kind -> the lane that paid for it
+SPEND_LANES = {
+    "still": "still", "i2i": "i2i", "motion": "motion", "crop": "motion",
+    "chain": "motion", "fx": "motion", "comp": "comp", "panel": "comp",
+    "vo": "vo", "sfx": "sfx", "music": "music", "animatic": "assembly",
+}
+
+
 @router.get("/projects/{pid}/lanes")
 def get_lanes(pid: str):
     project_or_404(pid)

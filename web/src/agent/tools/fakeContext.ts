@@ -12,7 +12,8 @@ import type {
   CuePlacement, CueRecord, FilmPageHandles,
   FilmShotLite, GenField, GenSub, KindFilter, ProjectLite, ProjectsPageHandles,
   ResolvedShot, Resolution,
-  ShotPageHandles, ShotTab, TakeLite, TrailStep, VoField,
+  ShotPageHandles, ShotTab, TakeLite, TimelineClipLite, TimelinePageHandles,
+  TrailStep, VoField,
 } from "../contract";
 import type { AgentDeps, BackendChoice, SettledJob } from "./deps";
 import { installDeps, resetDeps } from "./deps";
@@ -405,6 +406,47 @@ export class FakeCompPage implements CompPageHandles {
  * The Projects page — the front door, and the only page an agent can reach
  * before any film exists. `createProject` records the call and adds a card.
  */
+/**
+ * The Timeline's transport (workstream M). Frames are the page's business; the
+ * handles are seconds, so this double is seconds all the way through.
+ */
+export class FakeTimelinePage implements TimelinePageHandles {
+  readonly kind = "timeline" as const;
+  t = 0;
+  playing = false;
+  scope: number | null = 24;
+  selected: string | null = null;
+  rows: TimelineClipLite[] = [
+    { sid: "B10-S2", start: 0, seconds: 4, kind: "video" },
+    { sid: "B11-S4", start: 4, seconds: 3, kind: "image" },
+  ];
+  /** Make play() refuse, the way a browser refuses autoplay. */
+  refusePlay = false;
+
+  constructor(public pid: string, private rec: string[]) {}
+  private log(s: string) { this.rec.push(s); }
+
+  currentTime() { return this.t; }
+  duration() {
+    const last = this.rows[this.rows.length - 1];
+    return last ? last.start + last.seconds : 0;
+  }
+  seek(t: number) { this.t = t; this.log(`timeline.seek(${t})`); }
+  async play() {
+    this.log("timeline.play()");
+    this.playing = !this.refusePlay;
+    return this.playing;
+  }
+  pause() { this.playing = false; this.log("timeline.pause()"); }
+  toggle() { this.playing = !this.playing; this.log("timeline.toggle()"); }
+  selectClip(sid: string) { this.selected = sid; this.log(`timeline.selectClip(${sid})`); }
+  clips() { return this.rows; }
+  setScope(seconds: number | null) {
+    this.scope = seconds;
+    this.log(`timeline.setScope(${seconds})`);
+  }
+}
+
 export class FakeProjectsPage implements ProjectsPageHandles {
   kind = "projects" as const;
   projects: ProjectLite[] = [
@@ -558,6 +600,30 @@ function defaultApi(path: string, body?: unknown): unknown {
     if (!d) throw new Error(`404 ${shotMatch[1]}`);
     return d;
   }
+  // The Cuts gallery, newest first (workstream M).
+  if (/\/api\/projects\/[^/]+\/takes\?kind=animatic/.test(path)) {
+    return [
+      { id: 91, kind: "animatic", path: "assembly/animatic-full-720p-2.mp4",
+        created_at: 3000, meta: { total: 7, shots: 2 } },
+      { id: 90, kind: "animatic", path: "assembly/animatic-act3-720p.mp4",
+        created_at: 2000, meta: { total: 7, shots: 2 } },
+    ];
+  }
+  const edlMatch = /\/api\/projects\/[^/]+\/cuts\/(.+)\/edl$/.exec(path);
+  if (edlMatch) {
+    return {
+      cut: decodeURIComponent(edlMatch[1]), scope: "full", total: 7, shots: 2,
+      edl: [
+        { sid: "B10-S2", start: 0, seconds: 4, source: "renders/B10-S2/motion/a.mp4" },
+        { sid: "B11-S4", start: 4, seconds: 3, source: "renders/B11-S4/stills/k.png" },
+      ],
+    };
+  }
+  if (/\/api\/projects\/[^/]+\/film$/.test(path)) {
+    return Object.values(FIXTURE_SHOTS)
+      .sort((a, b) => a.ordinal - b.ordinal)
+      .map((s) => ({ sid: s.sid, act: s.act, beat: s.beat, seconds: s.seconds }));
+  }
   const takesMatch = /\/api\/projects\/[^/]+\/takes\?shot=([^&]+)/.exec(path);
   if (takesMatch) return takeRows(decodeURIComponent(takesMatch[1]));
   if (path.startsWith("/api/jobs?")) return [];
@@ -605,6 +671,7 @@ export interface FakeContext {
   filmPage: FakeFilmPage;
   compPage: FakeCompPage;
   projectsPage: FakeProjectsPage;
+  timelinePage: FakeTimelinePage;
   cues: FakeCueStore;
   /** Restore the real deps after a test that installed fakes. */
   restore(): void;
@@ -624,6 +691,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
   const filmPage = new FakeFilmPage(project || "next-year", pageCalls, cues);
   const compPage = new FakeCompPage(project || "next-year", "B10-S2-1", "B10-S2", pageCalls);
   const projectsPage = new FakeProjectsPage(pageCalls);
+  const timelinePage = new FakeTimelinePage(project || "next-year", pageCalls);
   let current: AnyPageHandles | null = opts.page ?? null;
 
   const api = <T,>(path: string, body?: unknown, method?: string): Promise<T> => {
@@ -644,6 +712,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     async nav(to: string) {
       rec.nav.push(to);
       // Mimic the router: landing on a shot route mounts the shot page.
+      if (/^\/p\/[^/]+\/timeline(\?|$)/.test(to)) { current = timelinePage; return; }
       const m = /^\/p\/([^/]+)\/shot\/([^/?]+)/.exec(to);
       if (m) {
         shotPage.sid = m[2];
@@ -659,9 +728,16 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     page: {
       current: () => current,
       // Overload-compatible implementation; the contract narrows it for callers.
-      waitFor: ((kind: "shot" | "film" | "comp" | "projects",
+      waitFor: ((kind: "shot" | "film" | "comp" | "projects" | "timeline" | "screen",
                  match?: { sid?: string; cid?: string }) => {
         if (opts.failWaitFor) return Promise.reject(new Error("page did not mount"));
+        if (kind === "timeline") {
+          current = timelinePage;
+          return Promise.resolve(timelinePage);
+        }
+        if (kind === "screen") {
+          return Promise.reject(new Error("the screening room is an overlay, not a fake page"));
+        }
         if (kind === "projects") {
           current = projectsPage;
           return Promise.resolve(projectsPage);
@@ -708,8 +784,8 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
 
   installDeps({ settleJobs: settle, classifyBackend: classify });
 
-  return { ctx, rec, shotPage, filmPage, compPage, projectsPage, cues,
-           restore: resetDeps };
+  return { ctx, rec, shotPage, filmPage, compPage, projectsPage, timelinePage,
+           cues, restore: resetDeps };
 }
 
 /** A paid-backend classifier, for the needs_confirmation paths. */

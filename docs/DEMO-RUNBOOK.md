@@ -17,7 +17,7 @@
 | Live URL | <https://cutroom-production-0f3c.up.railway.app> |
 | Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and your local env file, never in this repo) |
 | Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
-| Tools | 39 |
+| Tools | 43 |
 
 ---
 
@@ -316,6 +316,31 @@ shots and the first shot's Script tab showing the prompt the agent wrote.
   defaults alongside the backends.
 - Six shots at about 6 seconds is the right size for camera. The ceilings are
   40 shots and 300 seconds; past those the server refuses in plain words.
+
+### Run 5c · watch it (the screening room)
+
+```
+Show me the film from the lighthouses.
+```
+
+| # | Tool | Args | Expected |
+|---|---|---|---|
+| 1 | `play_cut` | `{"from":"the lighthouses"}` | the newest cut full screen, playing from that shot |
+| 2 | `stop_playback` | `{}` | the room closes, the Film Editor is back |
+
+**Visible:** the Film Editor, the cut's poster in the Cuts gallery rings, then a
+full-viewport player with the film's own shot list as a chapter strip along the
+bottom, the current shot lit, the readout counting. `from` also takes a second
+(`65`), a clock (`"1:05"`), a sid (`"B03-S2"`) and `"act2"`. The address bar
+carries `?screen=<rel>&t=<seconds>`, so the shot on screen is a link you can
+paste. Esc closes it.
+
+**Fallbacks:**
+- *The big ▶ is showing and nothing moves*: the browser refused autoplay (the
+  tool says `needs_click:true`). Click it, or re-ask with `muted:true`.
+- *No cuts yet*: `play_cut` returns `no_cuts`. Run 5 first.
+- *You want the pre-render state instead*: `preview_timeline` plays the live
+  compiled preview on the Timeline. Video only, no audio.
 
 ### Run 6 · reproduce the whole production (not on camera)
 

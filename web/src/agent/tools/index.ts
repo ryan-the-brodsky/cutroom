@@ -29,8 +29,10 @@ import {
 import {
   exportTimeline, listBackends, renderTimeline, setLaneDefault,
 } from "./settings";
+import { playCut, playTake, previewTimeline, stopPlayback } from "./screen";
 import { setShotTiming } from "./timing";
 import { FEATURES } from "../features";
+import { SCREEN_FEATURES } from "../features.screen";
 
 /**
  * Defs are individually typed by their own argument shape; the registry takes
@@ -82,6 +84,11 @@ export const TOOLS: AnyActionDef[] = [
   writeScript,
   setProjectCast,
   listProjects,
+  // workstream M — the screening room (watching, not making)
+  playCut,
+  playTake,
+  stopPlayback,
+  previewTimeline,
 ];
 
 /**
@@ -89,7 +96,7 @@ export const TOOLS: AnyActionDef[] = [
  * entries that make `list_features` and `show_me` cover the entire application
  * rather than the subset that happens to be automatable.
  */
-export const ALL_ACTIONS: AnyActionDef[] = [...TOOLS, ...FEATURES];
+export const ALL_ACTIONS: AnyActionDef[] = [...TOOLS, ...FEATURES, ...SCREEN_FEATURES];
 
 /** list_features / show_me read the catalogue through deps, so A can widen it. */
 installDeps({ allActions: () => ALL_ACTIONS as never[] });
@@ -134,4 +141,6 @@ export {
 } from "./comp";
 export { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "./settings";
 export { createProject, listProjects, setProjectCast, writeScript } from "./project";
+export { playCut, playTake, previewTimeline, stopPlayback, pickCut, resolveFrom } from "./screen";
+export { SCREEN_FEATURES } from "../features.screen";
 export { FEATURES, FEATURES_BY_NAME, featureGroups, walkTo } from "../features";

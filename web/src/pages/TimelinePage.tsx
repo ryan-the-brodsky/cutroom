@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ANCHORS } from "../agent/contract";
+import { ANCHORS, type TimelineClipLite } from "../agent/contract";
+import { usePageHandles } from "../agent/pageHandles";
 import { api, mediaUrl, thumbUrl } from "../api";
 import { pushToast, useAsync, useJobWatch, usePoll } from "../hooks";
 import { PreviewStage } from "../preview/PreviewStage";
@@ -50,6 +51,58 @@ export default function TimelinePage() {
     const s = secs(f);
     return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
   };
+
+  /* ------------------------------------------------------- the transport, as handles
+   * The Timeline had a real transport and no way to ask for it, so an agent told
+   * to "play the film from second X" fell back to a thumbnail. These handles are
+   * the same playerRef and seek() the buttons use, in seconds rather than frames
+   * (a caller should never have to know the fps). Workstream M. */
+  const fps = tl?.fps || 24;
+  const clipsLite = useMemo<TimelineClipLite[]>(() => (tl?.clips || [])
+    .filter((c) => c.kind !== "audio")
+    .map((c) => ({
+      sid: c.cutroom?.shot || c.label || c.id,
+      start: framesToSeconds(c.start, fps),
+      seconds: framesToSeconds(c.duration, fps),
+      kind: c.kind,
+    }))
+    .sort((a, b) => a.start - b.start), [tl, fps]);
+
+  const seekSeconds = useCallback((t: number) => {
+    const f = Math.round(Math.max(0, Number(t) || 0) * fps);
+    const clamped = Math.max(0, Math.min(f, (tl?.total_frames ?? 1) - 1));
+    playerRef.current?.seekTo(clamped);
+    setFrame(clamped);
+  }, [fps, tl?.total_frames]);
+
+  usePageHandles({
+    kind: "timeline", pid,
+    currentTime: () => framesToSeconds(
+      playerRef.current?.getCurrentFrame() ?? frame, fps),
+    duration: () => framesToSeconds(tl?.total_frames ?? 0, fps),
+    seek: seekSeconds,
+    play: async () => {
+      // The preview player has no autoplay gate (no audio track), but keep the
+      // same "did it start" contract the screening room uses.
+      playerRef.current?.play();
+      const on = playerRef.current?.isPlaying() ?? false;
+      setPlaying(on);
+      return on;
+    },
+    pause: () => { playerRef.current?.pause(); setPlaying(false); },
+    toggle: () => {
+      playerRef.current?.toggle();
+      setPlaying(playerRef.current?.isPlaying() ?? false);
+    },
+    selectClip: (sid: string) => {
+      const want = String(sid || "").toLowerCase();
+      const hit = (tl?.clips || []).find(
+        (c) => String(c.cutroom?.shot || c.label || "").toLowerCase() === want);
+      if (hit) { setSel(hit); seek(hit.start); }
+    },
+    clips: () => clipsLite,
+    setScope: (sec: number | null) => setScopeSec(sec),
+  });
 
   const ruler = useMemo(() => {
     if (!tl) return [];
@@ -215,6 +268,7 @@ export default function TimelinePage() {
                     data-testid="clip"
                     data-action={ANCHORS.timelineClip}
                     data-id={c.id}
+                    data-sid={c.cutroom?.shot || c.label || c.id}
                     data-kind={c.kind}
                     onClick={() => { setSel(c); seek(c.start); }}
                     title={`${c.label} · ${c.kind} · ${c.duration}f`}

@@ -5,6 +5,7 @@ import {
   type GenSub, type JSONSchema, type ShotTab, type Where,
 } from "../../contract";
 import { FEATURES } from "../../features";
+import { SCREEN_FEATURES } from "../../features.screen";
 import { TOOLS, TOOLS_BY_NAME, missingTools, registerAllTools } from "../index";
 import { makeFakeContext } from "../fakeContext";
 
@@ -36,8 +37,10 @@ describe("tool catalogue", () => {
     // Tools come first, in catalogue order; the palette-only feature registry
     // (workstream I) follows so ⌘K and show_me cover the whole application.
     expect(seen.slice(0, TOOL_NAMES.length)).toEqual([...TOOL_NAMES]);
-    expect(registered.length).toBe(TOOLS.length + FEATURES.length);
-    expect(seen.slice(TOOL_NAMES.length).length).toBe(FEATURES.length);
+    expect(registered.length).toBe(
+      TOOLS.length + FEATURES.length + SCREEN_FEATURES.length);
+    expect(seen.slice(TOOL_NAMES.length).length).toBe(
+      FEATURES.length + SCREEN_FEATURES.length);
   });
 
   it("has unique names that match the WebMCP name regex", () => {

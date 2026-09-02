@@ -4,6 +4,7 @@ import { api, setToken } from "./api";
 import { ANCHORS } from "./agent/contract";
 import Palette from "./agent/Palette";
 import { AgentChip, AgentTrail } from "./agent/presence";
+import ScreeningRoom from "./components/ScreeningRoom";
 import { usePoll, useToast } from "./hooks";
 
 /**
@@ -99,6 +100,9 @@ export default function App() {
       )}
       <AgentTrail />
       <Palette />
+      {/* The screening room, mounted once: any route can put a cut on the big
+          screen, and `?screen=<rel>&t=<seconds>` is a link into it. */}
+      <ScreeningRoom />
     </div>
   );
 }

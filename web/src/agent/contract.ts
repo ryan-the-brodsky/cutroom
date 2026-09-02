@@ -248,8 +248,66 @@ export interface ProjectsPageHandles {
   refresh(): Promise<void>;
 }
 
+// ------------------------------------------- the screening room (workstream M)
+
+/**
+ * One row of a cut's EDL: which shot is on screen, from when, for how long.
+ * `start` and `seconds` are film seconds. This is what the chapter strip draws
+ * and what "play the film from B03-S2" seeks against.
+ */
+export interface Chapter {
+  sid: string;
+  start: number;
+  seconds: number;
+  source?: string | null;
+}
+
+/**
+ * The screening room overlay (`ScreeningRoom`), registered only while it is
+ * open. It is an overlay, not a page, so `current()` still reports the Film or
+ * Shot Editor underneath. Ask for it by kind: `ctx.page.waitFor("screen")`.
+ */
+export interface ScreenPageHandles {
+  kind: "screen";
+  pid: string;
+  rel: string;
+  currentTime(): number;
+  duration(): number;
+  seek(t: number): void;
+  /** Resolves false when the browser refused autoplay (the room shows a big ▶). */
+  play(): Promise<boolean>;
+  pause(): void;
+  close(): void;
+  chapters(): Chapter[];
+}
+
+// --------------------------------------------------- the timeline transport
+
+export interface TimelineClipLite {
+  sid: string; start: number; seconds: number; kind: string;
+}
+
+/**
+ * The Timeline page's transport. Seconds in, seconds out: the page converts
+ * to frames itself, so a caller never has to know the fps.
+ */
+export interface TimelinePageHandles {
+  kind: "timeline";
+  pid: string;
+  currentTime(): number;
+  duration(): number;
+  seek(t: number): void;
+  play(): Promise<boolean>;
+  pause(): void;
+  toggle(): void;
+  selectClip(sid: string): void;
+  clips(): TimelineClipLite[];
+  setScope(seconds: number | null): void;
+}
+
 export type AnyPageHandles =
-  ShotPageHandles | FilmPageHandles | CompPageHandles | ProjectsPageHandles;
+  ShotPageHandles | FilmPageHandles | CompPageHandles | ProjectsPageHandles
+  | ScreenPageHandles | TimelinePageHandles;
 
 export interface PageHandles {
   current(): AnyPageHandles | null;
@@ -257,6 +315,8 @@ export interface PageHandles {
   waitFor(kind: "film", match?: Record<string, never>, timeoutMs?: number): Promise<FilmPageHandles>;
   waitFor(kind: "comp", match?: { cid?: string; sid?: string }, timeoutMs?: number): Promise<CompPageHandles>;
   waitFor(kind: "projects", match?: Record<string, never>, timeoutMs?: number): Promise<ProjectsPageHandles>;
+  waitFor(kind: "screen", match?: { rel?: string }, timeoutMs?: number): Promise<ScreenPageHandles>;
+  waitFor(kind: "timeline", match?: Record<string, never>, timeoutMs?: number): Promise<TimelinePageHandles>;
 }
 
 // ---------------------------------------------------------------- resolver
@@ -335,6 +395,8 @@ export const TOOL_NAMES = [
   "list_backends", "set_lane_default", "export_timeline", "render_timeline",
   // workstream K — starting a film from nothing
   "create_project", "write_script", "set_project_cast", "list_projects",
+  // workstream M: the screening room (watching, not making)
+  "play_cut", "play_take", "stop_playback", "preview_timeline",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -435,8 +497,19 @@ export const ANCHORS = {
   projectsImport: "projects.import",
   // director chat
   chatProvider: "chat.provider", chatInput: "chat.input", chatSend: "chat.send",
+  // the screening room (workstream M): the full-screen overlay
+  screenRoot: "screen.root", screenVideo: "screen.video",
+  screenChapter: "screen.chapter",             // + data-sid
+  screenClose: "screen.close", screenPlay: "screen.play",
+  screenScrub: "screen.scrub", screenOpenShot: "screen.open_shot",
   // app shell odds and ends
-  filmView: "film.view", filmCutPlay: "film.cut.play",
+  filmView: "film.view",
+  /**
+   * The Cuts-gallery poster. Narrow it with the cut's rel path, as in
+   * `film.cut.play[data-path="assembly/animatic-full-720p.mp4"]`. The bare
+   * `film.cut` is the "🎞 cut the film" button and must stay unique.
+   */
+  filmCutPlay: "film.cut.play",                // + data-path
   paletteInput: "app.palette.input", agentChip: "app.agent.chip",
 } as const;
 
