@@ -473,3 +473,7 @@ POST /api/system/purge-orphans                                    # project dirs
 
 Keepers, timeline sources and VO files are never removed. A redeploy also sweeps stale
 scratch dirs at boot. Growing the volume is a Railway dashboard action.
+
+`CUTROOM_DEMO_PROJECT` names the project the public film endpoint publishes (and the
+project boot-time lane defaults apply to). On the hosted demo it is `two-claudes`; it was
+still `next-year` until 2026-09-02 evening, which made `/api/public` report no film.
