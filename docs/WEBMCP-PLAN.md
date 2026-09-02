@@ -628,3 +628,6 @@ at low cost, with Ryan able to toggle providers without redeploying.
 - **Cut 4, scored (Tue 20:40 PT)** — `generate_music` (120 s instrumental bed, -18 dB, fades)
   + three `generate_sfx` cues anchored to shots + `cut_film`: 13 tool calls, zero failures,
   through native WebMCP on the hosted demo. ElevenLabs music for 120 s returned in 17 s.
+- **Cut 5, scored properly (Tue 20:55 PT)** — first score pass was buried (tool default -16 dB
+  on a -17 dB RMS bed); re-placed at -8 dB via `place_cue` + `cut_film`; residual score level
+  now ≈3 dB under the VO. Tool defaults changed to -8/-4 dB. Spend to date ≈ $1.5.
