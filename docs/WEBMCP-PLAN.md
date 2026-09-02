@@ -870,3 +870,7 @@ evidence in this plan still describe the shipped build exactly.
   every shot now plays its newest full-length clip; cut 9. Shots without a motion prompt now
   animate with a derived locked-camera ambient prompt. "revolution-of-rags" deleted via the
   new admin route; only Two Claudes remains on the demo.
+- **Wed 15:50 PT — references (S).** `attach_reference` / `remove_reference` /
+  `list_references` and `generate_takes.references`: per-shot images with roles (character,
+  prop, setting, style) sent to the model before the prompt; a/b on Gemini shows the exact dorm
+  reproduced. 49 tools. Pinned `genga-studio-demo:sha-c96136f`.
