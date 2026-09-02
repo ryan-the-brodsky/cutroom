@@ -119,7 +119,7 @@ export const describeShot: ActionDef<DescribeArgs> = {
   title: "Describe a shot",
   description:
     "Read one shot's script and state without changing anything: its beat, act, " +
-    "type, duration, image and motion prompts, dialogue or radio line, the film's " +
+    "type, duration, image and motion prompts, dialogue or narration line, the film's " +
     "style register, the curated keeper, what currently plays in the timeline, how " +
     "many takes exist of each kind with the newest few paths, comps, and which " +
     "backend each lane would use with its cost class. Use it before generating so " +
@@ -143,7 +143,7 @@ export const describeShot: ActionDef<DescribeArgs> = {
   keywords: ["describe", "shot", "script", "prompt", "state", "inspect", "detail"],
   howTo:
     "Open the shot in the Shot Editor and press the Script tab — it shows the image " +
-    "prompt, motion prompt, dialogue, radio line and render notes as written.",
+    "prompt, motion prompt, dialogue, narration line and render notes as written.",
   summarize: (a) => `Describe ${cut(a.shot, 30)}`,
   async execute(args, ctx): Promise<ToolResult> {
     const found = await lookupShot(ctx, args?.shot);
@@ -206,7 +206,7 @@ export const describeShot: ActionDef<DescribeArgs> = {
       image_prompt: cut(d.image_prompt, 200),
       motion_prompt: d.motion_prompt ? cut(d.motion_prompt, 120) : null,
       ...(line ? { dialogue: `${line.character}: ${cut(line.line, 90)}` } : {}),
-      ...(d.radio ? { radio: cut(d.radio, 90) } : {}),
+      ...(d.narration ? { narration: cut(d.narration, 90) } : {}),
       keeper: d.keeper ? cut(d.keeper, 60) : null,
       plays: d.active_source ? cut(d.active_source, 60) : null,
       override: d.override && Object.keys(d.override).length ? d.override : undefined,

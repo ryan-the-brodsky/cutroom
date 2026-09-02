@@ -155,7 +155,7 @@ export const createProject: ActionDef<CreateArgs> = {
 interface ShotIn {
   sid?: string; beat?: string; act?: number; type?: string; seconds?: number;
   register?: string; image_prompt?: string; negative?: string;
-  motion_prompt?: string; radio?: string;
+  motion_prompt?: string; narration?: string;
   dialogue?: ({ character?: string; line?: string } | string)[];
   sfx?: string; ambient?: string; cut?: string; render_notes?: string;
 }
@@ -163,7 +163,7 @@ interface ScriptArgs { project?: string; shots: ShotIn[]; replace?: boolean }
 
 const SHOT_FIELDS = [
   "sid", "beat", "act", "type", "seconds", "register", "image_prompt",
-  "negative", "motion_prompt", "radio", "dialogue", "sfx", "ambient", "cut",
+  "negative", "motion_prompt", "narration", "dialogue", "sfx", "ambient", "cut",
   "render_notes",
 ] as const;
 
@@ -195,7 +195,7 @@ const SHOT_SCHEMA = {
     image_prompt: { type: "string" as const, description: "Setting, then \"Subject: …\", then framing and light. No style words: the project's style register supplies the look." },
     negative: { type: "string" as const, description: "Extra bans for this shot only. The project's style register already bans text, lettering and photorealism everywhere." },
     motion_prompt: { type: "string" as const, description: "The one thing that moves, if anything: \"only the wig trembles\". Leave it out for a held still." },
-    radio: { type: "string" as const, description: "Narration over the shot. Twenty-five words at most — it has to fit the hold." },
+    narration: { type: "string" as const, description: "Narration over the shot. Twenty-five words at most — it has to fit the hold." },
     dialogue: { type: "array" as const, description: "Lines spoken in the shot, in order. Twelve words each at most.",
                 items: { type: "object" as const, properties: {
                   character: { type: "string" as const, description: "Who speaks, e.g. \"MARGOT\"." },
@@ -216,7 +216,7 @@ export const writeScript: ActionDef<ScriptArgs> = {
     "order. Each image_prompt describes setting, subject, framing and light. " +
     "Do not add style words (hand-painted, caricature, cartoon, watercolour) " +
     "and never ask for text in frame; the project's style register is applied " +
-    "to every still automatically. Radio under 25 words, dialogue under 12. " +
+    "to every still automatically. Narration under 25 words, dialogue under 12. " +
     "Up to 40 shots, 2-20 seconds each, 300 seconds total. Use replace to " +
     "throw out the old script.",
   inputSchema: {
@@ -245,7 +245,7 @@ export const writeScript: ActionDef<ScriptArgs> = {
     const rows = Array.isArray(args?.shots) ? args.shots : [];
     if (!rows.length) {
       return err("needs_shots", {
-        hint: "Pass shots: [{image_prompt, seconds, radio, …}, …] in the order they play.",
+        hint: "Pass shots: [{image_prompt, seconds, narration, …}, …] in the order they play.",
       });
     }
     if (rows.length > MAX_SHOTS) {
@@ -320,7 +320,7 @@ export const writeScript: ActionDef<ScriptArgs> = {
       total_seconds: Math.round(seconds * 10) / 10,
       replaced: !!args?.replace,
       url: scriptUrl,
-      next: "call generate_takes per shot, synthesize_vo for radio lines, generate_music, then cut_film",
+      next: "call generate_takes per shot, synthesize_vo for narration lines, generate_music, then cut_film",
     });
   },
 };

@@ -34,7 +34,7 @@
 
 **description** (500/500)
 
-> Find shots in the current film by anything a director would say: a sid (B10-S2), a number in the cut ("shot 37"), a beat ("B11"), a character ("David Ross"), a shot type ("close-up") or a free description ("the cemetery"). Returns up to eight matches with their ordinal, beat, type, one-line summary and whether they already have a keeper still, motion or a source playing in the timeline. When a phrase matches two different shots the confidence comes back "ambiguous" — ask which one before acting.
+> Find shots in the current film by anything a director would say: a sid (B10-S2), a number in the cut ("shot 37"), a beat ("B11"), a character ("David Ross"), a shot type ("close-up") or a free description ("the empty hallway"). Returns up to eight matches with their ordinal, beat, type, one-line summary and whether they already have a keeper still, motion or a source playing in the timeline. When a phrase matches two different shots the confidence comes back "ambiguous" — ask which one before acting.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
@@ -50,13 +50,13 @@
 
 **description** (432/500)
 
-> Read one shot's script and state without changing anything: its beat, act, type, duration, image and motion prompts, dialogue or radio line, the curated keeper, what currently plays in the timeline, how many takes exist of each kind with the newest few paths, comps, and which backend each generation lane would use with its cost class. Use it before generating so the prompt you send builds on the shot the director actually wrote.
+> Read one shot's script and state without changing anything: its beat, act, type, duration, image and motion prompts, dialogue or narration line, the curated keeper, what currently plays in the timeline, how many takes exist of each kind with the newest few paths, comps, and which backend each generation lane would use with its cost class. Use it before generating so the prompt you send builds on the shot the director actually wrote.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
 | `shot` | • | string | 99/150 | The shot: a sid (B10-S2), its number in the cut, a beat, or a description like "the Ross close-up". |
 
-**howTo** (151) — Open the shot in the Shot Editor and press the Script tab — it shows the image prompt, motion prompt, dialogue, radio line and render notes as written.
+**howTo** (151) — Open the shot in the Shot Editor and press the Script tab — it shows the image prompt, motion prompt, dialogue, narration line and render notes as written.
 
 **keywords** — `describe` `shot` `script` `prompt` `state` `inspect` `detail`
 

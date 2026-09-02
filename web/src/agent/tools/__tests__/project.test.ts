@@ -32,7 +32,7 @@ const SHOT = {
     "Subject: a baker with flour on her sleeves, arms crossed. Framed as a " +
     "wide static tableau. cinematic anime film still",
   seconds: 6,
-  radio: "The bread ran out on a Tuesday.",
+  narration: "The bread ran out on a Tuesday.",
 };
 
 beforeEach(() => { f = makeFakeContext(); });
