@@ -92,9 +92,13 @@ export async function motionProfile(
  * CUTROOM_FAL_MOTION_MODEL is set to, and this is only a hint in the output.
  */
 export const MODEL_HINTS: Record<string, string> = {
-  effects: "fal-ai/wan/v2.2-a14b/image-to-video/turbo",
+  // most designed movement, billed per second — buy 3s and stop before it drifts
+  effects: "fal-ai/pixverse/v6/image-to-video",
+  // the only model that kept a dark close-up as the shot it was
   dialogue: "fal-ai/wan/v2.2-a14b/image-to-video/turbo",
   wide: "fal-ai/wan/v2.2-a14b/image-to-video/turbo",
+  // camera_fixed holds legible screen text for a full 5s
+  detail: "fal-ai/bytedance/seedance/v1/pro/fast/image-to-video",
 };
 
 // ---------------------------------------------------------------- ranking
@@ -325,7 +329,9 @@ export const planMotion: ActionDef<PlanArgs> = {
         left: plan.left,
         ...(noPlate ? { no_plate: noPlate } : {}),
         ...(spend ? { spent_so_far_usd: spend.total_usd } : {}),
-        model_hint: `use ${MODEL_HINTS.effects} for effects bursts`,
+        model_hint: `${MODEL_HINTS.effects} for effects bursts (3s, per-second ` +
+          `billing); ${MODEL_HINTS.detail} where screen text must stay legible. ` +
+          `Set per project with CUTROOM_LANE_MOTION=fal:<model>.`,
         hint: plan.items.length
           ? "Call apply_motion_plan with the same arguments and confirm_cost:true to run it."
           : "Nothing fits — raise budget_usd, or set keeper stills so shots have a plate.",
