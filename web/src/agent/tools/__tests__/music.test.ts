@@ -43,7 +43,7 @@ describe("generate_music", () => {
     expect(g.cues.rows).toHaveLength(1);
     // No shot named → the head of the film, at the music bed default.
     expect(g.cues.rows[0]).toMatchObject({
-      kind: "music", start: 0, gain: -16, duration: 20,
+      kind: "music", start: 0, gain: -8, duration: 20,
     });
     g.restore();
   });
@@ -140,7 +140,7 @@ describe("generate_sfx", () => {
     ]));
     expect(g.rec.anchors()).toContain(ANCHORS.sfxSubmit);
     expect(g.cues.rows[0]).toMatchObject({
-      kind: "sfx", shot: "B10-S2", offset: 0.4, gain: -8,
+      kind: "sfx", shot: "B10-S2", offset: 0.4, gain: -4,
     });
     g.restore();
   });
@@ -191,7 +191,7 @@ describe("place_cue", () => {
 
   it("infers the kind from the path", async () => {
     await placeCue.execute({ take: "audio/sfx/door.mp3", shot: "B11-S4" }, f.ctx);
-    expect(f.cues.rows[0]).toMatchObject({ kind: "sfx", shot: "B11-S4", gain: -8 });
+    expect(f.cues.rows[0]).toMatchObject({ kind: "sfx", shot: "B11-S4", gain: -4 });
   });
 
   it("asks for the kind when the path does not say", async () => {
@@ -233,7 +233,7 @@ describe("list_cues", () => {
     expect(String(r.summary)).toBe("1 music cue, 1 SFX cue");
     const music = r.music as { at: string; id: string; gain: string }[];
     expect(music[0].at).toBe("1:05");
-    expect(music[0].gain).toBe("-16dB");
+    expect(music[0].gain).toBe("-8dB");
     expect(music[0].id).toMatch(/^cue_/);
     const sfx = r.sfx as { shot: string }[];
     expect(sfx[0].shot).toBe("B10-S2");

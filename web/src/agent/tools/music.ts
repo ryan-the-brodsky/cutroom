@@ -17,7 +17,7 @@ import {
 // ---------------------------------------------------------------- shared
 
 /** Doctrine defaults: music is a bed, SFX is an accent. */
-const DEFAULT_GAIN = { music: -16, sfx: -8 } as const;
+const DEFAULT_GAIN = { music: -8, sfx: -4 } as const;   // measured on the hosted demo: -16 buried a -17 dB RMS bed under the VO
 
 const clamp = (n: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, n));
@@ -74,7 +74,7 @@ export const generateMusic: ActionDef<MusicArgs> = {
     "shot's Audio tab, fills the Music console, presses ▶ music, then places " +
     "the finished piece as a cue — at that shot's start, at a time you name, " +
     "or at the head of the film. Describe the music the way a director would " +
-    "(instrument, tempo, feeling). Gain is decibels: -16 is a bed under " +
+    "(instrument, tempo, feeling). Gain is decibels: -8 is a bed under " +
     "narration, 0 is a hero cue. Paid backends require confirm_cost. Set " +
     "place false to audition it without touching the cut.",
   inputSchema: {
@@ -85,7 +85,7 @@ export const generateMusic: ActionDef<MusicArgs> = {
       instrumental: { type: "boolean", description: "True forbids vocals — the right default for anything sitting under dialogue." },
       shot: { type: "string", description: "Place the cue at this shot's start: a sid (B10-S2), its number in the cut, a beat, or a description." },
       start: { type: "number", description: "Place the cue at this many seconds into the film instead. Ignored when shot is given." },
-      gain: { type: "number", description: "Cue level in dB. 0 is unity, negative is quieter. Defaults to -16, a bed under the voice-over." },
+      gain: { type: "number", description: "Cue level in dB. 0 is unity, negative is quieter. Defaults to -8, a bed under the voice-over." },
       fade_in: { type: "number", description: "Fade the cue up over this many seconds." },
       fade_out: { type: "number", description: "Fade the cue down over this many seconds at its end." },
       place: { type: "boolean", default: true, description: "False generates the take but leaves the cut alone — audition first, place later with place_cue." },
@@ -263,7 +263,7 @@ export const generateSfx: ActionDef<SfxArgs> = {
     "Audio tab, fills the SFX console, presses ▶ sfx, then places the result " +
     "as a cue at the shot's start plus any offset you give — so it follows " +
     "the shot when the timing changes. Describe the sound, not the feeling: " +
-    "'a heavy wooden door slamming in a stone hall'. Gain is decibels; -8 is " +
+    "'a heavy wooden door slamming in a stone hall'. Gain is decibels; -4 is " +
     "an accent, -18 is a bed. Paid backends require confirm_cost.",
   inputSchema: {
     type: "object",
@@ -272,7 +272,7 @@ export const generateSfx: ActionDef<SfxArgs> = {
       prompt: { type: "string", description: "The sound itself — source, material and space, e.g. 'chalk scraping on brick, close, dry room'." },
       seconds: { type: "number", minimum: 1, maximum: 10, default: 3, description: "How long the effect runs. Keep it tight; the backend's ceiling is 30s." },
       offset: { type: "number", description: "Seconds after the shot's first frame to trigger it. Defaults to 0, right on the cut." },
-      gain: { type: "number", description: "Cue level in dB. 0 is unity, negative is quieter. Defaults to -8, an accent over the bed." },
+      gain: { type: "number", description: "Cue level in dB. 0 is unity, negative is quieter. Defaults to -4, an accent over the bed." },
       prompt_influence: { type: "number", minimum: 0, maximum: 1, description: "How literally the model follows the words. Higher is obedient, lower is inventive." },
       place: { type: "boolean", default: true, description: "False generates the take but leaves the cut alone — audition first, place later with place_cue." },
       backend: { type: "string", description: "Force an SFX backend id instead of the project's lane default." },
@@ -419,7 +419,7 @@ export const placeCue: ActionDef<PlaceArgs> = {
     "Lay an existing audio file on the film's music or SFX track. Give it a " +
     "take path and either a shot (the cue rides that shot's start and moves " +
     "with it) or a start time in film seconds. Opens the Film Editor's cue " +
-    "strip so the placement is visible. Gain is decibels — 0 unity, -16 a " +
+    "strip so the placement is visible. Gain is decibels — 0 unity, -8 a " +
     "bed. Use it to re-place a take you generated with place false, or to " +
     "move a piece of music you already have. Returns the cue with its id.",
   inputSchema: {
@@ -432,7 +432,7 @@ export const placeCue: ActionDef<PlaceArgs> = {
       start: { type: "number", description: "Anchor the cue this many seconds into the film instead. Ignored when shot is given." },
       offset: { type: "number", description: "Seconds added to whichever anchor won. Use it to sit a hit just after the cut." },
       duration: { type: "number", description: "Trim the cue to this many seconds. Required when loop is true." },
-      gain: { type: "number", description: "Cue level in dB. 0 is unity, negative is quieter. Defaults to -16 for music, -8 for SFX." },
+      gain: { type: "number", description: "Cue level in dB. 0 is unity, negative is quieter. Defaults to -8 for music, -4 for SFX." },
       fade_in: { type: "number", description: "Fade the cue up over this many seconds." },
       fade_out: { type: "number", description: "Fade the cue down over this many seconds at its end." },
       loop: { type: "boolean", description: "Repeat the file until duration is filled — for room tone and ambience beds." },
