@@ -2,7 +2,7 @@
 
 > Target 2:45, hard ceiling 2:50. Devpost's limit is 3:00 and judges are not
 > required to watch past it. Public YouTube, audio required.
-> Narration is spoken by Ryan, first person, plain. Read it flat.
+> Narration is spoken by the author, first person, plain. Read it flat.
 >
 > **The rule that beats every other note: the tool call is working on screen by
 > 0:08.** No title card, no logo, no "hi, I'm". The organizers said it twice.
@@ -12,8 +12,8 @@ produced end to end on the hosted demo through these tools. It needs no
 private footage, it is on the judges' own live URL, and the fact that it
 exists is the strongest thing we have to show.
 
-The Cubs film (`next-year`) appears only in the optional segment marked
-`[if the next-year project is loaded]`. Cut it if time is tight; nothing
+The sample film *Next Year* (project `next-year`) appears only in the optional
+segment marked `[if the next-year project is loaded]`. Cut it if time is tight; nothing
 depends on it.
 
 Pacing: 150 words per minute, about 2.5 spoken words per second. Word budgets
@@ -183,10 +183,10 @@ page through `chrome-devtools-mcp`.
 
 ---
 
-## Optional segment `[if the next-year project is loaded]`
+## Optional segment `[if the *Next Year* project is loaded]`
 
 Drop in after Block D at about 1:44, costs 14 seconds, and push everything
-after it back. Only worth it if the Cubs film is loaded on the demo instance
+after it back. Only worth it if *Next Year* is loaded on the demo instance
 and its thumbnails are warm. Cut it first if any other block runs long.
 
 **On screen:**

@@ -41,7 +41,7 @@ Scanning `Navigator.prototype` in **system Chrome 152** for anything matching
 *and* `--enable-blink-features=WebMCPTesting`. The API brief listed this surface as
 UNVERIFIED; in 152 it is **verified absent**. The plan's §6.E brief assumed we could drive
 tests through `navigator.modelContextTesting.listTools()/executeTool(name, json)`.
-**Not on the browser the judges (and Ryan) will use.**
+**Not on the browser the judges (and the author) will use.**
 
 In **Chromium 151** (Playwright's bundle) the same flags *do* install it:
 
@@ -218,7 +218,7 @@ user-data-dir is the only reliable way to get them applied).
 
 ## 4. Manual cross-client checklist
 
-Ryan runs these; fill in the date and result columns.
+The author runs these by hand; fill in the date and result columns.
 
 | # | Client | Setup | What to check | Date | Result |
 |---|---|---|---|---|---|

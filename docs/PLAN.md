@@ -28,7 +28,7 @@ preview.
   footage, served by URL, rendered frame-exact.
 - **Lift mode (later phases).** Lift `runtime/player` (3.2k LOC, zero store coupling) +
   `runtime/composition-runtime` (16k, one cut-line file) + `export` + `keyframes` + `gpu-*`
-  into `platform/web`, bound to our own stores. This is what buys interactive scrubbing in our
+  into `web`, bound to our own stores. This is what buys interactive scrubbing in our
   own two-room UI. Larger and riskier; deferred until the model and the service path are solid.
 
 ---
@@ -37,25 +37,26 @@ preview.
 
 The non-negotiable. Rational/frame time; clip source in/out; media handles; stable IDs.
 
-- **TS** `platform/web/src/timeline/model.ts`: `Timeline`, `Track`, `Clip` (discriminated:
+- **TS** `web/src/timeline/model.ts`: `Timeline`, `Track`, `Clip` (discriminated:
   video/image/audio/text), `Transition`, `Marker`. Frame-based (`from`, `durationInFrames`,
   `sourceStart`, `sourceEnd`, `sourceDuration`, `sourceFps`) mirroring FreeCut's proven shape
   so the compiler → FreeCut mapping is near-identity. UUID ids. Carries a namespaced
   `cutroom` metadata block per clip (shot sid, take path, prompt/model/seed lineage) — the
   thing OTIO can't hold and our product turns on.
-- **Python** `platform/server/cutroom/timeline/model.py`: dataclasses + `to_dict`/`from_dict`
+- **Python** `server/cutroom/timeline/model.py`: dataclasses + `to_dict`/`from_dict`
   + `validate()` (frame integers, non-negative, source range within `sourceDuration`,
   handle-aware). This is the server-side source of truth.
-- **Tests** `platform/server/tests/test_timeline_model.py`: round-trip, validation failures,
+- **Tests** `server/tests/test_timeline_model.py`: round-trip, validation failures,
   handle math.
 
 Exit: `pytest` green; types compile. No browser surface yet.
 
 ## Phase 2 — Film → Timeline compiler  ·  ~3–5 days
 
-Turn the 123-shot `next-year` film into a real timeline, and emit the FreeCut project.
+Turn the sample film *Next Year* (project `next-year`, 123 shots) into a real timeline,
+and emit the FreeCut project.
 
-- `platform/server/cutroom/timeline/compile.py`:
+- `server/cutroom/timeline/compile.py`:
   - `compile_film(store, session, project) -> Timeline`: each shot → a clip on **V1** using
     `film.active_source` precedence; `seconds`→`durationInFrames` at project fps; source
     in/out defaults to full source (probed), so trims are expressible immediately; each shot's
@@ -75,12 +76,12 @@ Exit: `pytest` green; endpoints return correct JSON for the real film.
 
 Prove the model + compiler drive the real engine end-to-end, in a browser, on the real film.
 
-- `platform/server/cutroom/engine_render/`: a render module that productionizes the spike —
+- `server/cutroom/engine_render/`: a render module that productionizes the spike —
   spins up `media-server.mjs` over the compiled media's real file paths, drives the FreeCut
   engine (`renderProject`) in headless Chrome via Playwright, returns the mp4. (Later swap to
   a warm `serve.mjs` co-process for speed.)
 - **Endpoint** `POST /api/projects/{p}/timeline/render` → job → mp4 Take.
-- **Cutroom UI** `platform/web`: a **Timeline** view that fetches the compiled model and draws
+- **Cutroom UI** `web/`: a **Timeline** view that fetches the compiled model and draws
   the clips as a real strip (in/out, per-clip duration, track lanes, total runtime), with a
   "render via engine" action that plays the result inline.
 - **e2e (claude-in-chrome):** load the app over the LAN URL (`CUTROOM_HOST=0.0.0.0`, the
@@ -91,7 +92,7 @@ Exit: real film visible as a real timeline in our UI; engine render plays; scree
 
 ## Phase 4 — Interactive preview: lift the transport  ·  the real lift begins  ·  ~3–4 weeks
 
-- Lift `runtime/player` + `runtime/composition-runtime` into `platform/web` behind our stores
+- Lift `runtime/player` + `runtime/composition-runtime` into `web` behind our stores
   (the 9 store bindings concentrate in one `deps` file — that's the cut line). Vite config gains
   COOP/COEP `require-corp`; mediabunny + WebGPU pipeline come along.
 - Media loads **by URL** from our server (the seam is ~80% there in FreeCut: the media funnel
@@ -155,7 +156,7 @@ web typecheck clean.
 **Phase 2 — compiler.** `cutroom/timeline/compile.py`: `compile_film` (film → Timeline via the
 `active_source`/VO precedence) + `to_freecut_render_input` (the proven engine shape). Endpoints
 `GET /timeline` and `/timeline/freecut` wired in `main.py`. 4 compiler tests green. Live compile
-of the real **next-year** film: **186 clips (76 stills · 21 motion · 89 VO), 7:43, validates.**
+of the sample film *Next Year*: **186 clips (76 stills · 21 motion · 89 VO), 7:43, validates.**
 
 **Phase 3 — engine render + Timeline view.**
 - `web/src/pages/TimelinePage.tsx` (+ route + nav): the film as a real clip strip — V1 clips
@@ -201,11 +202,11 @@ gallery. Verified: clicked render → job → **`timeline-24s.mp4`, 24s, 15 clip
 gallery.
 
 **Phase 4 — interactive preview lift (the crown jewel).** Surgically lifted FreeCut's
-`runtime/player` (27 files, one dependency) + `shared/logging` into `platform/web/src/runtime`;
+`runtime/player` (27 files, one dependency) + `shared/logging` into `web/src/runtime`;
 added a `@`→src alias (vite + tsconfig) and `vite-env.d.ts`. Wrote `PreviewStage`/`PreviewClip`
 (~150 lines) driving `HeadlessPlayer` + `Sequence`; media loads **same-origin** through the
 server (no COOP/COEP needed, per the recon). Verified live: a **scrubbable preview** composites the
-real film's media by URL; clicking a clip seeks (baseball close-up appeared for B02-S5), the red
+real film's media by URL; clicking a clip seeks (the right frame appeared for B02-S5), the red
 playhead + scrubber stay in sync. This is the thing Cutroom never had. (Video/stills scrub; audio
 playback is a later pass.)
 

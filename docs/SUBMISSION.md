@@ -4,7 +4,7 @@
 > Finalized 2026-09-01 against the shipped build (23 tools, hosted demo live).
 > Deadline **Thu 2026-09-03, 13:00 PDT**. Submit by 11:00 PDT.
 >
-> `<JUDGE_TOKEN>` stays a placeholder in this repo on purpose. Ryan pastes the
+> `<JUDGE_TOKEN>` stays a placeholder in this repo on purpose. The author pastes the
 > real token into the Devpost testing-instructions field, which is not public.
 
 ---

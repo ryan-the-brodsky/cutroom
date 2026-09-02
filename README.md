@@ -8,13 +8,11 @@
 > **Third-party code:** [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) ·
 > **Prior work vs. new work:** [`docs/PRIOR-WORK.md`](docs/PRIOR-WORK.md)
 
-The game7 pipeline, refactored into a hosted web application: one server,
-N film projects, M pluggable generation backends. The original `bin/` +
-`dashboard/` components remain untouched in the repo root; this directory is
-the product.
+Cutroom is a hosted web application for making limited-animation films:
+one server, N film projects, M pluggable generation backends.
 
 ```
-platform/
+cutroom/
   server/    FastAPI app + engine library + adapters + job queue  (python)
   web/       React/Vite SPA                                       (typescript)
   deploy/    Dockerfile · docker-compose · env template
@@ -22,20 +20,20 @@ platform/
   dev.sh     run on this machine
 ```
 
-## Quick start (this machine)
+## Quick start (local)
 
 ```bash
-cd platform
 ./dev.sh build       # build the SPA into the server (one-time / on UI change)
 ./dev.sh server      # http://127.0.0.1:8770
 ```
 
-Then in the UI: **Projects → Import** with
-`/Users/ryan-the-brodsky/Documents/programming/game7` — shots, keepers,
-overrides, comps, and 500+ takes come in with their lineage. Start ComfyUI
-(`~/.local/share/henchmen/ComfyUI`) and the `local-comfyui` backend serves
-the still/i2i/motion lanes exactly like the old lanes (same graphs, same
-recipes — but over HTTP upload/download, so a remote ComfyUI works too).
+Then in the UI: **Projects → Import** with the path to a **studio folder** (a
+directory holding `prompts/shots.jsonl`, `renders/`, `audio/`; the layout is
+documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)). Shots, keepers,
+overrides, comps and every take come in with their lineage. Point a ComfyUI
+install at the `local-comfyui` backend and it serves the still/i2i/motion
+lanes over HTTP upload/download, so a remote ComfyUI works just as well as a
+local one.
 
 Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
 
@@ -51,8 +49,10 @@ Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
   prompt; layers reroll independently; the background restyles under
   persistent layers (low denoise keeps staged geometry). Deterministic
   re-render from the data model.
-- **Motion edits under the FIRST-SECOND LAW** — freeze-tail (true freezes,
-  zooms banned platform-wide), breath-stitching chains, trims.
+- **Motion edits under the FIRST-SECOND LAW** — video models render about one
+  clean second before the style drifts, so Cutroom takes the good burst and
+  holds it: freeze-tail (a **true freeze**, the same frame repeated, never a
+  slow zoom or a boiling loop), breath-stitching chains, trims.
 - **Natural-language direction** — instructions compile to previewable
   **EditPlans** (a validated ops vocabulary). The deterministic grammar
   handles the documented edit language with zero API keys ("keep the first
@@ -110,9 +110,9 @@ checklist: [`docs/TESTING-WEBMCP.md`](docs/TESTING-WEBMCP.md).
 
 - 36 pytest tests green (engine on synthetic media, API surface, direction
   grammar, fake-ComfyUI adapter, queue + remote-worker protocol).
-- End-to-end on the real film: imported 97 shots/567 takes/7 comps; compiled
-  and applied director grammar on the real dial shot; freeze-tail and comp
-  re-render produced verified frames; **act 1 assembled to a 194s 720p
+- End to end on the sample film *Next Year*: imported 97 shots/567 takes/7
+  comps; compiled and applied director grammar on a real shot; freeze-tail and
+  comp re-render produced verified frames; **act 1 assembled to a 194s 720p
   animatic with 24 VO items**.
 
 See `docs/ARCHITECTURE.md` for the design, `docs/BACKENDS.md` for adapter

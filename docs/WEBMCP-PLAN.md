@@ -17,7 +17,7 @@ derive three things from it: (1) `document.modelContext` tools for agents, (2) a
 palette for humans, (3) a "show me" behaviour that navigates to a feature and pulses the control.
 Every agent tool **executes through the UI the human is looking at** — it navigates, opens the
 tab, fills the console, highlights the button, then submits — so the director learns the app by
-watching the agent drive it. The hero sentence is Ryan's own: *"make a few more generative cuts
+watching the agent drive it. The hero sentence comes from a real note: *"make a few more generative cuts
 of the David Ross close-up"* → `find_shots` → `open_shot` → `generate_takes ×3`, in one turn.
 
 **Hard constraint discovered in research:** the challenge closes **Thu 2026-09-03 13:00 PDT**
@@ -49,7 +49,7 @@ sprint plan with a submission package, and a v2 roadmap after it.
 - Clients that can call page tools **today**: ChatGPT Desktop's browser (native, the judges'
   primary environment), Chrome DevTools pane (manual), the Model Context Tool Inspector
   extension, **`chrome-devtools-mcp` v1.8.0 with `--categoryExperimentalWebmcp=true`** (this is
-  how Claude Code drives them — Ryan's daily path), and MCP-B's local relay. The Claude in
+  how Claude Code drives them, the author's daily path), and MCP-B's local relay. The Claude in
   Chrome extension does not speak WebMCP.
 
 ### 1.2 The challenge (details in the challenge brief)
@@ -73,10 +73,10 @@ sprint plan with a submission package, and a v2 roadmap after it.
   kind filter, active comp, or generate sub-tab. Deepest link: `/p/:pid/shot/:sid`.
   Film Editor `view/scope/res` and Timeline `ppf/scopeSec` are also local state.
 - **No search, no numeric shot addressing, no cast index.** Shots are `B10-S2`-style sids with
-  an `order_idx`. "Shot 37" = 37th in film order (today that is `B11-S4`, a cemetery still).
-  "The David Ross close-up" = `B10-S2` (HERO, dugout). The cast lives in
-  `prompts/characters.jsonl` (`CHAR-ross`, "David Ross — the veteran catcher"), which the
-  importer never reads. So the two phrasings in Ryan's hero sentence point at *different*
+  an `order_idx`. "Shot 37" = 37th in film order (in the sample film *Next Year* that is
+  `B11-S4`, a still). A character close-up by name is `B10-S2` (HERO). The cast lives in
+  `prompts/characters.jsonl` (one row per character, `"Name — the role"`), which the
+  importer never reads. So the two phrasings in that one hero sentence point at *different*
   shots — the resolver must surface that, not guess.
 - Every generative action returns `{job}`; `mock` backend returns real footage instantly;
   GPU/paid backends take minutes and cost money; backend fallback is "first enabled backend
@@ -86,7 +86,7 @@ sprint plan with a submission package, and a v2 roadmap after it.
 - Doctrine the tools must encode: true freezes only (no zoom op exists), boil never auto-plays,
   FIRST-SECOND LAW defaults, mock takes never auto-promote, never overwrite takes, explicit
   backend or confirmed default, pause sentinel honoured by non-cpu pools.
-- The repo has **no remote and no LICENSE**; `platform/` is untracked. `~/.cutroom/projects/
+- The code has **no remote and no LICENSE** yet; it is untracked. `~/.cutroom/projects/
   next-year` is ~300 MB of renders + audio (assembly excluded) — a viable hosted demo dataset.
 
 ## 2. Design principles
@@ -212,8 +212,8 @@ and appends `"…(truncated)"`), catches everything and returns `{ ok:false }` �
 
 - Server: the importer reads `prompts/characters.jsonl` when present and stores
   `project.settings.cast = [{ id, name, aliases[], descriptor }]` (aliases = name tokens plus
-  role words after the em dash: "David Ross — the veteran catcher" → `david`, `ross`, `catcher`,
-  `veteran catcher`). New route `GET /api/projects/{pid}/cast`. A one-off `cutroom reimport-cast
+  role words after the em dash: `"Ada Lovelace — the veteran engineer"` → `ada`, `lovelace`,
+  `engineer`, `veteran engineer`). New route `GET /api/projects/{pid}/cast`. A one-off `cutroom reimport-cast
   <project> <src_root>` refreshes existing projects without re-importing media.
 - Client: `ShotResolver.index()` loads `/film` + `/cast` once (SWR-cached) and derives per shot:
   `ordinal` (1-based film order), `beat`, `act`, `type`, `characters` (cast aliases found in
@@ -224,7 +224,7 @@ and appends `"…(truncated)"`), catches everything and returns `{ ok:false }` �
   (`close-up|cu|hero` → HERO, `wide|tableau|establishing` → STILL) → free-text token overlap with
   `image_prompt`/`register`/`render_notes`. Returns `{ best, candidates[≤8], confidence:
   "exact"|"high"|"ambiguous"|"none" }`. When a query contains *both* an ordinal and a name that
-  disagree (Ryan's hero sentence), confidence is `ambiguous` and both are returned with reasons.
+  disagree (the hero sentence above), confidence is `ambiguous` and both are returned with reasons.
 - Unit tests pin: `"37"` → `B11-S4`; `"the David Ross close-up"` → `B10-S2` first;
   `"David Ross close up, shot 37"` → ambiguous with both.
 
@@ -262,12 +262,12 @@ and appends `"…(truncated)"`), catches everything and returns `{ ok:false }` �
   return 403 with a friendly message; every lane is pinned to `mock`; job submissions are
   rate-limited per IP (60/min) ; the Settings page shows a "demo instance" banner. Everything
   else (generation via mock, freezes, trims, comps, cut-the-film via ffmpeg) works for real.
-- `CUTROOM_DEMO_BUNDLE=<url>`: at boot, if no projects exist, download a `.tar.zst` game7-layout
+- `CUTROOM_DEMO_BUNDLE=<url>`: at boot, if no projects exist, download a `.tar.zst` studio-folder
   bundle (shots.jsonl, characters.jsonl, curation, overrides, renders/, audio/) into
   `$CUTROOM_DATA/demo-src` and run the importer as project `next-year`, then warm thumbs.
-  The bundle is built by `cutroom demo-bundle <game7-root> <out.tar.zst>` (excludes assembly/
+  The bundle is built by `cutroom demo-bundle <studio-folder> <out.tar.zst>` (excludes assembly/
   and anything >25 MB; expected ~300 MB) and attached to a GitHub Release of the public repo.
-- Hosting: **Railway** (Ryan's account is connected via MCP; `deploy/Dockerfile` already builds
+- Hosting: **Railway** (the author's account is connected via MCP; `deploy/Dockerfile` already builds
   the SPA + server; mount a volume at `/data`; `CUTROOM_HOST=0.0.0.0`, `CUTROOM_DEMO=1`,
   `CUTROOM_DEMO_BUNDLE`, `CUTROOM_AUTH_TOKEN` empty). Railway provides the HTTPS domain WebMCP
   requires. Fallback: Render (sponsor credits) with the same image.
@@ -392,7 +392,7 @@ the architect. All agents read this plan and both research briefs first.
 - ~8 agent-hours. Starts T+0.
 
 ### B — Resolver, cast index, server additions, demo mode
-- **Owns**: `web/src/agent/resolve.ts` (+ tests), `server/cutroom/importer/game7.py` (cast),
+- **Owns**: `web/src/agent/resolve.ts` (+ tests), `server/cutroom/importer/folder.py` (cast),
   `server/cutroom/api/projects.py` (`GET …/cast` only), `server/cutroom/demo.py`, `config.py`,
   `main.py` (demo boot hook), `server/cutroom/__main__.py`/CLI entries `demo-bundle`,
   `reimport-cast`, `server/tests/test_cast.py`, `test_demo.py`.
@@ -424,9 +424,10 @@ the architect. All agents read this plan and both research briefs first.
   in `web/src/runtime/` is MIT and needs its notice), `README.md` top section, `deploy/*`,
   Railway service + volume + env, GitHub Release with the demo bundle, `docs/PRIOR-WORK.md`
   skeleton (F finishes it), `.github/workflows/ci.yml` (tsc + vitest + pytest).
-- **Sequence**: (1) `mv platform ../cutroom && ln -s ../cutroom platform` in game7; `git init`;
+- **Sequence**: (1) split the platform subdirectory out of the private parent repository into
+  a standalone `cutroom` working tree; `git init`;
   MIT `LICENSE`; first commit `"Cutroom — prior-work snapshot (built 2026-07-12..15)"`;
-  **stop for Ryan's approval before `gh repo create … --public --push`** (outward-facing).
+  **stop for the owner's approval before `gh repo create … --public --push`** (outward-facing).
   (2) Railway: create project/service from the Dockerfile, volume at `/data`, env per §3.8,
   `generate-domain`; deploy the snapshot to prove the pipeline before the WebMCP code exists.
   (3) When B's bundle exists: upload as a Release asset, set `CUTROOM_DEMO_BUNDLE`, redeploy,
@@ -447,7 +448,7 @@ the architect. All agents read this plan and both research briefs first.
   renders; deep links restore tab state. Evals file = §5 journeys with expected tool sequences,
   runnable by hand through `chrome-devtools-mcp` from Claude Code (document the command in
   TESTING-WEBMCP.md) and, if time, via GoogleChromeLabs' WebMCP Evals CLI.
-- **Cross-client checklist** (manual, with Ryan): DevTools WebMCP pane on localhost; Model
+- **Cross-client checklist** (manual, with the owner): DevTools WebMCP pane on localhost; Model
   Context Tool Inspector; ChatGPT Desktop site tools against the hosted URL; Claude Code via
   `chrome-devtools-mcp --categoryExperimentalWebmcp=true --autoConnect`.
 - **Done when**: `npm test` + `npm run e2e` green locally; the checklist has dated ticks.
@@ -459,11 +460,11 @@ the architect. All agents read this plan and both research briefs first.
   (exact prompts, expected tool calls, reset steps), README "Drive Cutroom with an agent"
   section, YouTube description text, the Devpost form field contents.
 - **Sequence**: draft at T+12h from this plan; finalize against the real build at G3; support
-  Ryan's recording at G4 (reset the demo instance, pre-warm thumbs, open the right windows).
+  the recording session at G4 (reset the demo instance, pre-warm thumbs, open the right windows).
 - **Done when**: every Devpost field has final text in `SUBMISSION.md`; PRIOR-WORK cites the
   snapshot commit hash and the first WebMCP commit hash; the video runbook has been executed
   once end-to-end without surprises.
-- ~6 agent-hours + Ryan's ~2 h of recording.
+- ~6 agent-hours + ~2 h of recording.
 
 ## 7. Schedule and gates (Pacific time; T+0 = Tue 2026-09-01 16:00)
 
@@ -476,7 +477,7 @@ the architect. All agents read this plan and both research briefs first.
 | **G4 media** | Thu 08:00 (T+40h) | Video recorded and uploaded (public); description final; repo README final; last redeploy |
 | **Submit** | **Thu 11:00 (T+43h)** | Devpost form submitted, 2 h before the 13:00 deadline; confirmation screenshot saved |
 
-Ryan's touchpoints: approve repo publish (T+1h), approve Railway deploy (T+2h), confirm
+The owner's touchpoints: approve repo publish (T+1h), approve Railway deploy (T+2h), confirm
 footage may be hosted publicly (T+1h), enable ChatGPT site tools + Chrome flags (any time before
 G2), record the video (G3→G4), press submit.
 
@@ -519,20 +520,21 @@ G2), record the video (G3→G4), press submit.
 5. **PRIOR-WORK.md**: snapshot commit hash (all of Cutroom as built 2026-07-12..15) vs the
    WebMCP commits (2026-09-01..03); a file-level list of what is new.
 
-## 10. Decisions for Ryan (recommendation first; the plan assumes the recommendation)
+## 10. Decisions for the owner (recommendation first; the plan assumes the recommendation)
 
-1. **Public repo shape** — *Recommended*: a new `cutroom` repo containing `platform/` at its
-   root (the film's script, bible and prompts stay private in game7; game7 keeps a symlink).
-   Alternative: publish all of game7. The demo bundle is a Release asset, not tracked files.
-2. **Host the film footage publicly on the demo instance** — *Recommended yes*; it is Ryan's own
-   work, judges need real media, and the repo itself does not need it.
+1. **Public repo shape** — *Recommended*: a new `cutroom` repo holding the platform code at its
+   root, with the film's script, style bible and prompts staying in the private parent
+   repository. Alternative: publish the parent repository whole. The demo bundle is a Release
+   asset, not tracked files.
+2. **Host the film footage publicly on the demo instance** — *Recommended yes*; it is the
+   author's own work, judges need real media, and the repo itself does not need it.
 3. **Hosting** — *Recommended Railway* (connected, Dockerfile-ready, volume + HTTPS). Render as
    fallback.
 4. **License** — *Recommended MIT* (matches the lifted FreeCut code).
 5. **Primary demo client in the video** — *Recommended* ChatGPT Desktop's browser (the judges'
-   own environment) for J1–J4, then a short Claude Code + `chrome-devtools-mcp` segment (Ryan's
+   own environment) for J1–J4, then a short Claude Code + `chrome-devtools-mcp` segment (the author's
    real workflow, and Alex Nahas will recognise the MCP bridge story). If ChatGPT site tools
-   are unavailable on Ryan's account, the Model Context Tool Inspector with the flag is the
+   are unavailable on that account, the Model Context Tool Inspector with the flag is the
    fallback.
 
 ## 11. Risks and mitigations
@@ -566,10 +568,10 @@ G2), record the video (G3→G4), press submit.
 
 ---
 
-## Addendum A (Ryan, 2026-09-01 16:05 PT) — real providers on the hosted demo, gated and capped
+## Addendum A (the owner, 2026-09-01 16:05 PT) — real providers on the hosted demo, gated and capped
 
 Supersedes the "mock-only" parts of §3.8. The hosted demo must do **real generation** for judges
-at low cost, with Ryan able to toggle providers without redeploying.
+at low cost, with the owner able to toggle providers without redeploying.
 
 - **Direction lane → OpenRouter**, model GLM 5.3 Flash (near-free). Uses the existing
   `openai-chat` adapter with `base_url=https://openrouter.ai/api/v1`; the planner (`planner.py`)
@@ -587,7 +589,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
 - **Toggleable without redeploy**: demo mode no longer freezes Settings; it splits roles.
   `CUTROOM_AUTH_TOKEN` = judge/viewer token (required; given in Devpost testing instructions;
   accepted via `?token=` in the URL so the judge link is one click — A adds the query-param
-  intake in `App.tsx`). `CUTROOM_ADMIN_TOKEN` = Ryan; only admin may edit backends/lanes/keys,
+  intake in `App.tsx`). `CUTROOM_ADMIN_TOKEN` = the owner; only admin may edit backends/lanes/keys,
   import, delete, or pause. Judges can generate, edit shots, cut the film.
 - **Spend cap**: `CUTROOM_DEMO_BUDGET_USD` (default 10) per rolling 24 h, tracked server-side
   from per-lane cost estimates (`options.cost_usd` on each backend, seeded from env
@@ -597,7 +599,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
 - The WebMCP cost guard (§3.7) reads the backend's `cost_usd` and reports it in the
   needs-confirmation envelope: "3 stills on openrouter-image ≈ $0.12".
 
-- **G0 (Tue 16:25 PT)** — `platform/` initialised as its own repo; snapshot commit `cebcf93`;
+- **G0 (Tue 16:25 PT)** — the platform code initialised as its own repo; snapshot commit `cebcf93`;
   MIT LICENSE; `contract.ts` frozen (`b7d04e0`); Addendum A (real providers, gated + capped)
   folded in; workstreams A–F launched in parallel on Opus at ~16:25.
 - **G1 (Tue 17:20 PT, ~9 h early)** — A/B/C/E/F all landed. Hero journey J1 runs on
@@ -607,17 +609,17 @@ at low cost, with Ryan able to toggle providers without redeploying.
   253 web unit tests, 153 server tests green; Playwright 19/21 (soft: animatic gallery after
   cut_film). Architect fixes: `clip()` no longer truncates identifiers and flags `truncated`;
   `list_features` lists every tool compactly instead of the first 12. Hosting (D) is blocked on
-  Railway's builder for this workspace; GHCR image workaround built, waiting on Ryan for package
+  Railway's builder for this workspace; GHCR image workaround built, waiting on the owner for package
   visibility or a packages-scoped token.
 - **Safety pass before going public (Tue 17:40–18:05 PT)** — history and tree scanned for
   secrets: clean. A recorded test fixture held the film's full shot list (prompts, dialogue,
   render notes); history rewritten to purge it, a sanitized fixture committed, the full
-  recording kept private in game7 (`prompts/fixtures/`) with real-data pins skipping when
+  recording kept private in the parent repository (`prompts/fixtures/`) with real-data pins skipping when
   absent. Demo bundle moved off the code repo to the private `cutroom-demo-data` release;
   `CUTROOM_DEMO_BUNDLE_TOKEN` (fine-grained, contents:read on that repo only) is now
   permanently required. Docs checked for quoted dialogue: none. Residual: GitHub keeps
   force-pushed commits reachable by hash until GC — recommended a fresh repo before the flip.
-- **Go public (Tue 18:20 PT)** — Ryan deleted the original repo; recreated
+- **Go public (Tue 18:20 PT)** — the owner deleted the original repo; recreated
   `github.com/ryan-the-brodsky/cutroom` PUBLIC from the clean history (MIT detected). CI now
   publishes `ghcr.io/ryan-the-brodsky/cutroom-demo:latest` (fresh package). Demo data stays
   private on `cutroom-demo-data`; boot import needs `CUTROOM_DEMO_BUNDLE_TOKEN`.
@@ -647,7 +649,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
   fal motion clips land without restarts (B02-S2, B04-S2 with the doctrine freeze). Slate
   shots re-generated (5 stills + 5 VO, zero failures). Found + fixed: `set_timeline_source` /
   `set_keeper` ignored the monitor selection; run steps double-froze. Finishing run + re-cut
-  in flight. New workstream H: ElevenLabs music + SFX as film cues and WebMCP tools (Ryan).
+  in flight. New workstream H: ElevenLabs music + SFX as film cues and WebMCP tools (the owner).
 - **Cut 3 (Tue 19:58 PT) — the loop closes.** *Two Claudes* assembled with every shot
   generated (15 stills, 3 fal motion bursts with doctrine freezes playing as timeline sources,
   15 ElevenLabs lines), no slates, entirely through native WebMCP tool calls from real Chrome
@@ -670,12 +672,12 @@ at low cost, with Ryan able to toggle providers without redeploying.
   per-tool `outputLimit`; the Film Editor's refresh handle awaits its refetches so `cut_film`
   shows the animatic; Cuts gallery items carry `data-cut`); the bundled-Chromium annotation
   check is skipped by design. 300 web unit tests, 166 server tests green. Submission package
-  finalized by F (only `<YOUTUBE_URL>` open); B-roll in `game7/webmcp-broll/`.
-- **Workstream I launched (Tue 22:05 PT, Ryan: "Go")** — cel workbench tools (add/reroll/
+  finalized by F (only `<YOUTUBE_URL>` open); B-roll kept outside this repo.
+- **Workstream I launched (Tue 22:05 PT, the owner: "Go")** — cel workbench tools (add/reroll/
   restyle/set/remove layer, render_comp, list_layers), lane/settings/export tools, and a
   palette-only registry entry for every remaining UI action (~97 → all discoverable via ⌘K,
   `list_features`, `show_me`). Memory gate on region composites for the 1 GB demo box.
-- **Video backgrounds (Tue 22:15 PT, Ryan)** — comps must support a moving background under
+- **Video backgrounds (Tue 22:15 PT, the owner)** — comps must support a moving background under
   moving cels. Today `render_comp` opens the background with PIL (stills only). Added to
   workstream I: streaming compositor with video backgrounds (loop/hold), API + UI + tools
   (`add_cel_layer.background`, `set_background`), moving-background test.
@@ -695,6 +697,6 @@ at low cost, with Ryan able to toggle providers without redeploying.
   requests 16:9 (`image_config.aspect_ratio`, verified 1344×768). Retry run in flight.
 - **Video-on-video verified on the box + Railway upgraded (Tue 23:55 PT)** — retry run: cel over
   a clip background generated (41 s), rendered and promoted (24 s), cut 7 done, zero failures.
-  Ryan subscribed to the paid Railway plan; service limits raised to **8 GB / 8 vCPU**
+  The owner subscribed to the paid Railway plan; service limits raised to **8 GB / 8 vCPU**
   (`serviceInstanceLimitsUpdate` accepted); `CUTROOM_CPU_POOL_SIZE=2`, `CUTROOM_ENCODER_THREADS=4`.
   Volume still 500 MB; growing it next.

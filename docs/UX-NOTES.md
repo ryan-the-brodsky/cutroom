@@ -4,7 +4,7 @@ Method: drove the app end-to-end via browser automation with the mock backend
 (lane defaults → `mock`, generations return the film's own footage), logging
 friction as a user. Fixed-in-place items are marked ✅.
 
-## The structural finding (Ryan's call, confirmed in use)
+## The structural finding (the director's call, confirmed in use)
 
 Two rooms, two mindsets:
 
@@ -46,8 +46,8 @@ Two rooms, two mindsets:
 ## Opportunities (next passes)
 
 - **Reroll-from-lineage**: every take knows its prompt/params/parents — an
-  "↻ again with tweaks" that prefills the generate tab (the old dashboard had
-  this; the data is already in Take rows).
+  "↻ again with tweaks" that prefills the generate tab (the original pipeline
+  had this; the data is already in Take rows).
 - **Compose stage improvements**: drag-to-move/resize existing layer regions;
   show the /32-snapped rect (currently snap happens at generation); scrub
   layer clips in place.

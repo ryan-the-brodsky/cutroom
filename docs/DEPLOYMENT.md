@@ -78,8 +78,8 @@ Data lives in `~/.cutroom` (override with `CUTROOM_DATA`). The server binds
 - Project storage is a directory tree per project; for multi-node, mount it
   shared (NFS/EFS) or implement the `Storage` seam for S3 (single interface
   in `cutroom/storage.py`).
-- Global pause: `POST /api/system/pause` (creates `CUTROOM_DATA/PAUSED` —
-  the old MOTION_PAUSED sentinel, promoted to an API). Per-project pause:
+- Global pause: `POST /api/system/pause` (creates `CUTROOM_DATA/PAUSED`, the
+  pause sentinel, promoted to an API). Per-project pause:
   `POST /api/projects/<p>/pause`.
 
 ## Security posture
@@ -125,8 +125,8 @@ What that was narrowed down to (2026-09-01):
 - `status.railway.com` reported builds fully operational at the time — not a
   platform incident.
 
-That leaves a **workspace-level plan / quota / payment limit** on
-"ryan-the-brodsky's Projects". Check Railway billing to restore source builds.
+That leaves a **workspace-level plan / quota / payment limit** on the Railway
+workspace. Check Railway billing to restore source builds.
 
 So [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) builds
 `deploy/Dockerfile` in GitHub Actions and pushes it to the **public** package
@@ -240,7 +240,7 @@ railway redeploy --service cutroom -y
 Without one of these the deployment fails at `CREATE_CONTAINER` with
 *"We were unable to connect to the registry for this image."*
 
-### Variables (names only — values live in Railway and `~/.claude/.env`)
+### Variables (names only — values live in Railway and your local env file)
 
 Bind and demo policy:
 
@@ -260,7 +260,7 @@ Secrets (**never** commit these; generated with `openssl rand -hex`):
 
 - `CUTROOM_AUTH_TOKEN` — judge/viewer token, 20 chars. Goes in the Devpost
   testing-instructions field and in the one-click link as `?token=…`.
-- `CUTROOM_ADMIN_TOKEN` — Ryan only, 32 chars. Required to edit backends,
+- `CUTROOM_ADMIN_TOKEN` — the owner only, 32 chars. Required to edit backends,
   lanes, keys, import, delete or pause.
 - `CUTROOM_WORKER_TOKEN` — remote worker job claims.
 
@@ -294,11 +294,11 @@ code repo does. So it lives on its own permanently-private repo,
 **`ryan-the-brodsky/cutroom-demo-data`**, as release `demo-data-v1` (asset id
 `540318287`). Nothing about the bundle is stored in this repository.
 
-Built with `cutroom demo-bundle` from the private game7 tree:
+Built with `cutroom demo-bundle` from a private studio folder:
 
 ```bash
 server/.venv/bin/cutroom demo-bundle \
-  /Users/ryan-the-brodsky/Documents/programming/game7 \
+  <path-to-a-studio-folder> \
   /tmp/cutroom-D/demo-data-v1.tar.zst          # 941 files, 290 MB raw -> 278 MB
 
 gh release create demo-data-v1 /tmp/cutroom-D/demo-data-v1.tar.zst \
@@ -316,9 +316,9 @@ gh api repos/ryan-the-brodsky/cutroom-demo-data/releases/tags/demo-data-v1 \
   comes up with no film. It must be a *fine-grained* PAT scoped to
   **`cutroom-demo-data` only**, with **Contents: Read-only**
   (<https://github.com/settings/personal-access-tokens/new>).
-  Do **not** use `gh auth token` here: that is Ryan's account-wide OAuth token
-  with `repo` write access to every repository he owns, and this env var lives
-  on a public-facing demo host.
+  Do **not** use `gh auth token` here: that is an account-wide OAuth token with
+  `repo` write access to every repository the account owns, and this env var
+  lives on a public-facing demo host.
 
 At boot, if no projects exist, the server downloads the bundle into
 `$CUTROOM_DATA/demo-src` and imports it as project `next-year`. Force it by
@@ -336,7 +336,7 @@ NEW=$(openssl rand -hex 16)
 railway variables --set "CUTROOM_ADMIN_TOKEN=$NEW"   # redeploys automatically
 ```
 
-Then update the matching line in `~/.claude/.env`
+Then update the matching line in your local env file
 (`CUTROOM_DEMO_JUDGE_TOKEN` / `CUTROOM_DEMO_ADMIN_TOKEN`, chmod 600) and, if
 the judge token changed, the Devpost testing instructions and the `?token=`
 link. Rotate every token if any one of them is ever pasted into a chat, a
@@ -362,7 +362,7 @@ Before judging opens, reset once so judges land on a clean film, and confirm
 ### Flipping the repo public
 
 Required for submission — judges must see the source and the MIT license in
-the About box. Ryan's explicit word only:
+the About box. On the owner's explicit word only:
 
 ```bash
 gh repo edit ryan-the-brodsky/cutroom \
@@ -370,8 +370,8 @@ gh repo edit ryan-the-brodsky/cutroom \
 gh repo view ryan-the-brodsky/cutroom --json isPrivate,licenseInfo
 ```
 
-Check first that nothing private has crept in: the film's script, bible and
-prompts live in the separate private `game7` repo and must stay there, and no
+Check first that nothing private has crept in: the film's script, style bible
+and prompts live in the private parent repository and must stay there, and no
 `.env`, token or provider key may be in the history
 (`git log -p | grep -iE 'api[_-]?key|token'`). Note that
 `CUTROOM_DEMO_BUNDLE_TOKEN` is **not** dropped when this repo goes public — the

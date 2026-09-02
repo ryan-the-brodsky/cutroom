@@ -5,7 +5,8 @@
 >
 > Primary project is **`two-claudes`**, the 130-second short an agent produced
 > end to end on this instance through the WebMCP tools. It carries no private
-> footage. The Cubs film (`next-year`) appears only in the optional segment.
+> footage. The sample film *Next Year* (project `next-year`), a 97-shot
+> limited-animation short, appears only in the optional segment.
 >
 > Hosting details, variables and the ship-a-change procedure live in
 > [`DEPLOYMENT.md`](DEPLOYMENT.md) § "Hosted demo (Railway)". This file is the
@@ -14,7 +15,7 @@
 | | |
 |---|---|
 | Live URL | <https://cutroom-production-0f3c.up.railway.app> |
-| Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and `~/.claude/.env`, never in this repo) |
+| Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and your local env file, never in this repo) |
 | Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
 | Tools | 35 |
 
@@ -311,9 +312,9 @@ point of the block.
 `--categoryExperimentalWebmcp=true` and that the tab is active. If it still
 fails, cut Block E to the DevTools pane alone and extend Block F.
 
-### Optional segment · the Cubs film
+### Optional segment · the sample film *Next Year*
 
-Only `[if the next-year project is loaded]`. Switch projects, then:
+Only `[if the *Next Year* project is loaded]`. Switch projects, then:
 
 ```
 Make a few more generative cuts of the David Ross close-up.

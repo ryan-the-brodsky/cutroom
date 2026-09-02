@@ -13,7 +13,7 @@
 
 **We did not build a video editor. We built a shot database with a render button.**
 
-`platform/` is ~10k lines: `Project → Shot → Take → Comp → Job`, adapters, a director
+Cutroom is ~10k lines: `Project → Shot → Take → Comp → Job`, adapters, a director
 grammar, and a linear assembler. The Film Editor is a strip of shot cells with a `seconds`
 field. `engine/assemble.py` renders one segment per shot and concats them.
 
@@ -45,7 +45,7 @@ reinventing the timeline."** Those have different answers.
 The uncomfortable half first. **Project-first object model, model picker, shot library, AI
 director — these are not white space.** LTX Studio has them. Adobe's Firefly video editor
 (browser, genuinely multi-track, generation-history panel, 30+ routed partner models) has
-them. Several free ComfyUI workstations have them. Ryan's instinct was right: these are
+them. Several free ComfyUI workstations have them. The instinct was right: these are
 features other things already have, and building them from scratch was waste.
 
 But **nobody has shipped a tool where a director can actually cut a film.** Google Flow's
@@ -451,7 +451,7 @@ several assert "frame-accurate" by name, and one explicitly handles the stale-fr
 is jsdom with a fake Player, so it proves the *decision logic*, not real decode.
 
 **Signal 2 — the real decode/composite/encode pipeline is frame-exact, from URL-served media.**
-Wrote a spike harness (`headless/game7-spike.mjs`) driving the real engine in real Chrome via
+Wrote a spike harness (`headless/cutroom-spike.mjs`) driving the real engine in real Chrome via
 Playwright (system Google Chrome, `channel:'chrome'`), with **our own film footage served over
 HTTP by URL** — no local files, no OPFS, the exact remote-media seam our server-backed mode
 needs. One timeline exercised everything at once:
@@ -479,7 +479,7 @@ is where the audit already put it (async undo, storage-layer OPFS smear, LGPL So
 the clock.
 
 _Repro: clone in scratchpad; `PATH=…/node22/bin`; `npm ci && npm run build`; `npm run dev`;
-`node headless/game7-spike.mjs`; `ffprobe -count_frames` the output. Node 22 required for the
+`node headless/cutroom-spike.mjs`; `ffprobe -count_frames` the output. Node 22 required for the
 vitest stress run; the headless render is Chrome-driven and Node-version-insensitive._
 
 ## 10. Target architecture

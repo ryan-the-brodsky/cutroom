@@ -1,26 +1,23 @@
 # CUTROOM — hosted studio platform architecture
 
-> The refactor of the game7 local pipeline into a hosted, multi-project web application
-> with pluggable generation backends. The existing `bin/` + `dashboard/` components stay
-> in place and untouched; `platform/` is the product.
+> A hosted, multi-project web application for making limited-animation films,
+> with pluggable generation backends.
 
-## 1. What exists today (the extraction source)
+## 1. Origins
 
-The game7 pipeline is a single-machine production system:
+Cutroom grew out of a single-machine pipeline for a limited-animation short.
+That pipeline is not part of this repository. It was a pile of scripts welded
+to one box: a fixed ComfyUI install at a hard-coded address, model filenames
+baked in, an assembler that only ran inside the ComfyUI virtualenv, a
+directory scan standing in for an asset database, JSON files on disk standing
+in for state, and a single-page UI that could only ever serve one film on one
+machine.
 
-| Concern | Today | Coupling |
-|---|---|---|
-| Stills (t2i/i2i) | Anima 2B via local ComfyUI :8188, graphs built inline | hard-coded `http://127.0.0.1:8188`, model filenames, `~/.local/share/henchmen/ComfyUI/{input,output}` |
-| Motion (i2v) | LTX-Video 2B distilled via ComfyUI, cel-region pipeline (`cel-composite.py`) | same + memory protocol (`memory_pressure -Q`, `mlxctl`, `MOTION_PAUSED` sentinel) |
-| Composition | `comp_render.py` (plate + N cel layers), `anime-fx.py` (1.5k lines of 2D FX), panel engine (skill) | pure CPU (PIL/numpy/ffmpeg) but path-bound to repo layout |
-| Motion edits | `freeze-tail.py`, `chain-gen.py` (breath-stitching) — the director-cut grammar | ComfyUI + ffmpeg |
-| Voice | `eleven.py` (ElevenLabs), local TTS lane | `.env` at a stale relative path; key in henchmen repo |
-| Assembly | `assemble-animatic.py` (1.6k lines, PyAV) | runs in the *ComfyUI* venv because that's where PyAV is |
-| Direction | dashboard chat → `claude -p --dangerously-skip-permissions` inside the repo | local CLI, local FS |
-| UI | FastAPI + 1.3k-line vanilla JS single page, :7787 | file-based state (`dashboard/state/*.json`) |
-| Data | `prompts/shots.jsonl` (immutable), `renders/curation.json`, `overrides-<project>.json`, directory scans as asset DB | filenames encode shot IDs + seeds |
+Cutroom keeps the ideas and throws away the coupling. Every generator is an
+adapter behind a lane contract, every path is project-relative, state is a
+database, and the whole thing serves many films to many people over HTTP.
 
-The deep design ideas worth keeping (they ARE the product):
+The design ideas worth keeping (they ARE the product):
 
 1. **The cel model.** A shot's visual = an approved still **plate** (never touched by video
    models) + z-ordered **cel layers**: animated clips playing inside snapped-to-32 regions,
@@ -33,11 +30,18 @@ The deep design ideas worth keeping (they ARE the product):
    captures ffmpeg's stderr and reports its exit (including "killed by signal", the shape an
    OOM kill takes) rather than surfacing a bare `BrokenPipeError` from the write, because on a
    capped box that error is the only evidence you get.
-2. **The FIRST-SECOND LAW.** LTX's first ~1s is clean anime; drift accumulates. Therefore:
-   freeze-tail (burst then held cel), chain-gen (breath-stitching short front-loaded beats),
-   and the director grammar built on them.
-3. **Registers + prompt glossary** — style consistency as data, not vibes.
-4. **Lanes** — still / i2i / motion / vo / fx / assemble, each with a documented contract.
+2. **The FIRST-SECOND LAW.** An image-to-video model's first second or so is clean
+   limited animation; after that the style drifts and the frame starts to *boil* (the
+   line work crawling and reforming every frame). So take the good burst and stop:
+   freeze-tail (burst, then the last frame held as a **true freeze**, the identical
+   frame repeated, never a slow zoom or a loop), chain-gen (breath-stitching short
+   front-loaded beats), and the director grammar built on them.
+3. **Registers + prompt glossary** — a *register* is a named bundle of style words
+   (lighting, line weight, palette, lens) attached to a shot, so consistency is data
+   rather than a phrase someone remembers to retype.
+4. **Lanes** — still / i2i / motion / vo / fx / assemble. A *lane* is one kind of
+   generation with a documented contract, and each lane is pointed at whichever
+   backend a project chooses.
 5. **Curation & lineage** — keeper picks with backups; every generated asset records
    engine, prompt, params, sources.
 6. **Serial GPU discipline** — queues sized to the hardware, pause sentinels.
@@ -135,7 +139,7 @@ In-process pool workers run by default (single-binary deploy). **Remote workers*
 pointed at the server with a worker token; they claim jobs by pool over HTTP,
 stream logs back, upload artifacts. A GPU VM runs ComfyUI + a cutroom worker
 bound to that backend's pool. Pause = per-project and global flags (the
-`MOTION_PAUSED` sentinel, promoted to API).
+pause sentinel, promoted to API).
 
 ### Direction: grammar first, LLM second
 
@@ -169,11 +173,41 @@ Project ── Shot (script row: prompts, register, audio fields, order)
         └─ LaneConfig (lane → backend/model/params defaults)
 ```
 
-Media lives in per-project directories following the game7 layout convention
-(`renders/stills`, `renders/motion`, `renders/fx`, `audio/generated`, `assembly`,
-`refs`) under `CUTROOM_DATA/projects/<slug>/` — which makes the **importer**
-almost a copy: point it at an existing game7-style repo and it ingests shots.jsonl,
+Media lives in per-project directories following the **studio folder layout**
+(below) under `CUTROOM_DATA/projects/<slug>/` — which makes the **importer**
+almost a copy: point it at an existing studio folder and it ingests shots.jsonl,
 curation, overrides, and scans renders into Take rows.
+
+### Studio folder layout
+
+A *studio folder* is the plain on-disk shape Cutroom reads and writes. It is not
+a Cutroom invention: it is what a film looks like when a small team keeps it in a
+directory, and it stays readable with `ls` and a text editor.
+
+```
+<studio-folder>/
+  prompts/
+    shots.jsonl         one JSON object per shot, in film order: sid (B10-S2),
+                        beat, type, seconds, prompt, dialogue, characters
+    characters.jsonl    the cast: id, character ("Name — the role"), prompts
+  renders/
+    stills/  motion/  fx/    generated media; filenames encode sid + seed
+    refs/photo/              reference images attached to shots
+    curation.json            which take is the keeper for each shot
+  audio/
+    generated/               VO, one file per line
+    music-cues.jsonl         the music bed, as absolute-time cues
+    sfx-cues.jsonl           the SFX bed
+    mix-overrides.jsonl      per-cue gain and timing corrections
+  assembly/                  assembled animatics
+  dashboard/state/
+    overrides-<id>.json      per-shot timeline edits (seconds, source, offsets)
+    comps-<id>.json          cel comps: a plate plus z-ordered layers
+```
+
+Only `prompts/shots.jsonl` is required; everything else is optional and indexed
+if present. `server/cutroom/importer/folder.py` reads this layout
+(`import_folder`), and `cutroom demo-bundle` packs one into a demo tarball.
 
 Storage is behind a `Storage` interface (local FS shipped; S3-compatible is a
 documented seam with the same path semantics).
@@ -181,7 +215,7 @@ documented seam with the same path semantics).
 ## 3. Repository layout
 
 ```
-platform/
+cutroom/
   docs/            ARCHITECTURE.md · DEPLOYMENT.md · BACKENDS.md
   server/          python project (pyproject: cutroom)
     cutroom/
@@ -194,7 +228,7 @@ platform/
                    anthropic_director.py openai_chat.py claude_cli.py registry.py
       director/    ops.py grammar.py planner.py
       jobs/        queue.py handlers.py
-      importer/    game7.py
+      importer/    folder.py
       api/         projects, shots, takes, media, comps, generate, direction,
                    chat, jobs, backends, lanes, timeline, animatic, refs,
                    workers, system

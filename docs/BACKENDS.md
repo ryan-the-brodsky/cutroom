@@ -37,7 +37,7 @@ filesystem needed. Model pickers read `/object_info`.
 }
 ```
 
-Defaults reproduce the verified game7 recipes exactly; every knob overrides
+Defaults reproduce a recipe verified on a real ComfyUI host; every knob overrides
 per backend, per lane-config, and per request. i2v constraints are enforced
 (dims %32; frames snapped to 8k+1).
 
@@ -89,7 +89,7 @@ a generation, not by the health dot.
 ### Cues — the film's audio bed
 
 Audio only reaches the cut through the **cue sheet**, stored on the project as
-`settings.music_cues` / `settings.sfx_cues` (the same two keys the game7
+`settings.music_cues` / `settings.sfx_cues` (the same two keys the folder
 importer writes from `audio/*-cues.jsonl`). The assembler mixes it; the
 timeline compiler puts it on the MUSIC / SFX tracks.
 
@@ -123,12 +123,12 @@ it only writes JSON and costs nothing.
 
 ## openai-images / openrouter-image  (lanes: still / still+i2i)
 
-The two adapters the old dashboard had, generalized. `openrouter-image`
+The two adapters the original pipeline had, generalized. `openrouter-image`
 supports i2i by attaching the source image (Gemini-image-class models).
 
 ## fal / replicate  (lanes: still, motion)
 
-The remote-video seam the old dashboard declared but never implemented.
+The remote-video seam the original pipeline declared but never implemented.
 Generic by design — model id + payload shape live in options:
 
 ```jsonc
@@ -220,7 +220,7 @@ never counts and never trips.
 ### The demo dataset
 
 ```bash
-cutroom demo-bundle ~/src/game7 /tmp/bundle.tar.zst   # prints the size
+cutroom demo-bundle <path-to-a-studio-folder> /tmp/bundle.tar.zst   # prints the size
 ```
 
 Packs `prompts/{shots,characters}.jsonl`, `renders/curation.json`, the
@@ -250,10 +250,10 @@ so the API answers while it works. Idempotent; progress in
 The importer reads `prompts/characters.jsonl` into
 `project.settings.cast = [{id, name, aliases[], descriptor}]`, served by
 `GET /api/projects/<p>/cast`. Aliases are the name, its tokens, and the role
-phrase after the em dash plus its head noun — so "David Ross — the veteran
-catcher" answers to `david`, `ross`, `david ross`, `veteran catcher` and
-`catcher`. Refresh an already-imported project without re-copying media:
+phrase after the em dash plus its head noun — so a cast row reading "Ada
+Lovelace — the veteran engineer" answers to `ada`, `lovelace`, `ada lovelace`,
+`veteran engineer` and `engineer`. Refresh an already-imported project without re-copying media:
 
 ```bash
-cutroom reimport-cast next-year ~/src/game7
+cutroom reimport-cast next-year <path-to-a-studio-folder>
 ```

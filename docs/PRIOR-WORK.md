@@ -25,7 +25,7 @@ follow it.
 ### A note on commit dates
 
 This repository was `git init`-ed on 2026-09-01, when Cutroom was split out of
-the author's private `game7` film repository into its own public repo. So
+the private parent repository into its own public repo. So
 `cebcf93`'s *commit* timestamp is 2026-09-01 even though the *work* is from
 July. The independent evidence that the snapshot predates the submission period:
 
@@ -39,9 +39,9 @@ July. The independent evidence that the snapshot predates the submission period:
 - The snapshot's own verification log (README "Verification status"): 36 pytest
   tests, 97 shots / 567 takes / 7 comps imported, act 1 assembled to a 194 s
   animatic — all done in July.
-- **The parent repository.** Cutroom was extracted from Ryan's private `game7`
-  film repo, where it lived as a `platform/` subdirectory. That repo's commit
-  `b05a754` is the film pipeline this was built out of.
+- **The parent repository.** Cutroom was extracted from a private parent
+  repository, where it lived as a subdirectory. The private parent repository
+  (commit `b05a754`) holds the film pipeline this was built out of.
 
 **Why the history is short.** This repo was `git init`-ed on 2026-09-01 and its
 history was rewritten once that same day, to remove a test fixture that carried
@@ -70,7 +70,7 @@ hackathon. Top-level areas, all pre-existing:
   - `jobs/` — the DB-backed queue with GPU-serial / CPU-parallel pools and the
     remote-worker claim protocol
   - `timeline/` — the timeline model, compiler, edit verbs and interchange
-  - `importer/game7.py`, `models.py`, `storage.py`, `config.py`, `film.py`
+  - `importer/folder.py`, `models.py`, `storage.py`, `config.py`, `film.py`
 - **`web/src/` (55 files)** — the React/Vite SPA: Projects, Film Editor, Shot,
   Composer, Timeline, Jobs, Chat and Settings pages; the comp editor, region
   canvas, model pickers, plan preview; `runtime/player/` (the lifted FreeCut
@@ -140,7 +140,7 @@ The 35 tool names, in `contract.ts` order: `find_shots`, `describe_shot`,
   app start, the topbar tools chip, the trail drawer, `?token=` intake so the
   judge link is one click, `?agent_speed=` and `?agent_debug=`.
 - **`web/src/styles.css`**: the `.agent-pulse` ring, palette and trail styles.
-- **`server/cutroom/importer/game7.py`**: reads `prompts/characters.jsonl` and
+- **`server/cutroom/importer/folder.py`**: reads `prompts/characters.jsonl` and
   stores a cast index on the project, which the importer never did before.
 - **`server/cutroom/api/`**: `GET` and `POST /api/projects/{pid}/cast`, the
   music and SFX cue sheet, `budget` on `GET /api/system`, and the demo-mode
