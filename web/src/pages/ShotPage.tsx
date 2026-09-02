@@ -11,6 +11,7 @@ import { pick, useQueryState } from "../agent/urlState";
 import CompEditor from "../components/CompEditor";
 import ModelPicker from "../components/ModelPicker";
 import ShotMonitor from "../components/ShotMonitor";
+import * as screen from "../screen/store";
 import PlanPreview from "../components/PlanPreview";
 import RegionCanvas from "../components/RegionCanvas";
 import SeparateCanvas from "../components/SeparateCanvas";
@@ -288,6 +289,11 @@ export default function ShotPage() {
           onClick={() => fire(setOverride({ source: path }))}>
           ⬆ timeline source</button>
       )}
+      <button className="small"
+        data-action={ANCHORS.takeScreen} data-path={path}
+        title="Open in the screening room (Esc closes)"
+        onClick={() => screen.open(path, { pid, seconds: shot.seconds })}>
+        ⛶ screen</button>
     </div>
   );
 

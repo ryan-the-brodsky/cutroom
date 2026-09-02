@@ -397,6 +397,8 @@ export const TOOL_NAMES = [
   "create_project", "write_script", "set_project_cast", "list_projects",
   // workstream M: the screening room (watching, not making)
   "play_cut", "play_take", "stop_playback", "preview_timeline",
+  // workstream N: motion budget planning
+  "plan_motion", "apply_motion_plan",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -420,7 +422,7 @@ export const ANCHORS = {
   takesFilter: "shot.takes.filter",            // + data-kind
   shotTake: "shot.take",                       // + data-path
   takeKeeper: "shot.take.keeper", takeSource: "shot.take.source",
-  takeFreeze: "shot.take.freeze", takeCompose: "shot.take.compose",
+  takeFreeze: "shot.take.freeze", takeCompose: "shot.take.compose", takeScreen: "shot.take.screen",
   genSub: "shot.gen.sub",                      // "shot.gen.sub.<sub>"
   gen: "shot.gen",                             // "shot.gen.<sub>.<field|submit>"
   genModel: "shot.gen.model",
