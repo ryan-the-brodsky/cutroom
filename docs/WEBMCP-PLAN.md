@@ -637,3 +637,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
   shows the animatic; Cuts gallery items carry `data-cut`); the bundled-Chromium annotation
   check is skipped by design. 300 web unit tests, 166 server tests green. Submission package
   finalized by F (only `<YOUTUBE_URL>` open); B-roll in `game7/webmcp-broll/`.
+- **Workstream I launched (Tue 22:05 PT, Ryan: "Go")** — cel workbench tools (add/reroll/
+  restyle/set/remove layer, render_comp, list_layers), lane/settings/export tools, and a
+  palette-only registry entry for every remaining UI action (~97 → all discoverable via ⌘K,
+  `list_features`, `show_me`). Memory gate on region composites for the 1 GB demo box.
