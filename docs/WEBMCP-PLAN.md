@@ -340,6 +340,9 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 42 | `stop_playback` | — | — | Screening room → ✕ close | was_playing, closed, stopped_at. Safe when nothing is playing |
 | 43 | `preview_timeline` | — | `project?`, `from?` (same grammar), `play?` (default true), `scope_sec?` | Timeline → playhead to `from`, clip selected, ▶ | from, now_playing_shot, duration, clips, note ("live compiled preview, video only; use play_cut for the rendered cut with audio") |
 | 46 | `set_style` | consequential | `preset?` enum anime-cel/anime-noir/anime-pastel, `prefix?` (custom look), `avoid?` (the negative every still carries), `refs?` (style-reference frames; `[]` turns reference conditioning off), `project?` | Film Editor header → the style chip (`film.style`) names the register; its prefix is the hover title | project, the register (name, prefix, avoid, ref count) |
+| 47 | `attach_reference` | consequential | `shot`, `image` (a take path, "keeper of B02-S2", "newest still of B04-S2", "plays", or an http(s) url the server fetches), `role?` enum character/prop/setting/style, `note?` | Shot Editor → Generate → References strip (`shot.gen.refs`, one item `shot.gen.ref[data-path]`) | shot, the reference (image, role), what the role means, the whole strip |
+| 48 | `remove_reference` | consequential | `shot`, `image?` (path, file name, or "all"), `role?` (drops every reference in it) | Shot Editor → Generate → References → ✕ (`shot.gen.ref.remove`) | shot, how many went, the strip as it stands |
+| 49 | `list_references` | readOnly | `shot` | Shot Editor → Generate → References | the references with roles, slots left (4 is the cap) |
 
 (19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
 "16" was the working count — the number is not load-bearing. Stay under ~25 for v1.
@@ -861,3 +864,9 @@ evidence in this plan still describe the shipped build exactly.
   certificate valid; `https://gengastudio.com` serves the landing page, `/app` the studio, native
   tools register there. GitHub repo renamed `ryan-the-brodsky/genga-studio` (old URL redirects).
   Pinned `sha-4a684bc`.
+- **Wed 15:20 PT — Two Claudes, motion throughout.** Through the tools on the live studio:
+  `plan_motion` ($3 budget, 5 s clips) → `apply_motion_plan` animated all 15 shots (Seedance
+  first, Wan where the register won or the budget thinned) for $1.56 in one 9.5-minute call;
+  every shot now plays its newest full-length clip; cut 9. Shots without a motion prompt now
+  animate with a derived locked-camera ambient prompt. "revolution-of-rags" deleted via the
+  new admin route; only Two Claudes remains on the demo.
