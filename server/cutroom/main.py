@@ -134,10 +134,10 @@ def seed_backends() -> None:
                 forced.setdefault(r["id"], {})["motion_profile"] = \
                     env_profile(r["id"])
 
-    if settings.demo:
+    if settings.demo and settings.demo_mock:
         for r in rows:
             if r["id"] == "mock":
-                r["enabled"] = True             # the always-free fallback
+                r["enabled"] = True             # local-dev test lane, opt-in on a demo
 
     with session_scope() as s:
         for r in rows:
@@ -155,7 +155,9 @@ def seed_backends() -> None:
             opts.update(forced.get(r["id"], {}))
             row.options = opts
             if r["id"] == "mock" and settings.demo:
-                row.enabled = True
+                # Never force the free instant lane on a hosted demo: an agent will
+                # choose it over the real backends. CUTROOM_DEMO_MOCK=1 opts in.
+                row.enabled = bool(settings.demo_mock)
 
 
 def create_app() -> FastAPI:
@@ -200,8 +202,9 @@ def create_app() -> FastAPI:
         await get_queue().stop()
 
     # the built SPA, when present (deploy builds web/ into server/static).
-    # history-fallback: unknown non-API paths serve index.html so deep links
-    # (/p/<project>/shot/<sid>) load the app.
+    # history-fallback: unknown non-API paths serve index.html so the landing
+    # page (/) and deep links (/app/p/<project>/shot/<sid>) both load the SPA.
+    # Real files under static/ (the landing stills, assets) are served directly.
     static = Path(__file__).parent / "static"
     if static.is_dir():
         from fastapi.responses import FileResponse
