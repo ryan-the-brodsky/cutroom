@@ -686,3 +686,10 @@ at low cost, with Ryan able to toggle providers without redeploying.
   Compositor now streams through ffmpeg pipes and accepts a VIDEO background (loop/hold);
   moving-background test green; peak RSS 131 MB python / 174 MB ffmpeg. 423 web + 170 server
   tests. Pinned `sha-685034c`; production cel run (still bg + video bg) in flight.
+- **Video-background comp on the box (Tue 23:40 PT)** — production run: still-background cel
+  worked end to end (24 s cel, 6 s render); the clip-background comp died with a silent
+  `BrokenPipeError` in the streaming encoder. Fixed (I, `ad8a00b`): encoder stderr captured
+  into `FFmpegError` (Jobs log now carries ffmpeg's words, incl. "killed by signal 9" = OOM),
+  even-dim rounding, size-proof background frames, `CUTROOM_ENCODER_THREADS` (2 on the demo
+  box; x264 child 310 → 251 MB), `render_comp` settles 45 s. Also: OpenRouter image lane now
+  requests 16:9 (`image_config.aspect_ratio`, verified 1344×768). Retry run in flight.
