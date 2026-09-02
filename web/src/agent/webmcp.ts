@@ -151,7 +151,12 @@ export async function installWebMCP(ctx: ActionContext,
   if (mc) {
     for (const def of defs) {
       try {
-        await mc.registerTool(toTool(def, ctx), { signal: controller.signal });
+        // The literal entry point the challenge names: document.modelContext.registerTool.
+        if (document.modelContext) {
+          await document.modelContext.registerTool(toTool(def, ctx), { signal: controller.signal });
+        } else {
+          await mc.registerTool(toTool(def, ctx), { signal: controller.signal });
+        }
         registered++;
       } catch (e) {
         console.warn(`[cutroom/agent] registerTool("${def.name}") failed`, e);

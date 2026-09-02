@@ -132,12 +132,15 @@ describe("SettingsPage as an admin", () => {
   it("keeps every control and every anchor the tools drive", async () => {
     const { container } = render(<SettingsPage />);
     await waitFor(() => expect(anchor(container, "settings.add")).toBeTruthy());
-    for (const a of ["settings.backend", "settings.backend.enable",
-                     "settings.backend.health", "settings.backend.edit",
-                     "settings.lane", "settings.lane.model", "settings.lane.save",
-                     "settings.token", "settings.token.save"]) {
-      expect(anchor(container, a), a).toBeTruthy();
-    }
+    // The lane table and backend rows render after their fetches resolve; CI is slower.
+    await waitFor(() => {
+      for (const a of ["settings.backend", "settings.backend.enable",
+                       "settings.backend.health", "settings.backend.edit",
+                       "settings.lane", "settings.lane.model", "settings.lane.save",
+                       "settings.token", "settings.token.save"]) {
+        expect(anchor(container, a), a).toBeTruthy();
+      }
+    });
     expect(container.querySelector('[data-action="settings.backend"][data-id="fal"]'))
       .toBeTruthy();
   });
