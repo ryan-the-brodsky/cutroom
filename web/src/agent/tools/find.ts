@@ -209,6 +209,11 @@ export const describeShot: ActionDef<DescribeArgs> = {
       ...(d.narration ? { narration: cut(d.narration, 90) } : {}),
       keeper: d.keeper ? cut(d.keeper, 60) : null,
       plays: d.active_source ? cut(d.active_source, 60) : null,
+      // What this shot has been told to match, picture by picture.
+      ...(d.references?.length
+        ? { references: d.references.map(
+              (r) => `${r.role}: ${cut(r.path.split("/").pop(), 34)}`) }
+        : {}),
       override: d.override && Object.keys(d.override).length ? d.override : undefined,
       takes: counts,
       latest_takes: latest,
@@ -396,17 +401,21 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
       const tools = all.filter((d) => d.surfaces?.agent !== false);
       const groups: Record<string, number> = {};
       for (const d of all) groups[groupOf(d)] = (groups[groupOf(d)] || 0) + 1;
+      const envelope = (rows: unknown) => ok(
+        `${tools.length} tools · ${all.length} features in all`, {
+          features: rows,          // the tool rows, under the key every client reads
+          total: all.length,
+          screens: groups,
+          hint: "Pass `query` (a word, or a screen name like \"Cel workbench\") for the other features and their how-to.",
+        });
+      // Shrink against the WHOLE payload, not just the rows: the catalogue
+      // grows a workstream at a time and the screens map grows with it.
       let rows = tools.map((d) => ({ name: d.name, title: cut(d.title, 24), where: cut(whereLabel(d), 28) }));
-      for (const [tw, ww] of [[24, 28], [20, 22], [16, 16]] as const) {
+      for (const [tw, ww] of [[24, 28], [20, 22], [16, 16], [12, 12]] as const) {
         rows = tools.map((d) => ({ name: d.name, title: cut(d.title, tw), where: cut(whereLabel(d), ww) }));
-        if (JSON.stringify(rows).length < 2900) break;
+        if (JSON.stringify(envelope(rows)).length <= (listFeatures.outputLimit ?? 4000)) break;
       }
-      return ok(`${tools.length} tools · ${all.length} features in all`, {
-        features: rows,            // the tool rows, under the key every client reads
-        total: all.length,
-        screens: groups,
-        hint: "Pass `query` (a word, or a screen name like \"Cel workbench\") for the other features and their how-to.",
-      });
+      return envelope(rows);
     }
 
     const matched = all.filter((d) =>

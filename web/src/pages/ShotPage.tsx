@@ -4,7 +4,8 @@ import { api, thumbUrl } from "../api";
 import {
   ANCHORS, genFieldAnchor, genSubAnchor, shotTabAnchor,
   type CueField, type CueKind, type CuePlacement, type CueRecord,
-  type GenField, type GenSub, type KindFilter, type ShotTab, type TakeLite, type VoField,
+  type GenField, type GenSub, type KindFilter, type RefRole, type ShotReference,
+  type ShotTab, type TakeLite, type VoField,
 } from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
 import { pick, useQueryState } from "../agent/urlState";
@@ -39,6 +40,10 @@ const IS_CLIP = (p: string | null) => !!p && /\.(mp4|webm|mov)$/i.test(p);
 /** What a line can be heard through. Mirrors `engine.audio.TREATMENT_NAMES`;
  *  `none` is the default because the platform has no house sound. */
 const VO_TREATMENTS = ["none", "radio", "phone", "megaphone", "hall"];
+/** What a reference image is for. The server puts a sentence for each in
+ *  front of the picture, so "setting" is matched and not copied wholesale. */
+const REF_ROLES: RefRole[] = ["character", "prop", "setting", "style"];
+const IS_STILL = (p: string) => /\.(png|jpe?g|webp)$/i.test(p);
 
 export default function ShotPage() {
   const { pid, sid } = useParams() as { pid: string; sid: string };
@@ -61,6 +66,9 @@ export default function ShotPage() {
   const activeComp = q.get("comp");
   const setActiveComp = (c: string | null) => setQ({ comp: c });
   const [separating, setSeparating] = useState(false);
+  // The References strip's "add from takes" picker (path + what it is for).
+  const [refPick, setRefPick] = useState<{ path: string; role: RefRole }>(
+    { path: "", role: "character" });
   const { busy, error, run, setError } = useAsync();
 
   const [gen, setGen] = useState<any>({ backend: "", model: "", seeds: "",
@@ -124,15 +132,23 @@ export default function ShotPage() {
   };
   const fire = (p: Promise<unknown>) => { void p.catch(() => {}); };
 
+  // `references` here are ONE-OFF: the shot's own attached references ride on
+  // every generation server-side, this is the extra an agent passes for one call.
+  const oneOffRefs = () =>
+    Array.isArray(gen.references) && gen.references.length
+      ? gen.references : undefined;
+
   const genStill = () => submitGen("still", {
     prompt: gen.prompt || shot?.image_prompt,
     negative: shot?.negative, name: sid,
     backend: gen.backend || undefined, model: gen.model || undefined,
+    references: oneOffRefs(),
     seeds: gen.seeds ? String(gen.seeds).split(",").map(Number) : undefined });
 
   const genRestyle = () => submitGen("i2i", {
     source: selected, prompt: gen.prompt, denoise: gen.denoise,
     name: `${sid}-i2i`, backend: gen.backend || undefined,
+    references: oneOffRefs(),
     model: gen.model || undefined });
 
   const genAnimate = () => submitGen("motion", {
@@ -191,6 +207,17 @@ export default function ShotPage() {
 
   const setOverride = (patch: Record<string, unknown>) =>
     api(`/api/projects/${pid}/shots/${sid}/override`, patch).then(() => refresh());
+
+  // --- references: the pictures this shot's generations are conditioned on ---
+  const references: ShotReference[] = (shot?.references as ShotReference[]) || [];
+  const postRefs = async (body: Record<string, unknown>) => {
+    const d = await api<{ refs: ShotReference[] }>(
+      `/api/projects/${pid}/shots/${sid}/refs`, body);
+    refresh();
+    return d.refs || [];
+  };
+  const addReference = (ref: ShotReference) => postRefs({ add: ref });
+  const removeReference = (which: string) => postRefs({ remove: which });
   const setKeeperPath = (path: string, note?: string) =>
     api(`/api/projects/${pid}/shots/${sid}/curate`,
         { keeper: path, ...(note ? { note } : {}) }).then(() => refresh());
@@ -254,6 +281,9 @@ export default function ShotPage() {
     submitSfx: () => submitSfx(),
     addCue,
     removeCue,
+    addReference,
+    removeReference,
+    references: () => references,
     setKeeper: (path: string, note?: string) => setKeeperPath(path, note),
     setSource: (path: string | null) => setOverride({ source: path }),
     setOverride,
@@ -428,6 +458,62 @@ export default function ShotPage() {
           </div>}
 
           {tab === "generate" && <div className="col">
+            {/* References: the pictures this shot must match. The server puts
+                each one in front of the prompt behind a sentence naming its
+                role, so a face is matched and a room is matched — a bare
+                image would just be copied. Four per shot. */}
+            <div className="section" data-action={ANCHORS.genRefs}>
+              <div className="head">🖼 References
+                <span className="muted small"> · sent with every still and
+                  restyle of this shot</span></div>
+              <div className="body col">
+                <div className="takes">
+                  {references.map((r) => (
+                    <div key={r.path} className="take"
+                         data-action={ANCHORS.genRef} data-path={r.path}
+                         data-role={r.role} title={r.note || r.path}
+                         onClick={() => setSel(r.path)}>
+                      <img src={thumbUrl(pid, r.path)} alt={r.path} loading="lazy" />
+                      <span className="tag">{r.role} · {r.path.split("/").pop()}</span>
+                      <button className="small"
+                              data-action={ANCHORS.genRefRemove} data-path={r.path}
+                              title="stop matching this picture"
+                              onClick={(e) => { e.stopPropagation();
+                                                fire(removeReference(r.path)); }}>
+                        ✕</button>
+                    </div>
+                  ))}
+                  {!references.length &&
+                    <div className="muted small">none — a reference pins a face,
+                      a prop or a room to one picture.</div>}
+                </div>
+                <div className="row">
+                  <select value={refPick.path} data-action={ANCHORS.genRefPick}
+                          onChange={(e) => setRefPick({ ...refPick,
+                                                        path: e.target.value })}>
+                    <option value="">add from takes…</option>
+                    {takesLite.filter((t) => IS_STILL(t.path)).map((t) => (
+                      <option key={t.path} value={t.path}>
+                        {t.kind} · {t.path.split("/").pop()}</option>
+                    ))}
+                  </select>
+                  <select value={refPick.role} data-action={ANCHORS.genRefRole}
+                          onChange={(e) => setRefPick({ ...refPick,
+                            role: e.target.value as RefRole })}>
+                    {REF_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <button className="small" disabled={!refPick.path ||
+                            references.length >= 4}
+                          data-action={ANCHORS.genRefAdd}
+                          onClick={() => { fire(addReference(
+                            { path: refPick.path, role: refPick.role }));
+                            setRefPick({ ...refPick, path: "" }); }}>
+                    + add</button>
+                  {references.length >= 4 &&
+                    <span className="muted small">four is the limit</span>}
+                </div>
+              </div>
+            </div>
             <div className="tabs">
               {GEN_SUBS.map((t) => (
                 <button key={t} className={sub === t ? "active" : ""}

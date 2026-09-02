@@ -226,6 +226,32 @@ viewer-allowed on the demo for the same reason casting is: choosing what the
 film looks like is creative work, not an admin setting. Measured a/b/c
 comparison: `docs/research/style-register/RESULTS.md`.
 
+### References: the look is the film's, the face is the shot's
+
+The register cannot say who a person is, which mug is on the desk, or what
+room this is. Those are per-shot facts, so they live on the shot as
+`override.refs = [{path, role, note?}]` with `role` one of `character`, `prop`,
+`setting`, `style` (`cutroom/refs.py`; plain strings from the old refs slot
+migrate to `{path, role: "character"}` at read time). Four per shot.
+
+`gen_still` and `gen_i2i` attach them ahead of everything else, each behind the
+sentence its role carries — "Reference for the SETTING: match this place's
+architecture, layout and light." — then the film's style frames, then the frame
+being edited, then the prompt. The prompt stays last because the last text part
+is the one a chat-completion image model renders. A bare image with no sentence
+is read as content to copy, which is right for a setting and wrong for a face.
+The Take records `params.references_used`. Adapters that take no image input
+(ComfyUI) log and skip them rather than paying to build a request that would
+drop them.
+
+`POST /api/projects/{pid}/shots/{sid}/refs` adds and removes (viewer-allowed,
+like the register), and `POST /api/projects/{pid}/refs/fetch {url}` pulls an
+http(s) image into `refs/` as a Take of kind `ref` — http(s) only, no host that
+resolves onto a private network, image content-type only, 10 MB, 10 s. The
+Generate tab shows them as a strip of thumbnails with role badges, and the
+agent reaches them through `attach_reference` / `remove_reference` /
+`list_references`. Measured a/b: `docs/research/references/RESULTS.md`.
+
 ### Data model
 
 ```

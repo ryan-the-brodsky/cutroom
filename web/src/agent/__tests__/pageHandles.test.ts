@@ -22,6 +22,7 @@ const shot = (sid: string): ShotPageHandles => ({
   addCue: async (c) => ({ ...c, id: "cue_1", at: 0 }),
   removeCue: async () => {},
   setKeeper: async () => {}, setSource: async () => {}, setOverride: async () => {},
+  addReference: async () => [], removeReference: async () => [], references: () => [],
   direct: async () => ({}), applyPlan: async () => ({ results: [] }),
   refresh: async () => {},
 });

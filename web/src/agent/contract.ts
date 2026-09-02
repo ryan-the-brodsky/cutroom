@@ -67,7 +67,9 @@ export type GenSub = "still" | "restyle" | "animate" | "chain";
 export type KindFilter = "all" | "stills" | "i2i" | "motion" | "fx" | "crops";
 export type GenField =
   | "prompt" | "negative" | "seeds" | "denoise" | "frames" | "steps" | "cfg"
-  | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats";
+  | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats"
+  /** One-off reference images for the next submit: [{image, role}]. */
+  | "references";
 export type VoField = "text" | "voice" | "backend" | "treatment";
 
 // ---------------------------------------------------------------- cues (music & SFX)
@@ -106,6 +108,16 @@ export interface TakeLite {
   duration?: number | null; job?: string | null; mock?: boolean;
 }
 
+/** What a reference image is FOR — the sentence the server puts in front of it. */
+export type RefRole = "character" | "prop" | "setting" | "style";
+
+/**
+ * One reference attached to a shot (workstream S). The server keeps these on
+ * `override.refs` and sends them to the model ahead of the prompt, each behind
+ * its role sentence. Four per shot, most recent last.
+ */
+export interface ShotReference { path: string; role: RefRole; note?: string }
+
 export interface ShotPageHandles {
   kind: "shot";
   pid: string;
@@ -137,6 +149,10 @@ export interface ShotPageHandles {
   setKeeper(path: string, note?: string): Promise<void>;
   setSource(path: string | null): Promise<void>;
   setOverride(patch: Record<string, unknown>): Promise<void>;
+  /** The Generate tab's References strip: attach a take, drop one by path/role/"all". */
+  addReference(ref: ShotReference): Promise<ShotReference[]>;
+  removeReference(which: string): Promise<ShotReference[]>;
+  references(): ShotReference[];
   /** Types into the Direct box and compiles; shows the PlanPreview. Never applies. */
   direct(instruction: string): Promise<{ plan?: unknown; error?: string }>;
   applyPlan(plan: unknown): Promise<{ results: unknown[]; note?: string }>;
@@ -401,6 +417,8 @@ export const TOOL_NAMES = [
   "plan_motion", "apply_motion_plan",
   // workstream P: the project style register
   "set_style",
+  // workstream S: per-shot reference images the model actually receives
+  "attach_reference", "remove_reference", "list_references",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -429,6 +447,11 @@ export const ANCHORS = {
   genSub: "shot.gen.sub",                      // "shot.gen.sub.<sub>"
   gen: "shot.gen",                             // "shot.gen.<sub>.<field|submit>"
   genModel: "shot.gen.model",
+  /** The References strip above the Generate console, and one item in it. */
+  genRefs: "shot.gen.refs", genRef: "shot.gen.ref",   // + data-path
+  genRefRemove: "shot.gen.ref.remove",         // + data-path
+  genRefPick: "shot.gen.refs.pick", genRefRole: "shot.gen.refs.role",
+  genRefAdd: "shot.gen.refs.add",
   motionLive: "shot.motion.live", motionFreeze: "shot.motion.freeze", motionTrim: "shot.motion.trim",
   audioText: "shot.audio.text", audioVoice: "shot.audio.voice",
   audioTreatment: "shot.audio.treatment",

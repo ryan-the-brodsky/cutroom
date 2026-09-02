@@ -119,6 +119,14 @@ A visitor gets three films a day and the same providers the demo runs on, and
 the server says so in words when the cap is reached rather than failing
 obscurely.
 
+An agent can also hand the model a picture and say what to take from it:
+`attach_reference` pins a face, a prop or a room to one image — a take, another
+shot's keeper, or a link the server fetches — and every still and restyle of
+that shot then carries it, ahead of the prompt, behind a sentence naming its
+role. The same prompt with the dorm attached as SETTING drew the film's own
+room at dawn; without it the model drew a stranger on a bridge
+(`docs/research/references/RESULTS.md`).
+
 The smaller wins are the ones I feel daily. Ambiguous shot names come back as
 candidates with reasons instead of a guess that burns GPU minutes. Edit
 instructions compile to a plan that renders on screen and waits for me. The

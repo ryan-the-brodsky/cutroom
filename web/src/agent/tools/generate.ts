@@ -9,6 +9,7 @@ import {
   clampSeconds, framesForSeconds, motionModels, motionProfile, unfaithfulHint,
   type MotionModel, type MotionProfile,
 } from "./plan";
+import { resolveRefImage, roleOf } from "./references";
 import {
   SHOT_ROUTE, asError, costGate, cut, fetchShot, freshSeeds, lookupShot, maybeNum,
   normalizeCount, openShotPage, pickTake, plateOf, safeState,
@@ -33,6 +34,7 @@ interface GenArgs {
   backend?: string;
   model?: string;
   confirm_cost?: boolean;
+  references?: { image: string; role?: string }[];
 }
 
 /** lane → (generate sub-tab, server lane id, noun). */
@@ -66,13 +68,13 @@ export const generateTakes: ActionDef<GenArgs> = {
   name: "generate_takes",
   title: "Generate takes",
   description:
-    "Generate new takes for a shot in Genga Studio — stills, restyles of an existing " +
-    "take, or animated cel clips. Opens the shot's Generate console on screen, " +
-    "fills it, and submits one job per take with a fresh seed. Returns job ids " +
-    "and the takes. Count 1–4 (default 3). Prompt defaults to the shot's own. " +
-    "Animate clips play in full at the backend's clip length. Paid backends " +
-    "need confirm_cost. Faithfulness problems are usually the model, not the " +
-    "prompt: switch to the registry's fallback and rerun.",
+    "Generate new takes for a shot — stills, restyles of an existing take, or " +
+    "animated cel clips. Opens the Generate console, fills it, and submits one " +
+    "job per take with a fresh seed. Returns job ids and takes. Count 1–4 " +
+    "(default 3). Prompt defaults to the shot's own. Clips play in full at the " +
+    "backend's length. Paid backends need confirm_cost. Attach references first " +
+    "(attach_reference) when a character, prop or place must match a specific " +
+    "image; restyle edits a frame, references guide a new one.",
   inputSchema: {
     type: "object",
     properties: {
@@ -91,6 +93,7 @@ export const generateTakes: ActionDef<GenArgs> = {
       backend: { type: "string", description: "Force a specific backend id instead of the project's lane default (e.g. \"mock\", \"comfyui\", \"fal\")." },
       model: { type: "string", description: "Force a model: a registry key (\"seedance\", \"wan\") or a full endpoint id. list_backends shows the options with cost." },
       confirm_cost: { type: "boolean", description: "Set true to approve a paid backend. Required whenever the lane resolves to a backend that bills money." },
+      references: { type: "array", items: { type: "object" }, description: "One-off reference images for this call only: [{image, role}], role character/prop/setting/style. attach_reference makes one stick." },
     },
     required: ["shot"],
     additionalProperties: false,
@@ -179,6 +182,23 @@ export const generateTakes: ActionDef<GenArgs> = {
       });
     }
 
+    // ---- 4b. one-off references, resolved before the view moves. A reference
+    // that cannot be found is dropped, never fatal: the shot still generates.
+    const oneOff: { image: string; role: string }[] = [];
+    const missedRefs: string[] = [];
+    if (lane !== "animate" && Array.isArray(args?.references)) {
+      for (const row of args!.references!.slice(0, 4)) {
+        const want = String(row?.image ?? "").trim();
+        if (!want) continue;
+        const role = roleOf(row?.role);
+        try {
+          const hit = await resolveRefImage(ctx, pid, shot.sid, want, role);
+          if (hit) oneOff.push({ image: hit.path, role });
+          else missedRefs.push(cut(want, 40));
+        } catch { missedRefs.push(cut(want, 40)); }
+      }
+    }
+
     // ---- 5. drive the UI
     // `take` goes in the URL too: the restyle submit reads the page's selected
     // take, and the query param is applied before the page hands back handles.
@@ -212,6 +232,16 @@ export const generateTakes: ActionDef<GenArgs> = {
       anchor: genFieldAnchor(sub, "prompt"),
       detail: cut(prompt, 140),
     });
+
+    if (oneOff.length) {
+      page.setGenField(sub, "references", oneOff);
+      await ctx.trail.step({
+        tool: "generate_takes",
+        title: `${oneOff.length} reference${oneOff.length === 1 ? "" : "s"} — ` +
+          oneOff.map((r) => r.role).join(", "),
+        anchor: ANCHORS.genRefs,
+      });
+    }
 
     if (lane === "restyle" && source) {
       page.selectTake(source);
@@ -312,6 +342,10 @@ export const generateTakes: ActionDef<GenArgs> = {
           : {}),
         seeds,
         takes,
+        ...(oneOff.length
+          ? { references: oneOff.map((r) => `${r.role}: ${cut(r.image.split("/").pop(), 32)}`) }
+          : {}),
+        ...(missedRefs.length ? { references_not_found: missedRefs } : {}),
         tab: `${s.tab} → ${s.sub}`,
         ...(failed.length ? { failed: failed.map((f) => cut(f.error, 80)) } : {}),
         ...(failures.length ? { submit_errors: failures.slice(0, 2) } : {}),

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 
+from .. import refs as refs_mod
 from .. import style as style_mod
 from .base import Adapter, AdapterError, GenRequest, GenResult
 
@@ -26,6 +27,38 @@ def prompt_with_negative(req: GenRequest) -> str:
     prompt as a closing "Avoid: …" sentence. Adapters that DO have a real
     negative field (ComfyUI) keep using it."""
     return style_mod.fold_avoid(req.prompt, req.negative)
+
+
+def content_parts(req: GenRequest, style_refs: list) -> list[dict]:
+    """The chat message for one image request, in the order that works.
+
+    References first, each behind the sentence that says what to take from it
+    ("match this face…", "match this place's architecture…"), because a bare
+    image is read as content to copy. Then the film's style frames, then the
+    frame being edited, and the prompt LAST — the final text part is the one
+    a Gemini-class model renders.
+    """
+    content: list[dict] = []
+    for path, role in (req.references or [])[:refs_mod.MAX_REFS]:
+        content.append({"type": "text",
+                        "text": refs_mod.ROLE_SENTENCE.get(
+                            role, refs_mod.ROLE_SENTENCE[refs_mod.DEFAULT_ROLE])})
+        content.append({"type": "image_url",
+                        "image_url": {"url": _data_uri(Path(path))}})
+    for i, ref in enumerate(style_refs or []):
+        if i == 0:
+            content.append({"type": "text",
+                            "text": style_mod.STYLE_REF_INSTRUCTION})
+        content.append({"type": "image_url",
+                        "image_url": {"url": _data_uri(Path(ref))}})
+    if req.source:
+        if content:
+            content.append({"type": "text",
+                            "text": "The image to work from follows."})
+        content.append({"type": "image_url",
+                        "image_url": {"url": _data_uri(Path(req.source))}})
+    content.append({"type": "text", "text": prompt_with_negative(req)})
+    return content
 
 
 class OpenAIImagesAdapter(Adapter):
@@ -72,6 +105,8 @@ class OpenRouterImageAdapter(Adapter):
     #: Content parts carry images, so the project's style-reference frames can
     #: ride along. Turn it off per backend with options.style_refs = false.
     accepts_style_refs = True
+    #: …and so can the shot's own character / prop / setting references.
+    accepts_references = True
 
     async def health(self) -> dict:
         return {"up": bool(self.cfg.api_key),
@@ -84,26 +119,12 @@ class OpenRouterImageAdapter(Adapter):
     async def generate(self, req: GenRequest) -> GenResult:
         base = (self.cfg.base_url or "https://openrouter.ai/api/v1").rstrip("/")
         model = req.model or self.opt("model", default="google/gemini-2.5-flash-image")
-        content: list[dict] = []
-        # Style references first: the model reads the instruction, then sees
-        # what the film looks like, then hears what this shot is. Content-last
-        # is deliberate — the last text part is the one it renders.
         # Reference frames pull the palette toward the references (measured: three night
-        # interiors darkened a daylight scene), so they are opt-in per backend.
+        # interiors darkened a daylight scene), so the film-wide style frames are
+        # opt-in per backend. Per-shot references are not: the director asked for
+        # those image by image, so they always ride.
         refs = req.refs if self.opt("style_refs", default=False) is True else []
-        for i, ref in enumerate(refs or []):
-            if i == 0:
-                content.append({"type": "text",
-                                "text": style_mod.STYLE_REF_INSTRUCTION})
-            content.append({"type": "image_url",
-                            "image_url": {"url": _data_uri(Path(ref))}})
-        if req.source:
-            if content:
-                content.append({"type": "text",
-                                "text": "The image to work from follows."})
-            content.append({"type": "image_url",
-                            "image_url": {"url": _data_uri(Path(req.source))}})
-        content.append({"type": "text", "text": prompt_with_negative(req)})
+        content = content_parts(req, refs)
         payload = {"model": model,
                    "messages": [{"role": "user", "content": content}],
                    "modalities": ["image", "text"]}
@@ -139,5 +160,6 @@ class OpenRouterImageAdapter(Adapter):
         out.write_bytes(raw)
         return GenResult(files=[out], meta={"backend": self.cfg.id, "model": model,
                                             "style_refs": len(refs or []),
+                                            "references": len(req.references or []),
                                             "usage": usage,
                                             "generation_id": data.get("id")})

@@ -23,6 +23,7 @@ from ..adapters.registry import ADAPTER_TYPES
 from ..config import get_settings
 from .. import budget
 from .. import cues as c_cues
+from .. import refs as refs_mod
 from ..db import session_scope
 from ..engine import assemble as e_asm
 from ..engine import audio as e_audio
@@ -146,6 +147,39 @@ def styled_request(project_id: str, choice: LaneChoice, adapter, p: dict,
     return prompt, negative, refs, applied
 
 
+def shot_references(project_id: str, shot_sid: str | None, adapter, p: dict,
+                    store, log=None) -> tuple[list, list[dict]]:
+    """The reference images this request should carry.
+
+    The shot's own `override.refs` first, then any one-off `references` in the
+    payload, capped at four. Returns `([(path, role)], references_used)`; the
+    second half is what goes on the Take so a still can be traced back to the
+    pictures that shaped it.
+    """
+    rows: list[dict] = []
+    if shot_sid:
+        try:
+            with session_scope() as s:
+                shot = s.execute(select(Shot).where(
+                    Shot.project_id == project_id,
+                    Shot.sid == shot_sid)).scalar_one_or_none()
+                if shot:
+                    rows = refs_mod.normalize((shot.override or {}).get("refs"))
+        except Exception:                       # a reference must never fail a job
+            rows = []
+    rows = refs_mod.merge(rows, p.get("references"))
+    if not rows:
+        return [], []
+    if not getattr(adapter, "accepts_references", False):
+        if log:
+            log(f"references: {len(rows)} skipped — "
+                f"{adapter.cfg.type} takes no image input")
+        return [], []
+    found = refs_mod.resolve_rows(store, rows)
+    return ([(path, row["role"]) for path, row in found],
+            refs_mod.summary([row for _, row in found]))
+
+
 def record_take(project_id: str, shot_sid: str | None, kind: str, rel: str,
                 *, backend_id=None, model=None, prompt=None, params=None,
                 sources=None, seed=None, job_id=None, meta=None) -> None:
@@ -178,8 +212,13 @@ async def gen_still(ctx, p: dict) -> dict:
     # the register goes on here, once, for every still the project makes.
     prompt, negative, refs, style_applied = styled_request(
         project, choice, adapter, p, store)
+    references, refs_used = shot_references(
+        project, p.get("shot"), adapter, p, store, ctx.log)
     ctx.log(f"style: {style_applied['name']}"
-            + (f" +{len(refs)} refs" if refs else ""))
+            + (f" +{len(refs)} refs" if refs else "")
+            + (f" +{len(references)} references "
+               f"({', '.join(r['role'] for r in refs_used)})"
+               if references else ""))
     wd = _workdir(ctx)
     takes = []
     try:
@@ -188,7 +227,7 @@ async def gen_still(ctx, p: dict) -> dict:
                 lane="still", workdir=wd, prompt=prompt,
                 negative=negative, width=int(p.get("width", 768)),
                 height=int(p.get("height", 432)), seed=seed,
-                model=choice.model, refs=refs,
+                model=choice.model, refs=refs, references=references,
                 params={**choice.params, **(p.get("params") or {}),
                         "_project": project},
                 log=ctx.log)
@@ -202,6 +241,8 @@ async def gen_still(ctx, p: dict) -> dict:
                             prompt=prompt,
                             params={**(res.meta.get("options") or {}),
                                     "style_applied": style_applied,
+                                    **({"references_used": refs_used}
+                                       if refs_used else {}),
                                     **({"usage": res.meta["usage"]}
                                        if res.meta.get("usage") else {})},
                             seed=seed, job_id=ctx.job_id,
@@ -224,6 +265,8 @@ async def gen_i2i(ctx, p: dict) -> dict:
     denoise = float(p.get("denoise", 0.85))
     prompt, negative, refs, style_applied = styled_request(
         project, choice, adapter, p, store)
+    references, refs_used = shot_references(
+        project, p.get("shot"), adapter, p, store, ctx.log)
     wd = _workdir(ctx)
     takes = []
     try:
@@ -232,6 +275,7 @@ async def gen_i2i(ctx, p: dict) -> dict:
                 lane="i2i", workdir=wd, prompt=prompt,
                 negative=negative, source=src, seed=seed,
                 denoise=denoise, model=choice.model, refs=refs,
+                references=references,
                 params={**choice.params, **(p.get("params") or {}),
                         "_project": project},
                 log=ctx.log)
@@ -243,7 +287,9 @@ async def gen_i2i(ctx, p: dict) -> dict:
                             backend_id=choice.cfg.id, model=choice.model,
                             prompt=prompt,
                             params={"denoise": denoise,
-                                    "style_applied": style_applied},
+                                    "style_applied": style_applied,
+                                    **({"references_used": refs_used}
+                                       if refs_used else {})},
                             sources=[p["source"]],
                             seed=seed, job_id=ctx.job_id,
                             meta=choice.take_meta())

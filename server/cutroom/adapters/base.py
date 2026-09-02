@@ -42,6 +42,10 @@ class GenRequest:
     negative: str = ""
     source: Path | None = None       # i2i / i2v input image
     refs: list[Path] = field(default_factory=list)   # style-reference frames
+    #: Per-shot references as (absolute path, role) — character | prop |
+    #: setting | style. Attached ahead of everything else by adapters that
+    #: take image input; see cutroom/refs.py.
+    references: list[tuple[Path, str]] = field(default_factory=list)
     width: int = 768
     height: int = 432
     frames: int = 97                 # i2v (8k+1 for LTX-class models)
@@ -66,6 +70,10 @@ class Adapter:
     type_name: str = ""
     lanes: set[str] = set()
     kind: str = "api"                # api | gpu — informs default pool sizing
+    #: Can this adapter carry per-shot reference images? False means the job
+    #: handler logs and skips them rather than paying to build a request that
+    #: would drop them (the ComfyUI workflows have nowhere to put one).
+    accepts_references: bool = False
 
     def __init__(self, cfg: BackendConfig):
         self.cfg = cfg

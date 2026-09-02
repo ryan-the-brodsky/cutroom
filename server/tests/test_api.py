@@ -31,9 +31,12 @@ def test_shot_and_override_flow(client):
                     json={"seconds": None})
     assert "seconds" not in r.json()["override"]
 
+    # A bare path still adds; it comes back as a character reference, which is
+    # the shape everything reads now (cutroom/refs.py, tests/test_references.py).
     r = client.post("/api/projects/p1/shots/B01-S1/refs",
                     json={"add": "renders/refs/photo/x.jpg"})
-    assert r.json()["refs"] == ["renders/refs/photo/x.jpg"]
+    assert r.json()["refs"] == [{"path": "renders/refs/photo/x.jpg",
+                                 "role": "character"}]
 
 
 def test_curation_keeps_history(client):

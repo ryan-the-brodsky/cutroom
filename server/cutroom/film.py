@@ -11,6 +11,7 @@ from collections import defaultdict
 
 from sqlalchemy import select
 
+from . import refs as refs_mod
 from .models import Shot, Take
 from .storage import ProjectStore
 
@@ -90,6 +91,9 @@ def film_entry(store: ProjectStore, shot: Shot, takes: list[Take]) -> dict:
         "render_notes": shot.render_notes,
         "keeper": shot.keeper, "curation_note": shot.curation_note,
         "override": ov,
+        # The shot's reference images, always in the {path, role} shape even
+        # when the row still holds the old bare-string list (cutroom/refs.py).
+        "references": refs_mod.normalize(ov.get("refs")),
         "stills": _paths(takes, ("still",)),
         "i2i": _paths(takes, ("i2i",)),
         "motion": _paths(takes, ("motion", "chain")),

@@ -12,6 +12,7 @@ from ..jobs.queue import submit_job
 from ..models import Comp, LaneConfig, Project, Shot, Take
 from ..storage import get_storage
 from .. import film
+from .. import refs as refs_mod
 from .. import style as style_mod
 from .deps import project_or_404, require_admin, store_for
 
@@ -401,21 +402,83 @@ async def curate(pid: str, sid: str, req: Request):
 
 @router.post("/projects/{pid}/shots/{sid}/refs")
 async def shot_refs(pid: str, sid: str, req: Request):
+    """The shot's reference images — "match THIS face / prop / room".
+
+    `add` takes a path or `{path, role, note}`; `role` and `note` may also be
+    sent alongside a bare path. `remove` takes a path, a role (drops every
+    reference in it) or "all". Old plain-string entries migrate to
+    `{path, role: "character"}` the first time a shot is touched, and are read
+    that way everywhere regardless (cutroom/refs.py).
+
+    Viewer-allowed on the demo: choosing what a shot should look like is
+    creative work, and the file has to be in the project already.
+    """
     body = await req.json()
+    add = body.get("add")
+    if isinstance(add, str):
+        add = {"path": add}
+    if isinstance(add, dict):
+        add = {**add,
+               **({"role": body["role"]} if body.get("role") and not
+                  add.get("role") else {}),
+               **({"note": body["note"]} if body.get("note") and not
+                  add.get("note") else {})}
+    remove = body.get("remove")
     with session_scope() as s:
         shot = s.execute(select(Shot).where(
             Shot.project_id == pid, Shot.sid == sid)).scalar_one_or_none()
         if not shot:
             raise HTTPException(404, sid)
         ov = dict(shot.override or {})
-        refs = list(ov.get("refs", []))
-        if body.get("add") and body["add"] not in refs:
-            refs.append(body["add"])
-        if body.get("remove"):
-            refs = [r for r in refs if r != body["remove"]]
-        ov["refs"] = refs
+        rows = refs_mod.normalize(ov.get("refs"))
+        if add:
+            row = refs_mod.normalize_one(add)
+            if not row:
+                raise HTTPException(400, "add needs a path")
+            rows = [r for r in rows if r["path"] != row["path"]] + [row]
+            if len(rows) > refs_mod.MAX_REFS:
+                raise HTTPException(
+                    400, f"a shot carries at most {refs_mod.MAX_REFS} "
+                         "references — remove one first")
+        if isinstance(remove, str) and remove.strip():
+            word = remove.strip().lower()
+            if word == "all":
+                rows = []
+            elif word in refs_mod.ROLES:
+                rows = [r for r in rows if r["role"] != word]
+            else:
+                target = remove.strip().lstrip("/")
+                rows = [r for r in rows if r["path"] != target
+                        and r["path"].rsplit("/", 1)[-1] != target]
+        ov["refs"] = rows
         shot.override = ov
-        return {"refs": refs}
+        return {"refs": rows, "roles": sorted({r["role"] for r in rows})}
+
+
+@router.post("/projects/{pid}/refs/fetch")
+async def fetch_ref(pid: str, req: Request):
+    """Pull an http(s) image into the project as a reference.
+
+    An agent handed a link should not have to ask the director to download it.
+    The guards are the point: http(s) only, no host that resolves onto a
+    private network, image content-type only, 10 MB and 10 s. The file lands
+    in `refs/` and is recorded as a Take of kind `ref`, so it shows up in the
+    takes table with everything else the project holds.
+    """
+    store = store_for(pid)
+    body = await req.json()
+    try:
+        data, name = await refs_mod.fetch(body.get("url"))
+    except refs_mod.RefError as e:
+        raise HTTPException(400, str(e))
+    rel = store.unique_rel(f"{refs_mod.REF_DIR}/{name}")
+    store.write_bytes(rel, data)
+    role = refs_mod.role_of(body.get("role"))
+    with session_scope() as s:
+        s.add(Take(project_id=pid, shot_sid=body.get("shot"), kind="ref",
+                   path=rel, meta={"fetched_from": str(body.get("url"))[:400],
+                                   "role": role, "bytes": len(data)}))
+    return {"ok": True, "rel": rel, "role": role, "bytes": len(data)}
 
 
 @router.get("/projects/{pid}/takes")

@@ -30,6 +30,7 @@ import {
 import {
   exportTimeline, listBackends, renderTimeline, setLaneDefault,
 } from "./settings";
+import { attachReference, listReferences, removeReference } from "./references";
 import { setStyle } from "./style";
 import { playCut, playTake, previewTimeline, stopPlayback } from "./screen";
 import { setShotTiming } from "./timing";
@@ -96,6 +97,10 @@ export const TOOLS: AnyActionDef[] = [
   applyMotionPlan,
   // workstream P — the style register
   setStyle,
+  // workstream S — per-shot reference images
+  attachReference,
+  removeReference,
+  listReferences,
 ];
 
 /**
@@ -149,6 +154,7 @@ export {
 export { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "./settings";
 export { createProject, listProjects, setProjectCast, writeScript } from "./project";
 export { STYLE_PRESETS, setStyle } from "./style";
+export { attachReference, listReferences, removeReference } from "./references";
 export { playCut, playTake, previewTimeline, stopPlayback, pickCut, resolveFrom } from "./screen";
 export {
   applyMotionPlan, clipCost, fitBudget, framesForSeconds, motionProfile,

@@ -18,7 +18,7 @@
 | Judge link | `<LIVE_URL>/app?token=<JUDGE_TOKEN>` (token in Railway vars and your local env file, never in this repo) |
 | Landing page | `<LIVE_URL>/` — the public page; "Open the studio" goes to `/app` |
 | Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
-| Tools | 43 |
+| Tools | 46 |
 
 ---
 
@@ -342,6 +342,24 @@ paste. Esc closes it.
 - *No cuts yet*: `play_cut` returns `no_cuts`. Run 5 first.
 - *You want the pre-render state instead*: `preview_timeline` plays the live
   compiled preview on the Timeline. Video only, no audio.
+
+### Run 5d · references (a picture the model has to match)
+
+```
+Use the dorm from shot one as the setting for a dawn version of it, laptops closed.
+```
+
+| # | Tool | Args | Expected |
+|---|---|---|---|
+| 1 | `attach_reference` | `{"shot":"B01-S1","image":"keeper of B01-S1","role":"setting"}` | the strip in Generate shows the thumbnail with a `setting` badge |
+| 2 | `generate_takes` | `{"shot":"B01-S1","lane":"still","count":1,"prompt":"the same room at DAWN, warm sunrise through the blinds, both laptops CLOSED, nobody in the room","confirm_cost":true}` | the same dorm, at dawn — `params.references_used` on the take |
+| 3 | `remove_reference` | `{"shot":"B01-S1","image":"all"}` | the strip empties |
+
+**Visible:** the References strip above the Generate console, thumbnails with
+role badges and a ✕ on each. Say what CHANGED in the prompt: the SETTING
+sentence asks the model to match the place's light too, so "at dawn" has to be
+in the prompt in plain words or the reference's night lighting comes with it
+(`docs/research/references/RESULTS.md`).
 
 ### Run 6 · reproduce the whole production (not on camera)
 

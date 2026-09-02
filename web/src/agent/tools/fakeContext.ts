@@ -12,7 +12,7 @@ import type {
   CompPageHandles, Confidence, CueField, CueKind,
   CuePlacement, CueRecord, FilmPageHandles,
   FilmShotLite, GenField, GenSub, KindFilter, ProjectLite, ProjectsPageHandles,
-  ResolvedShot, Resolution,
+  ResolvedShot, Resolution, ShotReference,
   ShotPageHandles, ShotTab, TakeLite, TimelineClipLite, TimelinePageHandles,
   TrailStep, VoField,
 } from "../contract";
@@ -70,6 +70,16 @@ export const FIXTURE_DETAIL: Record<string, Record<string, unknown>> = {
     i2i: [], motion: [], fx: [], crops: [], vo: [],
     comps: [],
   },
+};
+
+/**
+ * References attached during a test, by sid. The fake shot detail serves them
+ * back, so attach → list → generate round-trips the way the server does.
+ * Cleared by every `makeFakeContext()`.
+ */
+export const FIXTURE_REFS: Record<string, ShotReference[]> = {};
+export const resetReferences = (): void => {
+  for (const k of Object.keys(FIXTURE_REFS)) delete FIXTURE_REFS[k];
 };
 
 const takeRows = (sid: string) => {
@@ -240,6 +250,30 @@ export class FakeShotPage implements ShotPageHandles {
   }
   /** Set to a message to make the next addCue throw. */
   failCue: string | null = null;
+
+  /** The References strip, standing in for POST …/shots/{sid}/refs. */
+  get refs(): ShotReference[] { return FIXTURE_REFS[this.sid] ||= []; }
+  set refs(rows: ShotReference[]) { FIXTURE_REFS[this.sid] = rows; }
+  /** Set to a message to make the next addReference throw. */
+  failReference: string | null = null;
+  references() { return this.refs; }
+  async addReference(ref: ShotReference) {
+    this.log(`addReference(${ref.path},${ref.role})`);
+    if (this.failReference) throw new Error(this.failReference);
+    if (this.refs.length >= 4 && !this.refs.some((r) => r.path === ref.path)) {
+      throw new Error("a shot carries at most 4 references — remove one first");
+    }
+    this.refs = [...this.refs.filter((r) => r.path !== ref.path), ref];
+    return this.refs;
+  }
+  async removeReference(which: string) {
+    this.log(`removeReference(${which})`);
+    const w = which.trim().toLowerCase();
+    this.refs = w === "all" ? []
+      : this.refs.filter((r) => r.role !== w && r.path !== which
+                         && r.path.split("/").pop() !== which);
+    return this.refs;
+  }
 
   async setKeeper(path: string, note?: string) {
     this.log(`setKeeper(${path}${note ? `,${note}` : ""})`);
@@ -617,7 +651,15 @@ function defaultApi(path: string, body?: unknown): unknown {
   if (shotMatch) {
     const d = FIXTURE_DETAIL[shotMatch[1]];
     if (!d) throw new Error(`404 ${shotMatch[1]}`);
-    return d;
+    // The server normalizes `override.refs` into `references` on the way out.
+    return { ...d, references: FIXTURE_REFS[shotMatch[1]] || [] };
+  }
+  const refFetch = /\/api\/projects\/([^/]+)\/refs\/fetch$/.exec(path);
+  if (refFetch) {
+    const url = String(((body || {}) as Record<string, unknown>).url || "");
+    if (!/^https?:\/\//i.test(url)) throw new Error("only http(s) urls can be fetched");
+    if (/\.html?$/i.test(url)) throw new Error("that url is text/html, not an image");
+    return { ok: true, rel: `refs/${url.split("/").pop() || "reference.png"}` };
   }
   // The Cuts gallery, newest first (workstream M).
   if (/\/api\/projects\/[^/]+\/takes\?kind=animatic/.test(path)) {
@@ -705,6 +747,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     calls: (prefix) => (prefix ? pageCalls.filter((c) => c.startsWith(prefix)) : pageCalls),
   };
 
+  resetReferences();
   const cues = opts.cues ?? new FakeCueStore();
   const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls, cues);
   const filmPage = new FakeFilmPage(project || "next-year", pageCalls, cues);

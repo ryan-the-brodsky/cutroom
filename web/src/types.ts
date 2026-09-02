@@ -16,6 +16,8 @@ export interface FilmEntry {
   render_notes: string | null;
   keeper: string | null; curation_note: string | null;
   override: Record<string, any>;
+  /** The shot's reference images, {path, role, note?} (workstream S). */
+  references?: { path: string; role: string; note?: string }[];
   stills: string[]; i2i: string[]; motion: string[]; crops: string[];
   fx: string[]; vo: string[];
   active_source: string | null;

@@ -166,6 +166,8 @@ export interface ShotDetail {
   dialogue?: { character: string; line: string }[];
   keeper?: string | null; active_source?: string | null;
   override?: Record<string, unknown>;
+  /** The shot's reference images, normalized by the server (workstream S). */
+  references?: { path: string; role: string; note?: string }[];
   stills?: string[]; i2i?: string[]; motion?: string[]; fx?: string[];
   crops?: string[]; vo?: string[];
   takes?: { path: string; kind: string; created_at?: number; seed?: number | null; meta?: Record<string, unknown> }[];
