@@ -104,11 +104,9 @@ def test_cast_route_404s_for_unknown_project(client):
     assert client.get("/api/projects/nope/cast").status_code == 404
 
 
-def test_set_cast_endpoint(client_admin_factory=None):
+def test_set_cast_endpoint(client):
     """POST /projects/{pid}/cast stores characters + a built cast for API-created projects."""
-    from fastapi.testclient import TestClient
-    from cutroom.main import create_app
-    c = TestClient(create_app())
+    c = client
     assert c.post("/api/projects", json={"id": "castproj"}).status_code == 200
     rows = [{"id": "CHAR-a", "character": "Claude A — the first instance", "image_prompt": "x"}]
     r = c.post("/api/projects/castproj/cast", json={"characters": rows})

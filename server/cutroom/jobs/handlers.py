@@ -272,10 +272,20 @@ async def gen_motion(ctx, p: dict) -> dict:
                     sources=[plate_rel], seed=p.get("seed"), job_id=ctx.job_id)
 
         out_rel = store.unique_rel(f"renders/fx/{name}.mp4")
-        await asyncio.to_thread(
-            e_cels.composite_single, plate, store.resolve(crop_rel), snapped,
-            store.resolve(out_rel), int(p.get("feather", 24)),
-            p.get("matte", "window"), None, 24, True, ctx.log)
+        full_frame = (l, t, r, b) == (0, 0, pw, ph) and p.get("matte", "window") == "window"
+        if full_frame:
+            # Whole-plate cel with a window matte composites to the clip itself. Skip the
+            # in-memory compositor (it decodes every frame into RAM and OOMs a 1 GB box)
+            # and let ffmpeg stream the clip to the plate's size instead.
+            ctx.log("full-frame cel: streaming transcode to plate size (no composite)")
+            await asyncio.to_thread(
+                e_ff.transcode, store.resolve(crop_rel), store.resolve(out_rel),
+                ["-vf", f"scale={pw}:{ph}:flags=lanczos", "-r", "24"])
+        else:
+            await asyncio.to_thread(
+                e_cels.composite_single, plate, store.resolve(crop_rel), snapped,
+                store.resolve(out_rel), int(p.get("feather", 24)),
+                p.get("matte", "window"), None, 24, True, ctx.log)
         record_take(project, p.get("shot"), "motion", out_rel,
                     backend_id=choice.cfg.id, model=choice.model,
                     prompt=p["prompt"],
