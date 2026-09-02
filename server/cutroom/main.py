@@ -160,10 +160,34 @@ def seed_backends() -> None:
                 row.enabled = bool(settings.demo_mock)
 
 
+def sweep_scratch() -> dict:
+    """Boot-time sweep of our own scratch dirs (cutroom_asm_*, cutroom_frames_*,
+    cutroom_cel_*, data_dir/tmp/job-*). Nothing is running at boot, so anything
+    left is from a crashed or OOM-killed job; on a small box that leftover is
+    exactly what turns the next cut into "No space left on device"."""
+    import shutil as _sh
+    import tempfile as _tf
+    removed, freed = 0, 0
+    roots = [Path(_tf.gettempdir()), get_settings().data_dir / "tmp"]
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for d in root.iterdir():
+            if d.is_dir() and (d.name.startswith("cutroom_") or d.name.startswith("job-")):
+                try:
+                    freed += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+                except OSError:
+                    pass
+                _sh.rmtree(d, ignore_errors=True)
+                removed += 1
+    return {"removed": removed, "freed_mb": round(freed / 1e6, 1)}
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     init_db()
     seed_backends()
+    sweep_scratch()
 
     app = FastAPI(title="Genga Studio", version="0.1.0")
 

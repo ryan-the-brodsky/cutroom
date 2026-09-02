@@ -41,3 +41,63 @@ def delete_project(pid: str):
         shutil.rmtree(media_root, ignore_errors=True)
         removed_dir = not media_root.exists()
     return {"ok": True, "deleted": pid, "rows": counts, "media_removed": removed_dir}
+
+
+@router.post("/projects/{pid}/purge",
+             dependencies=[Depends(require_admin("purging project files"))])
+def purge_project(pid: str, keep_cuts: int = 3, drop_intermediates: bool = True):
+    """Free space without touching the film: keep the newest `keep_cuts` animatics,
+    drop crop/matte intermediates under renders/motion/tests, and remove media files
+    for takes that no longer exist. Picks, keepers and current sources are never removed."""
+    from ..models import Shot as _Shot
+    store = store_for(pid)
+    freed = 0
+    removed = {"cuts": 0, "intermediates": 0}
+    with session_scope() as s:
+        if not s.get(Project, pid):
+            raise HTTPException(404, "no such project")
+        protected = set()
+        for sh in s.execute(select(_Shot).where(_Shot.project_id == pid)).scalars():
+            ov = sh.override or {}
+            for v in (sh.keeper, ov.get("source"), ov.get("vo_file")):
+                if v:
+                    protected.add(v)
+        cuts = s.execute(select(Take).where(Take.project_id == pid, Take.kind == "animatic")
+                         .order_by(Take.created_at.desc())).scalars().all()
+        for t in cuts[max(0, keep_cuts):]:
+            p = store.resolve(t.path)
+            if p.exists():
+                freed += p.stat().st_size
+                p.unlink()
+            s.delete(t)
+            removed["cuts"] += 1
+        if drop_intermediates:
+            for t in s.execute(select(Take).where(Take.project_id == pid,
+                                                   Take.kind.in_(("crop", "matte")))).scalars().all():
+                if t.path in protected:
+                    continue
+                p = store.resolve(t.path)
+                if p.exists():
+                    freed += p.stat().st_size
+                    p.unlink()
+                s.delete(t)
+                removed["intermediates"] += 1
+    return {"ok": True, "project": pid, "removed": removed, "freed_mb": round(freed / 1e6, 1)}
+
+
+@router.post("/system/purge-orphans",
+             dependencies=[Depends(require_admin("purging orphan directories"))])
+def purge_orphans():
+    """Remove project directories on disk that no longer have a Project row."""
+    from ..config import get_settings
+    root = get_settings().data_dir / "projects"
+    with session_scope() as s:
+        live = {p.id for p in s.execute(select(Project)).scalars()}
+    removed, freed = [], 0
+    if root.exists():
+        for d in root.iterdir():
+            if d.is_dir() and d.name not in live:
+                freed += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+                shutil.rmtree(d, ignore_errors=True)
+                removed.append(d.name)
+    return {"ok": True, "removed": removed, "freed_mb": round(freed / 1e6, 1)}

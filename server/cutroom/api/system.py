@@ -3,6 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 
+import shutil
+import tempfile
+
 from ..config import get_settings
 from ..db import session_scope
 from ..models import Job, Project
@@ -28,7 +31,23 @@ def system_state(request: Request):
             "demo": bool(settings.demo),
             "role": demo.role_for(request),
             "budget": budget.state(),
+            "disk": _disk(settings),
             "version": "0.1.0"}
+
+
+def _disk(settings) -> dict:
+    """Free space where it matters: the data volume (takes, cuts) and the
+    scratch dir the assembler/compositor write to. A full disk fails a cut
+    with an opaque ffmpeg "No space left on device"; this makes it visible."""
+    out = {}
+    for name, path in (("data", settings.data_dir), ("tmp", tempfile.gettempdir())):
+        try:
+            u = shutil.disk_usage(str(path))
+            out[name] = {"path": str(path), "used_mb": round(u.used / 1e6),
+                         "free_mb": round(u.free / 1e6), "total_mb": round(u.total / 1e6)}
+        except OSError:
+            out[name] = {"path": str(path), "error": "unavailable"}
+    return out
 
 
 @router.post("/system/pause",
