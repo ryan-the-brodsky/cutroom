@@ -611,9 +611,14 @@ export const applyMotionPlan: ActionDef<ApplyArgs> = {
 
     for (const item of items) {
       if (ctx.signal?.aborted) { stopped = "cancelled"; break; }
-      const seconds = clampSeconds(profile, Number(item.seconds) || (profile.seconds_default ?? 2));
+      // Pick the model first, then clamp against THAT model's ceiling: the backend's
+      // default profile (Wan, 5 s) must not shorten a 9 s Seedance clip.
+      const want = Number(item.seconds) || (profile.seconds_default ?? 2);
       const chosen = findModel(models, item.model)
-        ?? (models.length ? pickModel(models, budget - spent, seconds, item.register).model : null);
+        ?? (models.length ? pickModel(models, budget - spent, want, item.register).model : null);
+      const seconds = chosen && chosen.seconds_max
+        ? Math.round(Math.max(0.1, Math.min(want, chosen.seconds_max)) * 10) / 10
+        : clampSeconds(profile, want);
       const est = chosen ? modelCost(chosen, seconds)
         : clipCost(profile, seconds, choice.cost_usd ?? 0);
       if (spent + est > budget + 1e-9) { stopped = "budget reached"; break; }
