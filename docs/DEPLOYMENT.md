@@ -240,24 +240,33 @@ SFX and music lanes are deliberately unset, so they fall back to `mock`.
 
 ### Demo data
 
-Built with `cutroom demo-bundle` from the private game7 tree and published as a
-GitHub Release asset on this repo:
+The bundle is film footage, not code, and it must **not** become public when the
+code repo does. So it lives on its own permanently-private repo,
+**`ryan-the-brodsky/cutroom-demo-data`**, as release `demo-data-v1` (asset id
+`540318287`). Nothing about the bundle is stored in this repository.
+
+Built with `cutroom demo-bundle` from the private game7 tree:
 
 ```bash
 server/.venv/bin/cutroom demo-bundle \
   /Users/ryan-the-brodsky/Documents/programming/game7 \
-  /tmp/cutroom-D/demo-data-v1.tar.zst          # 941 files, 290 MB raw → 278 MB
+  /tmp/cutroom-D/demo-data-v1.tar.zst          # 941 files, 290 MB raw -> 278 MB
 
 gh release create demo-data-v1 /tmp/cutroom-D/demo-data-v1.tar.zst \
-  --repo ryan-the-brodsky/cutroom --title "Demo data v1 (next-year)"
-gh api repos/ryan-the-brodsky/cutroom/releases/tags/demo-data-v1 --jq '.assets[].id'
+  --repo ryan-the-brodsky/cutroom-demo-data --title "Demo data v1 (next-year)"
+gh api repos/ryan-the-brodsky/cutroom-demo-data/releases/tags/demo-data-v1 \
+  --jq '.assets[].id'
 ```
 
-- `CUTROOM_DEMO_BUNDLE` = `https://api.github.com/repos/ryan-the-brodsky/cutroom/releases/assets/540277013` — **set**.
-- `CUTROOM_DEMO_BUNDLE_TOKEN` — a bearer token with `contents:read` on this
-  repo. Only needed **while the repo is private**; drop it the moment the repo
-  goes public. Mint a *fine-grained* PAT scoped to this one repository with
-  Contents: Read-only (<https://github.com/settings/personal-access-tokens/new>).
+- `CUTROOM_DEMO_BUNDLE` =
+  `https://api.github.com/repos/ryan-the-brodsky/cutroom-demo-data/releases/assets/540318287`
+  — **set**.
+- `CUTROOM_DEMO_BUNDLE_TOKEN` — **required, and not yet set.** The data repo is
+  private and stays private, so unlike the code repo this token never becomes
+  optional: without it the boot importer cannot download the asset and the demo
+  comes up with no film. It must be a *fine-grained* PAT scoped to
+  **`cutroom-demo-data` only**, with **Contents: Read-only**
+  (<https://github.com/settings/personal-access-tokens/new>).
   Do **not** use `gh auth token` here: that is Ryan's account-wide OAuth token
   with `repo` write access to every repository he owns, and this env var lives
   on a public-facing demo host.
@@ -315,5 +324,7 @@ gh repo view ryan-the-brodsky/cutroom --json isPrivate,licenseInfo
 Check first that nothing private has crept in: the film's script, bible and
 prompts live in the separate private `game7` repo and must stay there, and no
 `.env`, token or provider key may be in the history
-(`git log -p | grep -iE 'api[_-]?key|token'`). Once public, drop
-`CUTROOM_DEMO_BUNDLE_TOKEN` — release assets on a public repo need no auth.
+(`git log -p | grep -iE 'api[_-]?key|token'`). Note that
+`CUTROOM_DEMO_BUNDLE_TOKEN` is **not** dropped when this repo goes public — the
+bundle lives on the separate, permanently private `cutroom-demo-data` repo, so
+its read token is still needed.
