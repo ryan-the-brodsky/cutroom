@@ -568,3 +568,11 @@ at low cost, with Ryan able to toggle providers without redeploying.
   `list_features` lists every tool compactly instead of the first 12. Hosting (D) is blocked on
   Railway's builder for this workspace; GHCR image workaround built, waiting on Ryan for package
   visibility or a packages-scoped token.
+- **Safety pass before going public (Tue 17:40–18:05 PT)** — history and tree scanned for
+  secrets: clean. A recorded test fixture held the film's full shot list (prompts, dialogue,
+  render notes); history rewritten to purge it, a sanitized fixture committed, the full
+  recording kept private in game7 (`prompts/fixtures/`) with real-data pins skipping when
+  absent. Demo bundle moved off the code repo to the private `cutroom-demo-data` release;
+  `CUTROOM_DEMO_BUNDLE_TOKEN` (fine-grained, contents:read on that repo only) is now
+  permanently required. Docs checked for quoted dialogue: none. Residual: GitHub keeps
+  force-pushed commits reachable by hash until GC — recommended a fresh repo before the flip.
