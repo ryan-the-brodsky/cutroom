@@ -576,3 +576,7 @@ at low cost, with Ryan able to toggle providers without redeploying.
   `CUTROOM_DEMO_BUNDLE_TOKEN` (fine-grained, contents:read on that repo only) is now
   permanently required. Docs checked for quoted dialogue: none. Residual: GitHub keeps
   force-pushed commits reachable by hash until GC — recommended a fresh repo before the flip.
+- **Go public (Tue 18:20 PT)** — Ryan deleted the original repo; recreated
+  `github.com/ryan-the-brodsky/cutroom` PUBLIC from the clean history (MIT detected). CI now
+  publishes `ghcr.io/ryan-the-brodsky/cutroom-demo:latest` (fresh package). Demo data stays
+  private on `cutroom-demo-data`; boot import needs `CUTROOM_DEMO_BUNDLE_TOKEN`.
