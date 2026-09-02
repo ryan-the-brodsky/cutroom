@@ -68,7 +68,9 @@ function pickResolver(mod: Record<string, unknown>, api: ActionContext["api"]): 
 
 /** Pick whatever shape workstream C settled on for `tools/index.ts`. */
 function pickTools(mod: Record<string, unknown>): ActionDef<any>[] {
-  for (const key of ["TOOLS", "ALL_TOOLS", "tools", "catalogue", "catalog", "actions", "default"]) {
+  // ALL_ACTIONS first: it is the tool catalogue PLUS the palette-only feature registry
+  // (workstream I), which is what makes ⌘K and show_me cover the whole application.
+  for (const key of ["ALL_ACTIONS", "TOOLS", "ALL_TOOLS", "tools", "catalogue", "catalog", "actions", "default"]) {
     const v = mod[key];
     if (Array.isArray(v) && v.every((d) => d && typeof (d as ActionDef).name === "string")) {
       return v as ActionDef<any>[];

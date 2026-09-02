@@ -24,7 +24,12 @@ The deep design ideas worth keeping (they ARE the product):
 
 1. **The cel model.** A shot's visual = an approved still **plate** (never touched by video
    models) + z-ordered **cel layers**: animated clips playing inside snapped-to-32 regions,
-   merged via feathered windows or figure mattes. Layers reroll independently.
+   merged via feathered windows or figure mattes. Layers reroll independently. The plate is
+   still the only thing *restyle* can touch — that is what keeps a look consistent — but the
+   background may itself be a **clip**, so a moving background can carry moving cels without
+   the figures boiling. `engine.cels.render_comp` streams both: background and every layer are
+   decoded one frame at a time through ffmpeg pipes, composited with numpy and piped into an
+   encoder, so peak memory is a handful of frames whatever the clip length.
 2. **The FIRST-SECOND LAW.** LTX's first ~1s is clean anime; drift accumulates. Therefore:
    freeze-tail (burst then held cel), chain-gen (breath-stitching short front-loaded beats),
    and the director grammar built on them.

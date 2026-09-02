@@ -7,7 +7,8 @@
  * against the frozen contract — which is the whole point.
  */
 import type {
-  ActionContext, AnyPageHandles, Candidate, Confidence, CueField, CueKind,
+  ActionContext, AnyPageHandles, BgField, Candidate, CompLayerLite,
+  CompPageHandles, Confidence, CueField, CueKind,
   CuePlacement, CueRecord, FilmPageHandles,
   FilmShotLite, GenField, GenSub, KindFilter, ResolvedShot, Resolution,
   ShotPageHandles, ShotTab, TakeLite, TrailStep, VoField,
@@ -302,6 +303,103 @@ export class FakeFilmPage implements FilmPageHandles {
   async refresh() { this.log("refresh()"); }
 }
 
+/**
+ * The cel workbench. Layers live here so a tool's patch/remove is observable,
+ * and every mutation is recorded like a page-handle call.
+ */
+export class FakeCompPage implements CompPageHandles {
+  kind = "comp" as const;
+  layers: CompLayerLite[] = [
+    { id: "L1", clip: "renders/B10-S2/motion/cel-L1.webm",
+      region: [320, 96, 640, 352], prompt: "only the eyes blink",
+      z: 1, opacity: 1, matte: "window", variants: 2 },
+  ];
+  selected: string | null = null;
+  duration = 4;
+  background = "renders/B10-S2/stills/keeper.png";
+  backgrounds = ["renders/B10-S2/stills/keeper.png"];
+  render: string | null = "renders/fx/comp-B10-S2-1.mp4";
+  newRegion: number[] | null = null;
+  newPrompt = "";
+  bg: Record<string, unknown> = {};
+  jobSeq = 0;
+  /** Set to a message to make the next submit throw. */
+  failSubmit: string | null = null;
+
+  constructor(public pid: string, public cid: string, public sid: string | null,
+              private rec: string[]) {}
+
+  private log(s: string) { this.rec.push(s); }
+
+  getState() {
+    return {
+      cid: this.cid, shot: this.sid, background: this.background,
+      backgroundKind: (/\.(mp4|webm|mov)$/i.test(this.background)
+        ? "video" : "still") as "still" | "video",
+      duration: this.duration,
+      plate: [960, 544] as [number, number],
+      layers: this.layers.map((L) => ({ ...L })),
+      selected: this.selected,
+      backgrounds: [...this.backgrounds],
+      render: this.render,
+    };
+  }
+  selectLayer(id: string | null) { this.selected = id; this.log(`selectLayer(${id})`); }
+  setNewRegion(region: number[] | null) {
+    this.newRegion = region;
+    this.log(`setNewRegion(${region ? region.join(",") : "null"})`);
+  }
+  setNewPrompt(prompt: string) { this.newPrompt = prompt; this.log(`setNewPrompt(${prompt})`); }
+  async submitLayer(extra: Record<string, unknown> = {}) {
+    this.log(`submitLayer(${JSON.stringify(extra)})`);
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    const id = `L${this.layers.length + 1}`;
+    this.layers.push({ id, clip: null, region: this.newRegion || [0, 0, 32, 32],
+                       prompt: this.newPrompt, z: this.layers.length + 1,
+                       opacity: 1, matte: "window", variants: 0 });
+    this.newRegion = null; this.newPrompt = "";
+    return { job: `job-cel-${++this.jobSeq}`, layer: id };
+  }
+  async patchLayer(id: string, patch: Record<string, unknown>) {
+    this.log(`patchLayer(${id},${JSON.stringify(patch)})`);
+    this.layers = this.layers.map((L) => (L.id === id ? { ...L, ...patch } : L));
+  }
+  async removeLayer(id: string) {
+    this.log(`removeLayer(${id})`);
+    this.layers = this.layers.filter((L) => L.id !== id);
+  }
+  async rerollLayer(id: string, opts: Record<string, unknown> = {}) {
+    this.log(`rerollLayer(${id},${JSON.stringify(opts)})`);
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-reroll-${++this.jobSeq}` };
+  }
+  async setBackground(rel: string) {
+    this.log(`setBackground(${rel})`);
+    if (!this.backgrounds.includes(this.background)) this.backgrounds.push(this.background);
+    this.background = rel;
+  }
+  setBgField(field: BgField, value: unknown) {
+    this.bg[field] = value;
+    this.log(`setBgField(${field},${JSON.stringify(value)})`);
+  }
+  async submitBackground() {
+    this.log("submitBackground()");
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-bg-${++this.jobSeq}` };
+  }
+  async setDuration(seconds: number) { this.duration = seconds; this.log(`setDuration(${seconds})`); }
+  async renderComp() {
+    this.log("renderComp()");
+    if (this.failSubmit) throw new Error(this.failSubmit);
+    return { job: `job-comprender-${++this.jobSeq}` };
+  }
+  async promote(path?: string) {
+    this.log(`promote(${path ?? this.render})`);
+    return { path: path || this.render || "" };
+  }
+  async refresh() { this.log("refresh()"); }
+}
+
 // ---------------------------------------------------------------- resolver fake
 
 export interface ResolverFixture {
@@ -345,7 +443,54 @@ export function fakeResolve(query: string): Resolution {
 
 export type ApiFixtures = Record<string, unknown> | ((path: string, body?: unknown) => unknown);
 
-function defaultApi(path: string): unknown {
+/** Comps as `GET /api/projects/{pid}/comps?shot=` returns them. */
+export const FIXTURE_COMPS: Record<string, Record<string, unknown>[]> = {
+  "B10-S2": [{
+    cid: "B10-S2-1", shot: "B10-S2",
+    background: "renders/B10-S2/stills/keeper.png",
+    background_kind: "still", width: 960, height: 544, duration: 4,
+    background_history: [],
+    layers: [{ id: "L1", clip: "renders/B10-S2/motion/cel-L1.webm",
+               region: [320, 96, 640, 352], prompt: "only the eyes blink",
+               z: 1, opacity: 1, matte: "window",
+               variants: [{ clip: "renders/B10-S2/motion/cel-L1.webm" },
+                          { clip: "renders/B10-S2/motion/cel-L1b.webm" }] }],
+  }],
+  "B11-S4": [],
+};
+
+function defaultApi(path: string, body?: unknown): unknown {
+  const compsMatch = /\/api\/projects\/[^/]+\/comps(\?shot=([^&]+))?$/.exec(path);
+  if (compsMatch) {
+    if (body !== undefined) {                       // POST = create
+      const b = (body || {}) as Record<string, unknown>;
+      const made = {
+        cid: `${b.shot ?? "comp"}-new`, shot: b.shot ?? null,
+        background: b.background, width: b.width ?? 960, height: b.height ?? 544,
+        duration: b.duration ?? 4, layers: [], background_history: [],
+        background_kind: /\.(mp4|webm|mov)$/i.test(String(b.background))
+          ? "video" : "still",
+      };
+      const sid = String(b.shot ?? "");
+      (FIXTURE_COMPS[sid] ||= []).push(made);
+      return made;
+    }
+    const sid = compsMatch[2] ? decodeURIComponent(compsMatch[2]) : "";
+    return sid ? (FIXTURE_COMPS[sid] || []) : Object.values(FIXTURE_COMPS).flat();
+  }
+  if (/\/api\/projects\/[^/]+\/dims\//.test(path)) return { width: 960, height: 544 };
+  if (path === "/api/backends") {
+    return [{ id: "mock", type: "mock", label: "Mock", enabled: true,
+              lanes: ["still", "i2i", "motion", "vo", "music", "sfx"],
+              api_key_set: false, options: {} },
+            { id: "fal", type: "fal", label: "fal.ai", enabled: true,
+              lanes: ["motion"], api_key_set: true, options: { cost_usd: 0.2 } }];
+  }
+  if (/\/api\/projects\/[^/]+\/timeline\/otio$/.test(path)) {
+    return { OTIO_SCHEMA: "Timeline.1", name: "next-year",
+             tracks: { children: [{ children: [{ name: "B10-S2" }, { name: "B11-S4" }] }] } };
+  }
+  if (/\/api\/projects\/[^/]+\/timeline\/render$/.test(path)) return { job: "job-engine-1" };
   const shotMatch = /\/api\/projects\/[^/]+\/shots\/([^/?]+)$/.exec(path);
   if (shotMatch) {
     const d = FIXTURE_DETAIL[shotMatch[1]];
@@ -397,6 +542,7 @@ export interface FakeContext {
   rec: FakeRecord;
   shotPage: FakeShotPage;
   filmPage: FakeFilmPage;
+  compPage: FakeCompPage;
   cues: FakeCueStore;
   /** Restore the real deps after a test that installed fakes. */
   restore(): void;
@@ -414,6 +560,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
   const cues = opts.cues ?? new FakeCueStore();
   const shotPage = new FakeShotPage(project || "next-year", "B10-S2", pageCalls, cues);
   const filmPage = new FakeFilmPage(project || "next-year", pageCalls, cues);
+  const compPage = new FakeCompPage(project || "next-year", "B10-S2-1", "B10-S2", pageCalls);
   let current: AnyPageHandles | null = opts.page ?? null;
 
   const api = <T,>(path: string, body?: unknown, method?: string): Promise<T> => {
@@ -424,7 +571,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     try {
       if (typeof opts.api === "function") return Promise.resolve(opts.api(path, body) as T);
       if (opts.api && path in opts.api) return Promise.resolve(opts.api[path] as T);
-      return Promise.resolve(defaultApi(path) as T);
+      return Promise.resolve(defaultApi(path, body) as T);
     } catch (e) { return Promise.reject(e); }
   };
 
@@ -447,8 +594,13 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     page: {
       current: () => current,
       // Overload-compatible implementation; the contract narrows it for callers.
-      waitFor: ((kind: "shot" | "film", match?: { sid?: string }) => {
+      waitFor: ((kind: "shot" | "film" | "comp", match?: { sid?: string; cid?: string }) => {
         if (opts.failWaitFor) return Promise.reject(new Error("page did not mount"));
+        if (kind === "comp") {
+          if (match?.cid) compPage.cid = match.cid;
+          // The workbench mounts INSIDE the shot page: `current` stays the shot.
+          return Promise.resolve(compPage);
+        }
         if (kind === "shot") {
           if (match?.sid) shotPage.sid = match.sid;
           current = shotPage;
@@ -486,7 +638,7 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
 
   installDeps({ settleJobs: settle, classifyBackend: classify });
 
-  return { ctx, rec, shotPage, filmPage, cues, restore: resetDeps };
+  return { ctx, rec, shotPage, filmPage, compPage, cues, restore: resetDeps };
 }
 
 /** A paid-backend classifier, for the needs_confirmation paths. */

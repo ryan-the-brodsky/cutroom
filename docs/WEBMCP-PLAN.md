@@ -302,11 +302,46 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 22 | `place_cue` | consequential | `kind?` (inferred from the path), `take`\|`path`, `shot`\|`start`, `offset?`, `duration?`, `gain?`, `fade_in?`, `fade_out?`, `loop?`, `label?` | Film Editor → cue strip | the cue with its id and resolved film time |
 | 23 | `list_cues` | readOnly | `kind?`, `scope?` | none | the cue sheet: film time, file, shot, gain in dB, length; ids for removal |
 
+| 24 | `add_cel_layer` | consequential | `shot`, `region` [l,t,r,b] (plate px or 0-1), `prompt`, `frames?` (49), `comp?`, `background?`, `confirm_cost?` | Shot Editor → compose; draws the region on the stage, fills the motion prompt, ▶ add layer & generate cel | comp (created from the keeper, or `background`, when absent), layer id, snapped region, true plate dims, job |
+| 25 | `reroll_layer` | consequential | `shot`, `layer` (id\|"newest"\|"selected"), `prompt?`, `seed?`, `backend?`, `model?`, `comp?`, `confirm_cost?` | Cel workbench → layer → 🎲 reroll (or 🎛 directed reroll) | job; the old cel stays as a variant |
+| 26 | `restyle_background` | consequential | `shot`, `prompt`, `mode?` edit\|regen, `strength?`, `comp?`, `confirm_cost?` | Cel workbench → Background console | job, lane, previous plate, layers kept. Refused on a clip background |
+| 27 | `set_background` | consequential | `shot`, `take` (path or "keeper"/"newest motion"/"plays"), `comp?` | Cel workbench → Background → stored plates | background, `background_kind` still\|video, previous |
+| 28 | `set_layer` | consequential | `shot`, `layer`, `opacity?`, `z?` front\|back\|number, `matte?` window\|figure, `region?`, `comp?` | Cel workbench → layer card controls | applied patch + the before values. ONE write, so the auto-render debounce renders once |
+| 29 | `remove_layer` | consequential | `shot`, `layer`, `comp?` | Cel workbench → layer → remove | removed id, layers left; the clips stay as takes |
+| 30 | `render_comp` | consequential | `shot`, `comp?`, `promote?` | Cel workbench → ▶ render composite (then ⬆ use in timeline) | job, rendered take, what plays now |
+| 31 | `list_layers` | readOnly | `shot`, `comp?` | none | comps with background + `background_kind`, duration, stored plates, and each layer's region/prompt/z/opacity/matte/variant count |
+| 32 | `list_backends` | readOnly | — | none | id, type, lanes, enabled, key set, cost class and cost_usd; plus the project's lane defaults. Never probes |
+| 33 | `set_lane_default` | consequential | `lane` enum, `backend`, `model?` | Settings → Lane defaults | the new default; a demo's 403 text is relayed verbatim |
+| 34 | `export_timeline` | readOnly | `format?` otio\|edl | Timeline → export links | download URL, byte count, event count and a 300-char preview |
+| 35 | `render_timeline` | consequential | `scope_sec?`, `container?` | Timeline → render via engine | job; `engine offline` (cleanly) when the engine is not configured |
+
 (19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
 "16" was the working count — the number is not load-bearing. Stay under ~25 for v1.
 Rows 20–23 are workstream H's music/SFX set, appended 2026-09-01 — 23 tools total.
 Gain is decibels in every cue argument; cues live in `settings.music_cues` /
-`sfx_cues` and the assembler mixes them into the cut. See docs/BACKENDS.md.)
+`sfx_cues` and the assembler mixes them into the cut. See docs/BACKENDS.md.
+Rows 24-35 are workstream I's cel workbench and lane/export set, appended
+2026-09-01 — 35 tools total. The comp tools drive `CompEditor` through new
+`CompPageHandles` (`kind: "comp"`, registered alongside the page it mounts in);
+regions are TRUE background pixels snapped to /32, and a comp background may be
+a still plate or a clip.)
+
+### Feature registry (`web/src/agent/features.ts`)
+
+A tool executes; a **feature** teaches. Every user-facing action that is not a
+tool — 111 of them, from ⏸ pause to the cel workbench's ⌘Z undo to the options
+JSON on a backend card — is registered as a palette-only `ActionDef`
+(`surfaces: { agent: false }`) carrying `title`, a one-sentence description,
+`where` (route + query + anchor + label), `keywords`, `howTo` and a `group` (the
+screen it lives on). Its `execute` is the shared `walkTo`: navigate to `where`,
+pulse the anchor, return the how-to. So `list_features` and `show_me` cover the
+whole application (146 registry entries: 35 tools + 111 features) rather than the
+subset that happens to be automatable, and ⌘K lists every one of them.
+`list_features` with no query returns the 35 tools plus a count per screen; with
+a query it searches everything and flags palette-only rows. A unit test
+(`web/src/agent/__tests__/features.test.ts`) asserts that every anchor in the
+registry — tools included — is actually rendered as a `data-action` somewhere in
+`web/src`, which is the one failure that is invisible in the browser.)
 
 **Descriptions** are written by workstream C to the budgets, in the verb-first house style,
 e.g. `generate_takes`: "Generate new takes for a shot in Cutroom — stills, restyles of an
@@ -314,9 +349,8 @@ existing take, or animated cel clips. Opens the shot's Generate console on scree
 and submits one job per take with a fresh seed. Returns job ids and, when the backend is fast,
 the finished takes. Paid backends require confirm_cost."
 
-**v2 (post-challenge)**: `add_cel_layer`, `reroll_layer`, `reroll_background`, `render_comp`,
-`chain_beats`, `set_lane_default`, `list_backends`, `export_timeline` (otio/edl), `render_timeline`,
-`separate_figure` (SAM points), plus page-scoped comp layer tools registered inside `CompEditor`.
+**v2 (post-challenge)**: shipped as rows 24-35 above, except `chain_beats` and
+`separate_figure` (SAM points), which remain palette-only features.
 
 ## 5. Hero journeys (these are also the evals)
 

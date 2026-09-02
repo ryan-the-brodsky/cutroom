@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { ANCHORS } from "../agent/contract";
 import { api, mediaUrl, thumbUrl } from "../api";
 import { pushToast, useAsync, useJobWatch, usePoll } from "../hooks";
 import { PreviewStage } from "../preview/PreviewStage";
@@ -82,6 +83,7 @@ export default function TimelinePage() {
         </h2>
         <label className="field">zoom
           <input type="range" min={0.2} max={3} step={0.1} value={ppf}
+                 data-action={ANCHORS.timelineZoom}
                  onChange={(e) => setPpf(parseFloat(e.target.value))} />
         </label>
       </div>
@@ -98,7 +100,7 @@ export default function TimelinePage() {
       {/* ------------------------------------------------- render via engine */}
       <div className="row" style={{ gap: 8, margin: "0 0 10px", alignItems: "center" }}>
         <span className="muted small">render via engine:</span>
-        <select value={scopeSec ?? "full"}
+        <select value={scopeSec ?? "full"} data-action={ANCHORS.timelineScope}
                 onChange={(e) => setScopeSec(e.target.value === "full"
                   ? null : parseInt(e.target.value))}>
           <option value={12}>first 12s</option>
@@ -109,6 +111,7 @@ export default function TimelinePage() {
         <button
           className="primary"
           data-testid="render-btn"
+          data-action={ANCHORS.timelineRender}
           disabled={busy || !!renderJob || !engine?.available}
           title={engine?.available ? "render through the lifted FreeCut engine"
             : "engine not configured (CUTROOM_ENGINE_DIR)"}
@@ -122,6 +125,16 @@ export default function TimelinePage() {
         </button>
         {!engine?.available && (
           <span className="muted small">engine offline</span>)}
+        <span style={{ flex: 1 }} />
+        <span className="muted small">export:</span>
+        <a data-action={ANCHORS.timelineOtio} className="small"
+           href={`/api/projects/${pid}/timeline/otio`} target="_blank"
+           rel="noreferrer" title="OpenTimelineIO — round-trips into Resolve/Premiere">
+          OTIO</a>
+        <a data-action={ANCHORS.timelineEdl} className="small"
+           href={`/api/projects/${pid}/timeline/edl`} target="_blank"
+           rel="noreferrer" title="CMX3600 EDL — the lowest common denominator">
+          EDL</a>
       </div>
 
       {/* ---------------------------------------------------- live preview */}
@@ -133,16 +146,20 @@ export default function TimelinePage() {
                         onFrameChange={setFrame} />
           <div className="row" style={{ marginTop: 6, alignItems: "center" }}>
             <button className="small" data-testid="play"
+                    data-action={ANCHORS.timelinePlay}
                     onClick={() => {
                       playerRef.current?.toggle();
                       setPlaying(playerRef.current?.isPlaying() ?? false);
                     }}>
               {playing ? "⏸" : "▶"}
             </button>
-            <button className="small" onClick={() => seek(frame - 1)}>◀</button>
-            <button className="small" onClick={() => seek(frame + 1)}>▶</button>
+            <button className="small" data-action={ANCHORS.timelineStepBack}
+                    onClick={() => seek(frame - 1)}>◀</button>
+            <button className="small" data-action={ANCHORS.timelineStepFwd}
+                    onClick={() => seek(frame + 1)}>▶</button>
             <input type="range" min={0} max={Math.max(1, tl.total_frames - 1)}
                    value={frame} style={{ flex: 1 }}
+                   data-action={ANCHORS.timelineScrub}
                    onChange={(e) => seek(parseInt(e.target.value))} />
             <span className="muted small" data-testid="playhead"
                   style={{ minWidth: 96, textAlign: "right" }}>
@@ -169,6 +186,7 @@ export default function TimelinePage() {
           {/* ruler (click to seek) */}
           <div style={{ height: 20, position: "relative", cursor: "pointer",
                         borderBottom: "1px solid #222" }}
+               data-action={ANCHORS.timelineRuler}
                onClick={(e) => seek(Math.round(
                  (e.clientX - e.currentTarget.getBoundingClientRect().left) / ppf))}>
             {ruler.map((s) => (
@@ -195,6 +213,8 @@ export default function TimelinePage() {
                   <div
                     key={c.id}
                     data-testid="clip"
+                    data-action={ANCHORS.timelineClip}
+                    data-id={c.id}
                     data-kind={c.kind}
                     onClick={() => { setSel(c); seek(c.start); }}
                     title={`${c.label} · ${c.kind} · ${c.duration}f`}

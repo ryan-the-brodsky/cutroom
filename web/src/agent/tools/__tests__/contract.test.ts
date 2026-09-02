@@ -4,6 +4,7 @@ import {
   genSubAnchor, shotTabAnchor,
   type GenSub, type JSONSchema, type ShotTab, type Where,
 } from "../../contract";
+import { FEATURES } from "../../features";
 import { TOOLS, TOOLS_BY_NAME, missingTools, registerAllTools } from "../index";
 import { makeFakeContext } from "../fakeContext";
 
@@ -29,11 +30,14 @@ describe("tool catalogue", () => {
     expect(TOOLS.map((t) => t.name)).toEqual([...TOOL_NAMES]);
   });
 
-  it("registers every tool through registerAllTools", () => {
+  it("registers every tool through registerAllTools, then the palette features", () => {
     const seen: string[] = [];
-    registerAllTools((d) => seen.push(d.name));
-    expect(seen).toEqual([...TOOL_NAMES]);
-    expect(seen.length).toBe(TOOL_NAMES.length);
+    const registered = registerAllTools((d) => seen.push(d.name));
+    // Tools come first, in catalogue order; the palette-only feature registry
+    // (workstream I) follows so ⌘K and show_me cover the whole application.
+    expect(seen.slice(0, TOOL_NAMES.length)).toEqual([...TOOL_NAMES]);
+    expect(registered.length).toBe(TOOLS.length + FEATURES.length);
+    expect(seen.slice(TOOL_NAMES.length).length).toBe(FEATURES.length);
   });
 
   it("has unique names that match the WebMCP name regex", () => {
@@ -88,10 +92,13 @@ describe("registry metadata", () => {
 
   it("marks read-only tools readOnlyHint and mutating tools consequentialHint", () => {
     const readOnly = ["find_shots", "describe_shot", "get_context", "list_features",
-      "direct_shot", "get_jobs", "wait_for_jobs", "list_cues"];
+      "direct_shot", "get_jobs", "wait_for_jobs", "list_cues",
+      "list_layers", "list_backends", "export_timeline"];
     const consequential = ["generate_takes", "freeze_tail", "trim_clip", "set_keeper",
       "set_timeline_source", "set_shot_timing", "synthesize_vo", "apply_plan", "cut_film",
-      "generate_music", "generate_sfx", "place_cue"];
+      "generate_music", "generate_sfx", "place_cue",
+      "add_cel_layer", "reroll_layer", "restyle_background", "set_background",
+      "set_layer", "remove_layer", "render_comp", "set_lane_default", "render_timeline"];
     for (const n of readOnly) {
       expect(TOOLS_BY_NAME[n].annotations?.readOnlyHint, n).toBe(true);
       expect(TOOLS_BY_NAME[n].annotations?.consequentialHint, n).toBeFalsy();
@@ -142,6 +149,18 @@ const ARGS: Record<string, Record<string, unknown>> = {
   generate_sfx: { shot: "B10-S2", prompt: "a wooden bat cracking", seconds: 3 },
   place_cue: { kind: "music", take: "audio/music/theme.mp3", start: 0, gain: -16 },
   list_cues: {},
+  add_cel_layer: { shot: "B10-S2", region: [320, 96, 640, 352], prompt: "only the hand turns the dial" },
+  reroll_layer: { shot: "B10-S2", layer: "newest", prompt: "slower blink", seed: 7 },
+  restyle_background: { shot: "B10-S2", prompt: "warmer, late dusk", mode: "edit", strength: 0.55 },
+  set_background: { shot: "B10-S2", take: "newest motion" },
+  set_layer: { shot: "B10-S2", layer: "L1", opacity: 0.8, z: "front", matte: "figure" },
+  remove_layer: { shot: "B10-S2", layer: "L1" },
+  render_comp: { shot: "B10-S2", promote: true },
+  list_layers: { shot: "B10-S2" },
+  list_backends: {},
+  set_lane_default: { lane: "motion", backend: "mock" },
+  export_timeline: { format: "otio" },
+  render_timeline: { scope_sec: 12 },
 };
 
 describe("outputs stay under 1.5K chars", () => {

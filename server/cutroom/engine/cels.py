@@ -4,8 +4,13 @@ z-ordered animated layers merged through feathered windows or figure mattes.
 Generalized from game7's comp_render.py / anime-fx.py cel_composite. The
 comp dict is the same data model the dashboard used:
 
+The background may be a still plate OR a clip: a still is the classic cel
+grammar (the plate never shimmers, video models never touch it), a clip lets
+a moving background carry moving cels. Both stream frame by frame.
+
 comp = {
-  "background": "renders/stills/B04-S3_s870934406.png",   # resolver-relative
+  "background": "renders/stills/B04-S3_s870934406.png",   # still OR clip
+  "background_media": {"loop": "hold", "speed": 1.0},      # clip backgrounds
   "width": 1920, "height": 1080, "duration": 4.0,          # omit → longest layer
   "layers": [
     {"id": "hand", "clip": "renders/motion/tests/B04-S3-dial-crop.webm",
@@ -65,19 +70,35 @@ def media_index(f: int, n: int, media: dict) -> int:
 
 
 def decode_video_frames(path: str | Path) -> list[Image.Image]:
+    """Every frame of a clip, in memory. Kept for callers that genuinely want
+    the whole thing; the compositor streams instead (see ffmpeg.RawFrameReader)."""
     with tempfile.TemporaryDirectory(prefix="cutroom_cel_") as d:
         return [Image.open(p).convert("RGB").copy()
                 for p in ffmpeg.extract_all_frames(path, d)]
 
 
+_MATTE_SESSION = None
+
+
+def _matte_session():
+    """One isnet-anime session for the life of the process — building it per
+    frame would dominate the render."""
+    global _MATTE_SESSION
+    if _MATTE_SESSION is None:
+        from rembg import new_session  # type: ignore
+        _MATTE_SESSION = new_session("isnet-anime")
+    return _MATTE_SESSION
+
+
 def try_figure_mattes(frames: list[Image.Image]) -> list[np.ndarray] | None:
     """rembg isnet-anime figure mattes; returns None when rembg is absent
-    (the layer degrades to its feathered window)."""
+    (the layer degrades to its feathered window). Called one frame at a time
+    by the streaming compositor."""
     try:
-        from rembg import new_session, remove  # type: ignore
+        from rembg import remove  # type: ignore
+        session = _matte_session()
     except Exception:
         return None
-    session = new_session("isnet-anime")
     out = []
     for f in frames:
         rgba = remove(f, session=session)
@@ -88,60 +109,99 @@ def try_figure_mattes(frames: list[Image.Image]) -> list[np.ndarray] | None:
 def render_comp(comp: dict, resolve: Resolver, out: str | Path, fps: int = 24,
                 webm_sibling: bool = True,
                 log: Callable[[str], None] = lambda s: None) -> dict:
-    """Deterministically re-render a composition from its data model."""
-    plate = Image.open(resolve(comp["background"])).convert("RGB")
-    pw, ph = plate.size
+    """Deterministically re-render a composition from its data model.
+
+    Streams: the background and every layer are decoded one frame at a time
+    through ffmpeg pipes, composited with numpy, and piped straight into an
+    encoder. Peak memory is a handful of frames regardless of clip length,
+    which is what lets a 1 GB demo box render a moving background under
+    moving cels.
+    """
+    bg_rel = comp["background"]
+    bg_path = resolve(bg_rel)
+    bg_video = ffmpeg.is_video(bg_path)
+
+    plate_np = None
+    bg_reader = None
+    bg_frames = 1
+    bg_media = comp.get("background_media") or {"loop": "hold"}
+    if bg_video:
+        pw, ph = ffmpeg.probe_dims(bg_path)
+        bg_frames = max(1, ffmpeg.probe_frame_count(bg_path))
+        bg_reader = ffmpeg.RawFrameReader(bg_path)
+    else:
+        plate = Image.open(bg_path).convert("RGB")
+        pw, ph = plate.size
+        plate_np = np.asarray(plate).astype(np.float32)
 
     layers = sorted(comp.get("layers", []), key=lambda L: L.get("z", 0))
-    decoded = []
-    for L in layers:
-        if not L.get("clip"):
-            continue
-        frames = decode_video_frames(resolve(L["clip"]))
-        l, t, r, b = to_pixels(L["region"], pw, ph)
-        rw, rh = r - l, b - t
-        frames = [f if f.size == (rw, rh) else f.resize((rw, rh), Image.LANCZOS)
-                  for f in frames]
-        win = window_alpha(rw, rh, l, t, r, b, pw, ph, int(L.get("feather", 24)))
-        figs = None
-        if L.get("matte") == "figure":
-            figs = try_figure_mattes(frames)
-            if figs is None:
-                log(f"[warn] rembg unavailable — layer {L.get('id')} falls back "
-                    "to window matte")
-        decoded.append(dict(frames=frames, box=(l, t, r, b), win=win, figs=figs,
-                            media=L.get("media", {}),
-                            opacity=float(L.get("opacity", 1.0))))
+    live: list[dict] = []
+    try:
+        for L in layers:
+            if not L.get("clip"):
+                continue
+            clip_path = resolve(L["clip"])
+            l, t, r, b = to_pixels(L["region"], pw, ph)
+            rw, rh = r - l, b - t
+            if rw <= 0 or rh <= 0:
+                log(f"[warn] layer {L.get('id')} has an empty region — skipped")
+                continue
+            n = max(1, ffmpeg.probe_frame_count(clip_path))
+            win = window_alpha(rw, rh, l, t, r, b, pw, ph, int(L.get("feather", 24)))
+            figure = L.get("matte") == "figure"
+            live.append(dict(reader=ffmpeg.RawFrameReader(clip_path, rw, rh),
+                             n=n, box=(l, t, r, b), win=win, figure=figure,
+                             warned=False, media=L.get("media", {}),
+                             opacity=float(L.get("opacity", 1.0))))
 
-    dur = comp.get("duration")
-    if not dur:
-        longest = max((len(d["frames"]) for d in decoded), default=fps * 3)
-        dur = longest / fps
-    n_out = max(1, round(dur * fps))
+        dur = comp.get("duration")
+        if not dur:
+            longest = max((d["n"] for d in live), default=0) or (
+                bg_frames if bg_video else fps * 3)
+            dur = longest / fps
+        n_out = max(1, round(dur * fps))
 
-    W = int(comp.get("width", 1920))
-    H = int(comp.get("height", 1080))
-    plate_np = np.asarray(plate).astype(np.float32)
+        W = int(comp.get("width") or pw)
+        H = int(comp.get("height") or ph)
 
-    enc = ffmpeg.RawFrameEncoder(out, W, H, fps)
-    for f in range(n_out):
-        frame = plate_np.copy()
-        for d in decoded:
-            l, t, r, b = d["box"]
-            vi = media_index(f, len(d["frames"]), d["media"])
-            vf = np.asarray(d["frames"][vi]).astype(np.float32)
-            a = d["win"]
-            if d["figs"] is not None:
-                a = np.minimum(a, d["figs"][vi])
-            a = a * d["opacity"]
-            reg = frame[t:b, l:r]
-            frame[t:b, l:r] = reg * (1 - a[..., None]) + vf * a[..., None]
-        img = cover(Image.fromarray(np.clip(frame, 0, 255).astype(np.uint8)),
-                    (W, H))
-        enc.write(np.asarray(img))
-    enc.close(webm_sibling=webm_sibling)
-    log(f"comp rendered: {n_out} frames, {len(decoded)} live layer(s) -> {out}")
-    return {"frames": n_out, "layers": len(decoded), "duration": dur,
+        enc = ffmpeg.RawFrameEncoder(out, W, H, fps)
+        for f in range(n_out):
+            if bg_video:
+                bi = media_index(f, bg_frames, bg_media)
+                frame = bg_reader.get(bi).astype(np.float32)
+            else:
+                frame = plate_np.copy()
+            for d in live:
+                l, t, r, b = d["box"]
+                vi = media_index(f, d["n"], d["media"])
+                cel = d["reader"].get(vi)
+                a = d["win"]
+                if d["figure"]:
+                    mattes = try_figure_mattes([Image.fromarray(cel)])
+                    if mattes:
+                        a = np.minimum(a, mattes[0])
+                    elif not d["warned"]:
+                        d["warned"] = True
+                        log("[warn] rembg unavailable — a figure layer falls "
+                            "back to its window matte")
+                a = a * d["opacity"]
+                reg = frame[t:b, l:r]
+                frame[t:b, l:r] = reg * (1 - a[..., None]) + \
+                    cel.astype(np.float32) * a[..., None]
+            img = cover(Image.fromarray(np.clip(frame, 0, 255).astype(np.uint8)),
+                        (W, H))
+            enc.write(np.asarray(img))
+        enc.close(webm_sibling=webm_sibling)
+    finally:
+        for d in live:
+            d["reader"].close()
+        if bg_reader is not None:
+            bg_reader.close()
+
+    log(f"comp rendered: {n_out} frames, {len(live)} live layer(s), "
+        f"{'clip' if bg_video else 'still'} background -> {out}")
+    return {"frames": n_out, "layers": len(live), "duration": dur,
+            "background_kind": "video" if bg_video else "still",
             "out": str(out)}
 
 
@@ -157,7 +217,10 @@ def composite_single(plate: str | Path, clip: str | Path, region: list[float],
             "layers": [{"id": "cel", "clip": str(clip), "region": region,
                         "feather": feather, "matte": matte,
                         "media": {"loop": "hold"}, "opacity": 1.0, "z": 1}]}
-    plate_img = Image.open(plate)
-    comp["width"], comp["height"] = plate_img.size
+    if ffmpeg.is_video(plate):
+        comp["width"], comp["height"] = ffmpeg.probe_dims(plate)
+    else:
+        with Image.open(plate) as plate_img:
+            comp["width"], comp["height"] = plate_img.size
     return render_comp(comp, lambda rel: Path(rel), out, fps=fps,
                        webm_sibling=webm_sibling, log=log)

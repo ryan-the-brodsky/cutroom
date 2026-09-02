@@ -509,11 +509,18 @@ async def comp_layer_reroll(ctx, p: dict) -> dict:
     # there); everything else crops the comp's current background.
     src_rel = layer.get("source_plate") or comp.background
     plate = store.resolve(src_rel)
+    wd = _workdir(ctx)
+    from ..engine import ffmpeg as e_ff
+    if e_ff.is_video(plate):
+        # a CLIP background: the cel is guided by its first frame, and the
+        # region is measured against the clip's own pixels
+        first = wd / "bg-frame0.png"
+        await asyncio.to_thread(e_ff.extract_frame, plate, 0.0, first)
+        plate = first
     with Image.open(plate) as im:
         pw, ph = im.size
     snapped = e_img.snap_region(layer["region"], pw, ph)
     l, t, r, b = snapped
-    wd = _workdir(ctx)
     try:
         crop_png = wd / "crop.png"
         e_img.crop_region(plate, snapped, crop_png, snap=None)
@@ -528,7 +535,6 @@ async def comp_layer_reroll(ctx, p: dict) -> dict:
         if clip.suffix == ".webm":
             store.copy_in(clip, crop_rel)
         else:
-            from ..engine import ffmpeg as e_ff
             await asyncio.to_thread(e_ff.transcode, clip,
                                     store.resolve(crop_rel))
         record_take(project, comp.shot_sid, "crop", crop_rel,

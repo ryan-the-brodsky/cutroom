@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ANCHORS } from "../agent/contract";
 import { api, thumbUrl } from "../api";
 import { pushToast, useAsync, useJobWatch } from "../hooks";
 
@@ -111,6 +112,7 @@ export default function SeparateCanvas({ pid, sid, plate, plateW, plateH,
         </span>
       </div>
       <div className="region-wrap" ref={wrapRef}
+           data-action={ANCHORS.sepCanvas}
            style={{ cursor: "crosshair" }}>
         <img src={thumbUrl(pid, plate, 960)} alt="plate" draggable={false} />
         <canvas ref={canvasRef}
@@ -127,16 +129,21 @@ export default function SeparateCanvas({ pid, sid, plate, plateW, plateH,
       </div>
       <div className="row">
         <button className={`small ${mode === 1 ? "primary" : ""}`}
+                data-action={ANCHORS.sepInclude}
                 onClick={() => setMode(1)}>＋ include</button>
         <button className={`small ${mode === 0 ? "primary" : ""}`}
                 title="or shift-click anywhere"
+                data-action={ANCHORS.sepExclude}
                 onClick={() => setMode(0)}>－ exclude</button>
         <button className="small" disabled={!points.length}
+                data-action={ANCHORS.sepUndo}
                 onClick={() => setPoints(points.slice(0, -1))}>undo</button>
         <button className="small" disabled={!points.length}
+                data-action={ANCHORS.sepClear}
                 onClick={() => setPoints([])}>clear</button>
         <span style={{ flex: 1 }} />
         <button className="primary"
+                data-action={ANCHORS.sepSubmit}
                 disabled={busy || !!watchJob || !points.length}
                 onClick={separate}>
           {watchJob ? "separating…" : "✂ separate & clean plate"}</button>

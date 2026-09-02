@@ -112,7 +112,33 @@ def test_comp_crud(client):
     assert r.json()["duration"] == 6.0
     comps = client.get("/api/projects/p6/comps?shot=B04-S3").json()
     assert comps[0]["cid"] == "dial"
+    assert comps[0]["background_kind"] == "still"
     assert client.post("/api/projects/p6/comps/dial/delete").json()["ok"]
+
+
+def test_comp_on_a_video_background(client):
+    """A comp may stage on a CLIP: the background moves under the cel layers.
+    Restyle is a plate operation, so it is refused with a usable message."""
+    client.post("/api/projects", json={"id": "p6v"})
+    r = client.post("/api/projects/p6v/comps",
+                    json={"shot": "B04-S3", "cid": "moving",
+                          "background": "renders/motion/pan.mp4",
+                          "duration": 3.0, "width": 960, "height": 544})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["background_kind"] == "video"
+    assert body["width"] == 960 and body["height"] == 544
+
+    bad = client.post("/api/projects/p6v/comps/moving/background/reroll",
+                      json={"prompt": "warmer", "mode": "edit"})
+    assert bad.status_code == 400
+    assert "clip" in bad.json()["detail"]
+
+    # switching backgrounds keeps every earlier one toggleable, clips included
+    r = client.post("/api/projects/p6v/comps/moving",
+                    json={"background": "renders/stills/plate.png"})
+    assert r.json()["background_history"] == ["renders/motion/pan.mp4"]
+    assert r.json()["background_kind"] == "still"
 
 
 def test_auth_token(data_dir, monkeypatch):

@@ -34,11 +34,43 @@ def probe_duration(path: str | Path) -> float:
     return round(float(out.decode().strip()), 3)
 
 
+VIDEO_SUFFIXES = {".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi", ".gif"}
+
+
+def is_video(path: str | Path) -> bool:
+    """Cheap, extension-based: is this a clip rather than a still?"""
+    return Path(path).suffix.lower() in VIDEO_SUFFIXES
+
+
 def probe_dims(path: str | Path) -> tuple[int, int]:
+    """Pixel dimensions of the first video stream. Works for stills too
+    (ffprobe reads png/jpg/webp as one-frame video streams)."""
     out = run([FFPROBE, "-v", "error", "-select_streams", "v:0",
                "-show_entries", "stream=width,height", "-of", "csv=p=0", str(path)])
-    w, h = out.decode().strip().split(",")[:2]
-    return int(w), int(h)
+    line = next((ln for ln in out.decode().splitlines() if ln.strip()), "")
+    parts = [p for p in line.strip().split(",") if p.strip().isdigit()]
+    if len(parts) < 2:
+        raise FFmpegError(f"could not read dimensions of {path}")
+    return int(parts[0]), int(parts[1])
+
+
+def probe_frame_count(path: str | Path) -> int:
+    """How many frames a clip has. `nb_frames` when the container carries it
+    (mp4), a counted decode otherwise (webm rarely does)."""
+    try:
+        info = probe_streams(path)
+        for st in info.get("streams", []):
+            if st.get("codec_type") != "video":
+                continue
+            n = st.get("nb_frames")
+            if n is not None and str(n).isdigit() and int(n) > 0:
+                return int(n)
+    except FFmpegError:
+        pass
+    out = run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-count_frames",
+               "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(path)])
+    digits = "".join(c for c in out.decode() if c.isdigit())
+    return max(1, int(digits or 1))
 
 
 def probe_streams(path: str | Path) -> dict:
@@ -120,6 +152,80 @@ class RawFrameEncoder:
             run([FFMPEG, "-v", "error", "-y", "-i", str(self.out), *VP9_ARGS,
                  str(self.out.with_suffix(".webm"))])
         return self.out
+
+
+class RawFrameReader:
+    """Stream one video's frames as rgb24 numpy arrays, optionally rescaled by
+    ffmpeg on the way out. Holds ONE frame in memory, not the whole clip —
+    this is what keeps the cel compositor inside a 1 GB box.
+
+    `get(i)` is random access over a forward-only pipe: seeking backwards
+    restarts the decoder. Cel clips are tens of frames, so that is cheap.
+    """
+
+    def __init__(self, src: str | Path, width: int | None = None,
+                 height: int | None = None):
+        self.src = str(src)
+        sw, sh = probe_dims(src)
+        self.width = int(width or sw)
+        self.height = int(height or sh)
+        self._scale = (self.width, self.height) != (sw, sh)
+        self._frame_bytes = self.width * self.height * 3
+        self.proc: subprocess.Popen | None = None
+        self._next = 0          # index the pipe will hand back next
+        self._cur: np.ndarray | None = None
+        self._cur_index = -1
+
+    def _open(self) -> None:
+        self.close()
+        cmd = [FFMPEG, "-v", "error", "-i", self.src]
+        if self._scale:
+            cmd += ["-vf", f"scale={self.width}:{self.height}:flags=lanczos"]
+        cmd += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                     stderr=subprocess.DEVNULL)
+        self._next = 0
+
+    def _read_one(self) -> np.ndarray | None:
+        if self.proc is None or self.proc.stdout is None:
+            return None
+        buf = self.proc.stdout.read(self._frame_bytes)
+        if not buf or len(buf) < self._frame_bytes:
+            return None
+        self._next += 1
+        return np.frombuffer(buf, np.uint8).reshape(self.height, self.width, 3)
+
+    def get(self, index: int) -> np.ndarray:
+        """The frame at `index`, clamped to the last decoded frame."""
+        if index == self._cur_index and self._cur is not None:
+            return self._cur
+        if self.proc is None or index < self._next - 1:
+            self._open()
+        frame = self._cur
+        while self._next <= index:
+            nxt = self._read_one()
+            if nxt is None:
+                break                      # past the end: hold the last frame
+            frame = nxt
+        if frame is None:
+            raise FFmpegError(f"no frames decoded from {self.src}")
+        self._cur, self._cur_index = frame, index
+        return frame
+
+    def close(self) -> None:
+        if self.proc is not None:
+            try:
+                if self.proc.stdout:
+                    self.proc.stdout.close()
+                self.proc.terminate()
+                self.proc.wait(timeout=5)
+            except Exception:
+                pass
+            self.proc = None
+
+    def __enter__(self): return self
+
+    def __exit__(self, *exc): self.close()
 
 
 # ---------------------------------------------------------------- audio i/o

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ANCHORS } from "../agent/contract";
 import { api, sse } from "../api";
 import { usePoll } from "../hooks";
 import type { Job } from "../types";
@@ -34,7 +35,7 @@ function LogView({ jobId, status }: { jobId: string; status: string }) {
   useEffect(() => {
     boxRef.current?.scrollTo(0, boxRef.current.scrollHeight);
   }, [lines]);
-  return <div className="log" ref={boxRef}>
+  return <div className="log" ref={boxRef} data-action={ANCHORS.jobsLog}>
     {lines.length ? lines.join("\n") : "(no output yet)"}</div>;
 }
 
@@ -53,6 +54,7 @@ export default function JobsPage() {
           <tbody>
             {(jobs || []).map((j) => (
               <tr key={j.id} onClick={() => setSel(j.id)}
+                  data-action={ANCHORS.jobsRow} data-id={j.id}
                   style={{ cursor: "pointer",
                            background: sel === j.id ? "var(--bg3)" : "" }}>
                 <td>{j.title}</td>
@@ -61,7 +63,9 @@ export default function JobsPage() {
                 <td className="muted small">{ago(j.created_at)}</td>
                 <td>
                   {(j.status === "queued" || j.status === "running") && (
-                    <button className="danger small" onClick={(e) => {
+                    <button className="danger small"
+                      data-action={ANCHORS.jobsCancel} data-id={j.id}
+                      onClick={(e) => {
                       e.stopPropagation();
                       api(`/api/jobs/${j.id}/cancel`, {}).then(refresh);
                     }}>✕</button>

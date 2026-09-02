@@ -165,12 +165,78 @@ export interface FilmPageHandles {
   refresh(): Promise<void>;
 }
 
-export type AnyPageHandles = ShotPageHandles | FilmPageHandles;
+// ---------------------------------------------------------------- comp (the cel workbench)
+
+export type BgMode = "edit" | "regen";
+export type MatteMode = "window" | "figure";
+/** Fields of the Background console under the layer stack. */
+export type BgField = "prompt" | "mode" | "strength";
+
+export interface CompLayerLite {
+  id: string;
+  clip: string | null;
+  /** [l, t, r, b] in TRUE plate pixels — plates are 960x544 class, not 1080p. */
+  region: number[];
+  prompt?: string;
+  z?: number;
+  opacity?: number;
+  matte?: string;
+  variants?: number;
+  /** A separated-figure layer (its cel animates from the original plate). */
+  figure?: boolean;
+}
+
+/**
+ * The cel workbench (`CompEditor`), which mounts INSIDE the Shot Editor's compose tab as
+ * well as standalone on `/p/:pid/comp/:cid`. It registers alongside the page it lives in,
+ * so `ctx.page.current()` still reports the shot; ask for the workbench by kind:
+ * `ctx.page.waitFor("comp", { cid })`.
+ */
+export interface CompPageHandles {
+  kind: "comp";
+  pid: string;
+  cid: string;
+  sid: string | null;
+  getState(): {
+    cid: string; shot: string | null; background: string; duration: number;
+    /** A comp background is a still plate or a clip; both stream. */
+    backgroundKind: "still" | "video";
+    /** True background pixels, once measured. */
+    plate: [number, number] | null;
+    layers: CompLayerLite[];
+    selected: string | null;
+    backgrounds: string[];
+    render: string | null;
+  };
+  selectLayer(id: string | null): void;
+  /** Draw the pending "new cel" box on the stage (plate pixels), and fill its prompt. */
+  setNewRegion(region: number[] | null): void;
+  setNewPrompt(prompt: string): void;
+  /** The ▶ add layer & generate cel button. */
+  submitLayer(extra?: Record<string, unknown>): Promise<{ job: string; layer?: string }>;
+  /** ONE POST for the whole patch — the auto-render debounce then renders once. */
+  patchLayer(id: string, patch: Record<string, unknown>): Promise<void>;
+  removeLayer(id: string): Promise<void>;
+  /** 🎲 reroll, or 🎛 directed reroll when `opts` carries prompt/seed/backend/model. */
+  rerollLayer(id: string, opts?: Record<string, unknown>): Promise<{ job: string }>;
+  /** Switch the background to a stored or new take (still or clip). */
+  setBackground(rel: string): Promise<void>;
+  setBgField(field: BgField, value: unknown): void;
+  submitBackground(): Promise<{ job: string }>;
+  setDuration(seconds: number): Promise<void>;
+  renderComp(): Promise<{ job: string }>;
+  /** ⬆ use in timeline — points the shot's source at a composite. */
+  promote(path?: string): Promise<{ path: string }>;
+  refresh(): Promise<void>;
+}
+
+export type AnyPageHandles = ShotPageHandles | FilmPageHandles | CompPageHandles;
 
 export interface PageHandles {
   current(): AnyPageHandles | null;
   waitFor(kind: "shot", match: { sid: string }, timeoutMs?: number): Promise<ShotPageHandles>;
   waitFor(kind: "film", match?: Record<string, never>, timeoutMs?: number): Promise<FilmPageHandles>;
+  waitFor(kind: "comp", match?: { cid?: string; sid?: string }, timeoutMs?: number): Promise<CompPageHandles>;
 }
 
 // ---------------------------------------------------------------- resolver
@@ -226,6 +292,8 @@ export interface ActionDef<A = Record<string, unknown>> {
   where: Where | ((args: Partial<A>) => Where);
   keywords?: string[];
   howTo?: string;                                 // how a human does this by hand (1–2 sentences)
+  /** The screen this belongs to ("Shot Editor", "Settings") — list_features groups by it. */
+  group?: string;
   surfaces?: { agent?: boolean; palette?: boolean };  // default both true
   outputLimit?: number;                           // override BUDGETS.output for this tool (rare)
   summarize?: (args: A) => string;
@@ -241,6 +309,10 @@ export const TOOL_NAMES = [
   "cut_film", "get_jobs", "wait_for_jobs",
   // workstream H — music & SFX (appended; never renumber the rows above)
   "generate_music", "generate_sfx", "place_cue", "list_cues",
+  // workstream I — the cel workbench (comps), then lanes / export / render
+  "add_cel_layer", "reroll_layer", "restyle_background", "set_background",
+  "set_layer", "remove_layer", "render_comp", "list_layers",
+  "list_backends", "set_lane_default", "export_timeline", "render_timeline",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -279,9 +351,68 @@ export const ANCHORS = {
   shotCues: "shot.audio.cues", shotCueRemove: "shot.audio.cues.remove",
   // film cue strip (under the Cuts gallery)
   filmCues: "film.cues", filmCueRemove: "film.cues.remove",
-  // timeline / settings
+  // shot editor — compose tab shell (the cel workbench lives inside it)
+  compPick: "comp.pick",                       // + data-cid
+  compCreate: "comp.create", compSeparate: "comp.separate",
+  scriptPanel: "shot.script.panel",
+  // the cel workbench (CompEditor)
+  compStage: "comp.stage",
+  compNewPrompt: "comp.new.prompt", compNewSubmit: "comp.new.submit",
+  compNewCancel: "comp.new.cancel",
+  compLayer: "comp.layer",                     // + data-id (the layer card)
+  compLayerSelect: "comp.layer.select", compLayerReroll: "comp.layer.reroll",
+  compLayerDirected: "comp.layer.directed", compLayerRemove: "comp.layer.remove",
+  compLayerMatte: "comp.layer.matte", compLayerOpacity: "comp.layer.opacity",
+  compLayerZ: "comp.layer.z", compLayerVariant: "comp.layer.variant",
+  compLayerSpotlight: "comp.layer.spotlight",
+  compRerollPrompt: "comp.layer.reroll.prompt", compRerollSeed: "comp.layer.reroll.seed",
+  compRerollSubmit: "comp.layer.reroll.submit",
+  compBgPrompt: "comp.bg.prompt", compBgMode: "comp.bg.mode",
+  compBgStrength: "comp.bg.strength", compBgSubmit: "comp.bg.submit",
+  compBgPlate: "comp.bg.plate",                // + data-path
+  compDuration: "comp.duration", compRender: "comp.render", compPromote: "comp.promote",
+  // separate-a-figure canvas
+  sepCanvas: "separate.canvas", sepInclude: "separate.include",
+  sepExclude: "separate.exclude", sepUndo: "separate.undo",
+  sepClear: "separate.clear", sepSubmit: "separate.submit",
+  // timeline
   timelineRender: "timeline.render", timelineScope: "timeline.scope",
+  timelineZoom: "timeline.zoom", timelinePlay: "timeline.play",
+  timelineStepBack: "timeline.step.back", timelineStepFwd: "timeline.step.fwd",
+  timelineScrub: "timeline.scrub", timelineRuler: "timeline.ruler",
+  timelineClip: "timeline.clip",                // + data-id
+  timelineOtio: "timeline.export.otio", timelineEdl: "timeline.export.edl",
+  // settings
   settingsBackend: "settings.backend",         // + data-id, then ".enable|.health|.save|.delete"
+  settingsBackendEnable: "settings.backend.enable",
+  settingsBackendHealth: "settings.backend.health",
+  settingsBackendEdit: "settings.backend.edit",
+  settingsBackendSave: "settings.backend.save",
+  settingsBackendDelete: "settings.backend.delete",
+  settingsBackendLabel: "settings.backend.label",
+  settingsBackendUrl: "settings.backend.base_url",
+  settingsBackendKey: "settings.backend.api_key",
+  settingsBackendOptions: "settings.backend.options",
+  settingsAdd: "settings.add", settingsAddId: "settings.add.id",
+  settingsAddType: "settings.add.type", settingsAddUrl: "settings.add.base_url",
+  settingsAddKey: "settings.add.api_key", settingsAddSubmit: "settings.add.submit",
+  settingsAddCancel: "settings.add.cancel",
+  settingsLane: "settings.lane",               // + data-lane
+  settingsLaneModel: "settings.lane.model", settingsLaneSave: "settings.lane.save",
+  settingsToken: "settings.token", settingsTokenSave: "settings.token.save",
+  // jobs
+  jobsRow: "jobs.row",                          // + data-id
+  jobsCancel: "jobs.cancel", jobsLog: "jobs.log",
+  // projects
+  projectsCard: "projects.card",                // + data-pid
+  projectsNewId: "projects.new.id", projectsCreate: "projects.create",
+  projectsImportSrc: "projects.import.src", projectsImportId: "projects.import.id",
+  projectsImport: "projects.import",
+  // director chat
+  chatProvider: "chat.provider", chatInput: "chat.input", chatSend: "chat.send",
+  // app shell odds and ends
+  filmView: "film.view", filmCutPlay: "film.cut.play",
+  paletteInput: "app.palette.input", agentChip: "app.agent.chip",
 } as const;
 
 export const shotTabAnchor = (tab: ShotTab) => `${ANCHORS.shotTab}.${tab}`;

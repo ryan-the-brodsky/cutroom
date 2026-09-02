@@ -72,12 +72,22 @@ describe("get_context", () => {
 });
 
 describe("list_features", () => {
-  it("lists the registry and filters by query", async () => {
+  it("lists every tool, with a count per screen", async () => {
     const all = asOk(await listFeatures.execute({}, f.ctx));
-    expect(all.total).toBe(TOOL_NAMES.length);
+    expect((all.tools as unknown[]).length).toBe(TOOL_NAMES.length);
+    // The palette-only feature registry is counted by screen, not listed.
+    const screens = all.screens as Record<string, number>;
+    expect(Object.keys(screens).length).toBeGreaterThan(4);
+    expect(screens["Cel workbench"]).toBeGreaterThan(5);
+  });
+
+  it("searches the whole application when given a query", async () => {
     const one = asOk(await listFeatures.execute({ query: "freeze" }, f.ctx));
     expect((one.features as { name: string }[]).some((x) => x.name === "freeze_tail")).toBe(true);
-    expect(one.total as number).toBeLessThan(19);
+    // palette-only entries are reachable by query, and flagged as such
+    const opacity = asOk(await listFeatures.execute({ query: "opacity" }, f.ctx));
+    const rows = opacity.features as { name: string; palette_only?: boolean }[];
+    expect(rows.some((x) => x.name === "cel_opacity" && x.palette_only)).toBe(true);
   });
 });
 

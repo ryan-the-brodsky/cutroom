@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { ANCHORS } from "../agent/contract";
 import { api, sse } from "../api";
 import { usePoll } from "../hooks";
 
@@ -69,7 +70,8 @@ export default function ChatPage() {
         <h2 style={{ margin: 0 }}>Director chat</h2>
         {shot && <span className="chip">scoped to {shot}</span>}
         <div style={{ flex: 1 }} />
-        <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+        <select value={provider} data-action={ANCHORS.chatProvider}
+                onChange={(e) => setProvider(e.target.value)}>
           <option value="">auto provider</option>
           {providers.map((p: any) => (
             <option key={p.id} value={p.id}>{p.label}</option>
@@ -96,6 +98,7 @@ export default function ChatPage() {
       </div>
       <div className="row">
         <textarea style={{ flex: 1, minHeight: 44 }} value={input}
+                  data-action={ANCHORS.chatInput}
                   placeholder="direct the film…"
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -103,7 +106,7 @@ export default function ChatPage() {
                       e.preventDefault(); send();
                     }
                   }} />
-        <button className="primary" onClick={send}
+        <button className="primary" onClick={send} data-action={ANCHORS.chatSend}
                 disabled={streaming || !input.trim()}>send</button>
       </div>
     </div>

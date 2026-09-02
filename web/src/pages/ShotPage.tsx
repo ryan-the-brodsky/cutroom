@@ -52,7 +52,10 @@ export default function ShotPage() {
   const [plan, setPlan] = useState<{ plan: Plan; source: string } | null>(null);
   const [instruction, setInstruction] = useState("");
   const [watchJob, setWatchJob] = useState<string | null>(null);
-  const [activeComp, setActiveComp] = useState<string | null>(null);
+  // The active comp lives in the query too, so ?tab=compose&comp=<cid> is a real link
+  // (and the way the agent's cel tools land on one particular workbench).
+  const activeComp = q.get("comp");
+  const setActiveComp = (c: string | null) => setQ({ comp: c });
   const [separating, setSeparating] = useState(false);
   const { busy, error, run, setError } = useAsync();
 
@@ -258,17 +261,21 @@ export default function ShotPage() {
 
   const takeActions = (path: string) => (
     <div className="row" style={{ gap: 4 }}>
-      {/\.(png|jpg|jpeg|webp)$/i.test(path) && <>
+      {/\.(png|jpg|jpeg|webp)$/i.test(path) && (
         <button className="small" title="curation keeper (the plate)"
           data-action={ANCHORS.takeKeeper} data-path={path}
           onClick={() => fire(setKeeperPath(path))}>★ keeper</button>
-        <button className="small" title="stage a comp on this plate"
-          data-action={ANCHORS.takeCompose} data-path={path}
-          onClick={() => run(() => api(`/api/projects/${pid}/comps`,
-            { shot: sid, background: path, duration: shot.seconds }),
-            (c: any) => { setActiveComp(c.cid); setTab("compose"); refresh(); })}>
-          🎬 compose on this</button>
-      </>}
+      )}
+      {/* A comp stages on a still plate OR on a clip — a moving background
+          under moving cels is a legal composition. */}
+      <button className="small"
+        title={IS_CLIP(path) ? "stage a comp on this clip (moving background)"
+                             : "stage a comp on this plate"}
+        data-action={ANCHORS.takeCompose} data-path={path}
+        onClick={() => run(() => api(`/api/projects/${pid}/comps`,
+          { shot: sid, background: path, duration: shot.seconds }),
+          (c: any) => { setActiveComp(c.cid); setTab("compose"); refresh(); })}>
+        🎬 compose on this</button>
       {IS_CLIP(path) && (
         <button className="small" title="the held-cel edit"
           data-action={ANCHORS.takeFreeze} data-path={path}
@@ -378,10 +385,12 @@ export default function ShotPage() {
               {(shot.comps || []).map((c) => (
                 <button key={c.cid}
                         className={activeComp === c.cid ? "primary" : ""}
+                        data-action={ANCHORS.compPick} data-cid={c.cid}
                         onClick={() => setActiveComp(c.cid)}>
                   {c.cid} ({c.layers.length})</button>
               ))}
-              <button disabled={!plate} onClick={() =>
+              <button disabled={!plate} data-action={ANCHORS.compCreate}
+                onClick={() =>
                 run(() => api(`/api/projects/${pid}/comps`,
                               { shot: sid, background: plate,
                                 duration: shot.seconds }),
@@ -389,6 +398,7 @@ export default function ShotPage() {
                 + new comp from plate</button>
               <button disabled={!plate || !plateDims}
                       className={separating ? "primary" : ""}
+                      data-action={ANCHORS.compSeparate}
                       onClick={() => setSeparating(!separating)}>
                 ✂ separate figure</button>
             </div>
@@ -480,10 +490,12 @@ export default function ShotPage() {
                     {plateDims[1]} — untouched outside the region</span>
                 </div>
                 {!gen.fullFrame && (
-                  <RegionCanvas pid={pid} plate={plate}
-                    plateW={plateDims[0]} plateH={plateDims[1]}
-                    region={gen.region}
-                    onRegion={(r) => setGen({ ...gen, region: r })} />
+                  <div data-action={genFieldAnchor("animate", "region")}>
+                    <RegionCanvas pid={pid} plate={plate}
+                      plateW={plateDims[0]} plateH={plateDims[1]}
+                      region={gen.region}
+                      onRegion={(r) => setGen({ ...gen, region: r })} />
+                  </div>
                 )}
                 <label className="field">motion prompt (name only what moves)
                   <textarea value={gen.prompt || shot.motion_prompt || ""}
@@ -569,9 +581,11 @@ export default function ShotPage() {
           </div>}
 
           {tab === "audio" && <div className="col">
-            <ModelPicker pid={pid} lane="vo" backend={gen.backend}
-              model={gen.voice}
-              onChange={(b, v) => setGen({ ...gen, backend: b, voice: v })} />
+            <div data-action={ANCHORS.audioVoice}>
+              <ModelPicker pid={pid} lane="vo" backend={gen.backend}
+                model={gen.voice}
+                onChange={(b, v) => setGen({ ...gen, backend: b, voice: v })} />
+            </div>
             <label className="field">line (v3 tags pass through)
               <textarea value={gen.text || shot.radio || ""}
                         data-action={ANCHORS.audioText}
@@ -687,7 +701,8 @@ export default function ShotPage() {
             </div>
           </div>}
 
-          {tab === "script" && <div className="col small">
+          {tab === "script" && <div className="col small"
+                                    data-action={ANCHORS.scriptPanel}>
             <label className="field">image prompt
               <textarea readOnly value={shot.image_prompt} /></label>
             {shot.motion_prompt && <label className="field">motion prompt

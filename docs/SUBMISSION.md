@@ -103,7 +103,7 @@ One registry, three surfaces. `web/src/agent/registry.ts` holds an `ActionDef`
 per feature: name, description, JSON Schema, annotations, `where` it lives in
 the UI (route, query params, a `data-action` anchor), `howTo` a human performs
 it, and an `execute` that drives imperative handles the React pages publish on
-mount. The 23 WebMCP tools, the ⌘K palette and `show_me` are projections of
+mount. The 35 WebMCP tools, the ⌘K palette and `show_me` are projections of
 that one list.
 
 `web/src/agent/webmcp.ts` is the bridge. At app mount it reads
@@ -127,7 +127,7 @@ insertions, of which `web/src/agent/**` is 10,596 lines across 41 files, all
 new. That covers the action registry and contract, the WebMCP bridge, page
 handles and anchors, the pulse and Agent trail, the ⌘K palette, a
 natural-language shot resolver with a cast index, a cost and doctrine guard,
-the async job pattern, and 23 tool implementations. Plus URL state for the
+the async job pattern, and 35 tool implementations. Plus URL state for the
 Shot and Film Editors so deep links exist at all, demo mode with judge and
 admin token roles, boot-time provider seeding with a rolling spend cap, the
 vitest and Playwright suites (the repo had no front-end tests), and the
@@ -150,14 +150,14 @@ Open it in one of these two environments:
 ChatGPT Desktop (the fastest path)
   1. Settings > Browser > turn on "Enable site tools".
   2. Open the URL above in the in-app browser.
-  3. Wait for the topbar chip to read "tools: 23 · native".
+  3. Wait for the topbar chip to read "tools: 35 · native".
   4. Ask for one of the prompts below.
 
 Google Chrome 149 or later
   1. chrome://flags/#enable-webmcp-testing   -> Enabled
   2. chrome://flags/#devtools-webmcp-support -> Enabled
   3. Restart Chrome, then open the URL above.
-  4. DevTools > Application > WebMCP lists all 23 tools and runs them by
+  4. DevTools > Application > WebMCP lists all 35 tools and runs them by
      hand if you would rather not use an agent client. Try
      find_shots {"query": "the two chairs shot"} and then generate_takes.
   5. If your build does not list those flags, launching Chrome with
@@ -260,7 +260,7 @@ for (const def of agentDefs()) {
 ## Pre-submit checklist
 
 - [ ] Live URL opens logged out in a fresh profile and the tools chip reads
-      `tools: 23 · native`.
+      `tools: 35 · native`.
 - [ ] All three prompts run clean against the hosted URL, recorded in
       `docs/TESTING-WEBMCP.md`.
 - [ ] The Two Claudes cut is in the Cuts gallery on the hosted instance and

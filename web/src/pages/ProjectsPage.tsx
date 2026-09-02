@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { ANCHORS } from "../agent/contract";
 import { api } from "../api";
 import { pushToast, useAsync, usePoll } from "../hooks";
 import type { Project } from "../types";
@@ -16,7 +17,8 @@ export default function ProjectsPage() {
       <h2>Projects</h2>
       <div className="grid cards">
         {(projects || []).map((p) => (
-          <Link to={`/p/${p.id}`} key={p.id} className="card">
+          <Link to={`/p/${p.id}`} key={p.id} className="card"
+                data-action={ANCHORS.projectsCard} data-pid={p.id}>
             <h4>{p.label || p.id}</h4>
             <div className="muted">{p.shots} shots{p.paused ? " · ⏸" : ""}</div>
           </Link>
@@ -26,8 +28,10 @@ export default function ProjectsPage() {
       <h3>New empty project</h3>
       <div className="row">
         <input placeholder="slug (e.g. next-year)" value={nid}
+               data-action={ANCHORS.projectsNewId}
                onChange={(e) => setNid(e.target.value)} />
         <button className="primary" disabled={busy || !nid}
+          data-action={ANCHORS.projectsCreate}
           onClick={() => run(() => api("/api/projects", { id: nid }),
                              () => { setNid(""); refresh(); })}>
           create
@@ -43,10 +47,13 @@ export default function ProjectsPage() {
       <div className="row">
         <input style={{ width: 340 }}
                placeholder="/path/to/repo" value={importSrc}
+               data-action={ANCHORS.projectsImportSrc}
                onChange={(e) => setImportSrc(e.target.value)} />
         <input placeholder="project slug" value={importId}
+               data-action={ANCHORS.projectsImportId}
                onChange={(e) => setImportId(e.target.value)} />
         <button className="primary" disabled={busy || !importSrc || !importId}
+          data-action={ANCHORS.projectsImport}
           onClick={() => run(
             () => api(`/api/projects/${importId}/import`,
                       { src_root: importSrc }),

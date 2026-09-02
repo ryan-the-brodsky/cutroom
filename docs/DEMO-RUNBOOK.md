@@ -16,7 +16,7 @@
 | Live URL | <https://cutroom-production-0f3c.up.railway.app> |
 | Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and `~/.claude/.env`, never in this repo) |
 | Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
-| Tools | 23 |
+| Tools | 35 |
 
 ---
 
@@ -33,7 +33,7 @@ and 8.
       `{"ok":true}` and `200`. Health alone passes while the SPA is missing;
       that shipped once.
 - [ ] **2. Tools chip reads native.** Open the judge link. The topbar says
-      `tools: 23 · native`. `unavailable` means an insecure origin or the flag
+      `tools: 35 · native`. `unavailable` means an insecure origin or the flag
       is off. `polyfill` means you left `?webmcp=polyfill` on; drop it, the
       video must show the native API.
 - [ ] **3. Chrome flags on** (Chrome path only):
@@ -157,7 +157,7 @@ visiting:
   reads at 1080p.
 - A separate Chrome on the judge link, DevTools docked right, Application ›
   WebMCP selected, list scrolled to show `find_shots`, `generate_takes`,
-  `freeze_tail`. The count of 23 should be visible.
+  `freeze_tail`. The count of 35 should be visible.
 - A terminal running Claude Code with `chrome-devtools-mcp` v1.8.0 and
   `--categoryExperimentalWebmcp=true`, already connected to that tab. Test
   before recording: `find_shots {"query": "the two chairs shot"}`.

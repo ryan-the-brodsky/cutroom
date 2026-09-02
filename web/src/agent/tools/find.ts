@@ -274,23 +274,23 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
   title: "List Cutroom features",
   description:
     "List what Cutroom can do and where each feature lives in the UI, optionally " +
-    "filtered by a word like \"freeze\", \"keeper\", \"cut\" or \"voice\". Each entry " +
-    "gives the tool name, a title, the screen path (\"Shot Editor → Motion edits\") " +
-    "and how a human does it by hand. Use it to answer \"what can this do?\" or to " +
-    "teach the director a feature they have not found — then call show_me to " +
-    "navigate there and highlight the control.",
+    "filtered by a word like \"freeze\", \"comp\", \"opacity\" or \"voice\". With no " +
+    "query it returns every callable tool plus a count per screen; with a query it " +
+    "searches the WHOLE application, including the hundred-odd controls that are " +
+    "not tools, and gives each one its screen path and how a human does it by " +
+    "hand. Then call show_me to navigate there and pulse the control.",
   inputSchema: {
     type: "object",
     properties: {
       query: {
         type: "string",
-        description: "Optional filter word, e.g. \"freeze\", \"keeper\", \"generate\", \"timing\", \"cut the film\".",
+        description: "Optional filter word, e.g. \"freeze\", \"comp\", \"opacity\", \"timeline\", \"backend\". Also matches a screen name.",
       },
     },
     additionalProperties: false,
   },
   annotations: { readOnlyHint: true },
-  outputLimit: 2600,
+  outputLimit: 4000,
   where: { route: FILM_ROUTE, label: "⌘K command palette" },
   keywords: ["features", "help", "what can you do", "capabilities", "palette", "commands"],
   howTo: "Press ⌘K (Ctrl+K on Windows) anywhere in Cutroom to open the command palette and type to filter.",
@@ -298,46 +298,53 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
   async execute(args): Promise<ToolResult> {
     const all = deps.allActions() as unknown as {
       name: string; title: string; description: string; keywords?: string[];
-      howTo?: string; where: unknown; surfaces?: { palette?: boolean };
+      howTo?: string; where: unknown; group?: string;
+      surfaces?: { agent?: boolean; palette?: boolean };
     }[];
     const q = String(args?.query ?? "").trim().toLowerCase();
-    const matched = q ? all.filter((d) => featureText(d).includes(q)) : all;
-    // Fit the list to the 1.5K output budget: trim howTo first, then drop rows.
+    const groupOf = (d: { group?: string; where: unknown }) =>
+      d.group || whereLabel(d).split("→")[0].trim() || "Other";
+
+    // No query: every TOOL as a row (the agent's actual reach), plus a count per
+    // screen so it knows what a query would open up. With a query: the whole
+    // application, palette-only controls included.
+    if (!q) {
+      const tools = all.filter((d) => d.surfaces?.agent !== false);
+      const groups: Record<string, number> = {};
+      for (const d of all) groups[groupOf(d)] = (groups[groupOf(d)] || 0) + 1;
+      let rows = tools.map((d) => ({ name: d.name, title: cut(d.title, 24), where: cut(whereLabel(d), 28) }));
+      for (const [tw, ww] of [[24, 28], [20, 22], [16, 16]] as const) {
+        rows = tools.map((d) => ({ name: d.name, title: cut(d.title, tw), where: cut(whereLabel(d), ww) }));
+        if (JSON.stringify(rows).length < 2900) break;
+      }
+      return ok(`${tools.length} tools · ${all.length} features in all`, {
+        tools: rows,
+        screens: groups,
+        hint: "Pass `query` (a word, or a screen name like \"Cel workbench\") for the other features and their how-to.",
+      });
+    }
+
+    const matched = all.filter((d) =>
+      featureText(d).includes(q) || groupOf(d).toLowerCase().includes(q));
     const build = (n: number, howChars: number) => matched.slice(0, n).map((d) => ({
       name: d.name,
-      title: d.title,
+      title: cut(d.title, 30),
+      group: cut(groupOf(d), 20),
       where: cut(whereLabel(d), 40),
+      ...(d.surfaces?.agent === false ? { palette_only: true } : {}),
       ...(howChars > 0 ? { how: cut(d.howTo, howChars) } : {}),
     }));
-    // No query: EVERY feature as a structured row (name · title · where). Discovery is the
-    // product's premise, so this tool carries a larger output allowance (outputLimit) rather
-    // than silently dropping tools. With a query: fewer rows, each with the how-to.
-    let rows: unknown[];
-    if (!q) {
-      rows = matched.map((d) => ({ name: d.name, title: cut(d.title, 22), where: cut(whereLabel(d), 26) }));
-      for (const [tw, ww] of [[22, 26], [18, 20], [14, 16]] as const) {
-        rows = matched.map((d) => ({ name: d.name, title: cut(d.title, tw), where: cut(whereLabel(d), ww) }));
-        if (JSON.stringify(rows).length < 2300) break;
-      }
-    } else {
-      rows = build(8, 96);
-      for (const [n, h] of [[8, 96], [8, 56], [8, 0], [5, 0]] as const) {
-        rows = build(n, h);
-        if (JSON.stringify(rows).length < 1100) break;
-      }
+    let rows = build(10, 110);
+    for (const [n, h] of [[10, 110], [10, 70], [8, 60], [8, 0], [5, 0]] as const) {
+      rows = build(n, h);
+      if (JSON.stringify(rows).length < 2600) break;
     }
-    return ok(
-      q ? `${matched.length} feature${matched.length === 1 ? "" : "s"} match “${cut(q, 26)}”`
-        : `${all.length} features`,
-      {
-        features: rows,
-        total: matched.length,
-        ...(q
-          ? (matched.length > rows.length
-            ? { hint: "Narrow with `query` to see the rest, or call show_me with a feature name." }
-            : {})
-          : { hint: "Call again with `query` for a feature's how-to, or show_me to navigate there." }),
-      },
-    );
+    return ok(`${matched.length} feature${matched.length === 1 ? "" : "s"} match \u201c${cut(q, 26)}\u201d`, {
+      features: rows,
+      total: matched.length,
+      ...(matched.length > rows.length
+        ? { hint: "Narrow the query to see the rest, or call show_me with a feature name." }
+        : { hint: "show_me <name> navigates there and pulses the control." }),
+    });
   },
 };

@@ -29,6 +29,8 @@ export interface Take {
 
 export interface CompSummary {
   cid: string; shot?: string | null; background: string;
+  /** A comp background may be a still plate or a clip (both stream). */
+  background_kind?: "still" | "video";
   width: number; height: number; duration: number;
   layers: CompLayer[]; background_history?: string[];
 }

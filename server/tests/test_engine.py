@@ -69,6 +69,57 @@ def test_composite_single_leaves_plate_untouched(tmp_path):
     assert np.abs(got[100:190, 330:440] - want[100:190, 330:440]).mean() > 12.0
 
 
+def test_render_comp_over_a_moving_video_background(tmp_path):
+    """A comp background may be a CLIP: the background moves under the cels,
+    and both stream frame by frame instead of being decoded into RAM."""
+    from pathlib import Path as P
+    bg = make_clip(tmp_path / "bg.mp4", seconds=2.0, size="640x384")
+    cel = make_clip(tmp_path / "cel.mp4", seconds=1.0, size="128x96")
+    out = tmp_path / "comp.mp4"
+    comp = {
+        "background": str(bg), "duration": 1.5, "width": 640, "height": 384,
+        "layers": [{"id": "cel", "clip": str(cel), "region": [128, 96, 256, 192],
+                    "feather": 0, "matte": "window",
+                    "media": {"loop": "hold"}, "opacity": 1.0, "z": 1}],
+    }
+    info = cels.render_comp(comp, lambda rel: P(rel), out, webm_sibling=False)
+    assert out.exists()
+    assert info["background_kind"] == "video"
+    assert info["frames"] == 36 and info["layers"] == 1
+
+    from PIL import Image
+    first = np.asarray(Image.open(
+        ffmpeg.extract_frame(out, 0.05, tmp_path / "a.png"))).astype(int)
+    last = np.asarray(Image.open(
+        ffmpeg.extract_frame(out, 1.4, tmp_path / "b.png"))).astype(int)
+    # the BACKGROUND itself moves (a region no layer covers)
+    assert np.abs(first[260:380, 380:620] - last[260:380, 380:620]).mean() > 8.0
+    # and so does the cel region
+    assert np.abs(first[100:190, 130:250] - last[100:190, 130:250]).mean() > 8.0
+
+
+def test_probe_dims_and_frame_count_read_clips(tmp_path):
+    clip = make_clip(tmp_path / "c.mp4", seconds=1.0, size="320x224")
+    assert ffmpeg.probe_dims(clip) == (320, 224)
+    assert abs(ffmpeg.probe_frame_count(clip) - 24) <= 1
+    still = make_image(tmp_path / "s.png", 640, 384)
+    assert ffmpeg.probe_dims(still) == (640, 384)
+    assert ffmpeg.is_video(clip) and not ffmpeg.is_video(still)
+
+
+def test_raw_frame_reader_streams_and_rewinds(tmp_path):
+    clip = make_clip(tmp_path / "c.mp4", seconds=1.0, size="64x48")
+    with ffmpeg.RawFrameReader(clip, 32, 24) as r:
+        a = r.get(0).copy()
+        b = r.get(10).copy()
+        assert a.shape == (24, 32, 3)
+        assert np.abs(a.astype(int) - b.astype(int)).mean() > 1.0
+        # seeking backwards restarts the decoder and lands on the same frame
+        assert np.array_equal(r.get(0), a)
+        # past the end holds the last frame rather than exploding
+        assert r.get(10_000).shape == (24, 32, 3)
+
+
 def test_chain_assembler(tmp_path):
     plate = make_image(tmp_path / "anchor.png", 320, 224)
     seg = make_clip(tmp_path / "seg.mp4", seconds=1.5, size="320x224")

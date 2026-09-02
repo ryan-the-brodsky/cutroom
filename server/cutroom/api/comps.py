@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from ..db import session_scope
 from ..director.apply import _gen_pool, apply_op
+from ..engine import ffmpeg as e_ff
 from ..jobs.queue import submit_job
 from ..models import Comp
 from .deps import project_or_404, require_admin
@@ -25,6 +26,7 @@ def _comp(session, pid: str, cid: str) -> Comp:
 
 def _comp_dict(c: Comp) -> dict:
     return {"cid": c.cid, "shot": c.shot_sid, "background": c.background,
+            "background_kind": "video" if e_ff.is_video(c.background) else "still",
             "width": c.width, "height": c.height, "duration": c.duration,
             "layers": c.layers, "background_history": c.background_history,
             "created_at": c.created_at}
@@ -44,7 +46,7 @@ def list_comps(pid: str, shot: str | None = None):
 async def create_comp(pid: str, req: Request):
     body = await req.json()
     if not body.get("background"):
-        raise HTTPException(400, "need background (a plate path)")
+        raise HTTPException(400, "need background (a still plate or a clip)")
     project_or_404(pid)
     cid = re.sub(r"[^A-Za-z0-9-]+", "-",
                  body.get("cid") or f"{body.get('shot', 'comp')}-"
@@ -57,6 +59,9 @@ async def create_comp(pid: str, req: Request):
                  background=body["background"],
                  duration=float(body.get("duration", 4.0)),
                  layers=body.get("layers", []))
+        for k in ("width", "height"):
+            if body.get(k):
+                setattr(c, k, int(body[k]))
         s.add(c)
         s.flush()
         return _comp_dict(c)
@@ -133,9 +138,15 @@ async def reroll_layer(pid: str, cid: str, lid: str, req: Request):
 
 @router.post("/projects/{pid}/comps/{cid}/background/reroll")
 async def reroll_background(pid: str, cid: str, req: Request):
+    """Restyle the PLATE. Still backgrounds only: a clip background is footage,
+    not a plate — animate a new clip and set that as the background instead."""
     body = await req.json()
     with session_scope() as s:
-        _comp(s, pid, cid)
+        bg = _comp(s, pid, cid).background
+    if e_ff.is_video(bg):
+        raise HTTPException(
+            400, "restyle applies to still plates; this comp's background is a "
+                 "clip. Animate a new clip and set it as the background instead.")
     mode = body.get("mode", "edit")
     pool = _gen_pool(pid, "still" if mode == "regen" else "i2i",
                      body.get("backend"))

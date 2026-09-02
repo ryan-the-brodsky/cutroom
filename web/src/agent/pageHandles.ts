@@ -11,16 +11,31 @@
  */
 import { useEffect, useRef } from "react";
 import type {
-  AnyPageHandles, FilmPageHandles, PageHandles, ShotPageHandles,
+  AnyPageHandles, CompPageHandles, FilmPageHandles, PageHandles, ShotPageHandles,
 } from "./contract";
 
 type Listener = (h: AnyPageHandles | null) => void;
 
-let current: AnyPageHandles | null = null;
+/**
+ * Mounted handles, in mount order. Usually one, but the cel workbench mounts INSIDE the
+ * Shot Editor, so "shot" and "comp" are live at the same time. `current()` keeps meaning
+ * "the page the human is on" (shot or film); sub-surfaces are asked for by kind.
+ */
+const mounted: AnyPageHandles[] = [];
+const PAGE_KINDS = new Set(["shot", "film"]);
+
+const currentPage = (): AnyPageHandles | null => {
+  for (let i = mounted.length - 1; i >= 0; i--) {
+    if (PAGE_KINDS.has(mounted[i].kind)) return mounted[i];
+  }
+  return mounted[mounted.length - 1] ?? null;
+};
+
 const listeners = new Set<Listener>();
 
 function emit() {
-  for (const l of [...listeners]) { try { l(current); } catch { /* ignore */ } }
+  const cur = currentPage();
+  for (const l of [...listeners]) { try { l(cur); } catch { /* ignore */ } }
 }
 
 export function subscribeHandles(l: Listener): () => void {
@@ -28,14 +43,20 @@ export function subscribeHandles(l: Listener): () => void {
   return () => { listeners.delete(l); };
 }
 
-export function currentHandles(): AnyPageHandles | null { return current; }
+export function currentHandles(): AnyPageHandles | null { return currentPage(); }
+
+/** Every handle mounted right now, in mount order (tests and get_context). */
+export function mountedHandles(): AnyPageHandles[] { return [...mounted]; }
 
 /** Test seam: install handles without React. Returns an un-installer. */
 export function __setHandles(h: AnyPageHandles | null): () => void {
-  const prev = current;
-  current = h;
+  const prev = mounted.splice(0, mounted.length);
+  if (h) mounted.push(h);
   emit();
-  return () => { if (current === h) { current = prev; emit(); } };
+  return () => {
+    mounted.splice(0, mounted.length, ...prev);
+    emit();
+  };
 }
 
 function matches(h: AnyPageHandles | null, kind: string, match?: Record<string, unknown>): boolean {
@@ -43,19 +64,29 @@ function matches(h: AnyPageHandles | null, kind: string, match?: Record<string, 
   if (kind === "shot" && match && typeof match.sid === "string") {
     return String((h as ShotPageHandles).sid).toLowerCase() === match.sid.toLowerCase();
   }
+  if (kind === "comp" && match) {
+    const c = h as CompPageHandles;
+    if (typeof match.cid === "string" && String(c.cid) !== match.cid) return false;
+    if (typeof match.sid === "string" &&
+        String(c.sid ?? "").toLowerCase() !== match.sid.toLowerCase()) return false;
+  }
   return true;
 }
+
+const findMounted = (kind: string, match?: Record<string, unknown>): AnyPageHandles | null =>
+  [...mounted].reverse().find((h) => matches(h, kind, match)) ?? null;
 
 /**
  * Resolve once a page of `kind` (and matching identity) has mounted.
  * Rejects after `timeoutMs` — `perform()` turns that into a clean error envelope.
  */
 export function waitForHandles(
-  kind: "shot" | "film",
+  kind: "shot" | "film" | "comp",
   match?: Record<string, unknown>,
   timeoutMs = 5000,
 ): Promise<AnyPageHandles> {
-  if (matches(current, kind, match)) return Promise.resolve(current as AnyPageHandles);
+  const hit = findMounted(kind, match);
+  if (hit) return Promise.resolve(hit);
   return new Promise((resolve, reject) => {
     let done = false;
     const finish = (fn: () => void) => {
@@ -65,19 +96,20 @@ export function waitForHandles(
       off();
       fn();
     };
-    const off = subscribeHandles((h) => {
-      if (matches(h, kind, match)) finish(() => resolve(h as AnyPageHandles));
+    const off = subscribeHandles(() => {
+      const h = findMounted(kind, match);
+      if (h) finish(() => resolve(h));
     });
     const timer = setTimeout(() => finish(() => reject(new Error(
-      `page did not mount: ${kind}${match?.sid ? ` ${match.sid}` : ""} ` +
-      `(waited ${timeoutMs}ms)`))), timeoutMs);
+      `page did not mount: ${kind}${match?.sid ? ` ${match.sid}` : ""}` +
+      `${match?.cid ? ` ${match.cid}` : ""} (waited ${timeoutMs}ms)`))), timeoutMs);
   });
 }
 
 /** The `PageHandles` façade handed to every tool as `ctx.page`. */
 export const pageHandles: PageHandles = {
-  current: () => current,
-  waitFor: ((kind: "shot" | "film", match?: Record<string, unknown>, timeoutMs?: number) =>
+  current: currentPage,
+  waitFor: ((kind: "shot" | "film" | "comp", match?: Record<string, unknown>, timeoutMs?: number) =>
     waitForHandles(kind, match, timeoutMs)) as PageHandles["waitFor"],
 };
 
@@ -88,6 +120,7 @@ export const pageHandles: PageHandles = {
  */
 export function usePageHandles(handles: ShotPageHandles): void;
 export function usePageHandles(handles: FilmPageHandles): void;
+export function usePageHandles(handles: CompPageHandles): void;
 export function usePageHandles(handles: AnyPageHandles): void {
   const live = useRef(handles);
   live.current = handles;
@@ -106,11 +139,16 @@ export function usePageHandles(handles: AnyPageHandles): void {
     });
   }
   const kind = handles.kind;
-  const identity = kind === "shot" ? (handles as ShotPageHandles).sid : "";
+  const identity = kind === "shot" ? (handles as ShotPageHandles).sid
+    : kind === "comp" ? (handles as CompPageHandles).cid : "";
   useEffect(() => {
     const mine = proxy.current!;
-    current = mine;
+    mounted.push(mine);
     emit();
-    return () => { if (current === mine) { current = null; emit(); } };
+    return () => {
+      const at = mounted.indexOf(mine);
+      if (at >= 0) mounted.splice(at, 1);
+      emit();
+    };
   }, [kind, identity]);
 }

@@ -9,6 +9,10 @@
 import type { ActionDef } from "../contract";
 import { TOOL_NAMES } from "../contract";
 import { synthesizeVo } from "./audio";
+import {
+  addCelLayer, listLayers, removeLayer, renderComp, rerollLayer,
+  restyleBackground, setBackground, setLayer,
+} from "./comp";
 import { deps, installDeps, tryAdoptRealDeps } from "./deps";
 import { applyPlan, directShot } from "./direct";
 import { cutFilm } from "./film";
@@ -19,7 +23,11 @@ import { freezeTail, trimClip } from "./motion";
 import { generateMusic, generateSfx, listCues, placeCue } from "./music";
 import { openShot, showMe } from "./navigate";
 import { selectTake, setKeeper, setTimelineSource } from "./picks";
+import {
+  exportTimeline, listBackends, renderTimeline, setLaneDefault,
+} from "./settings";
 import { setShotTiming } from "./timing";
+import { FEATURES } from "../features";
 
 /**
  * Defs are individually typed by their own argument shape; the registry takes
@@ -53,10 +61,30 @@ export const TOOLS: AnyActionDef[] = [
   generateSfx,
   placeCue,
   listCues,
+  // workstream I — the cel workbench, then lanes / export / render
+  addCelLayer,
+  rerollLayer,
+  restyleBackground,
+  setBackground,
+  setLayer,
+  removeLayer,
+  renderComp,
+  listLayers,
+  listBackends,
+  setLaneDefault,
+  exportTimeline,
+  renderTimeline,
 ];
 
+/**
+ * The whole registry: tools an agent can call, plus the palette-only feature
+ * entries that make `list_features` and `show_me` cover the entire application
+ * rather than the subset that happens to be automatable.
+ */
+export const ALL_ACTIONS: AnyActionDef[] = [...TOOLS, ...FEATURES];
+
 /** list_features / show_me read the catalogue through deps, so A can widen it. */
-installDeps({ allActions: () => TOOLS as never[] });
+installDeps({ allActions: () => ALL_ACTIONS as never[] });
 
 export const TOOLS_BY_NAME: Record<string, AnyActionDef> =
   Object.fromEntries(TOOLS.map((t) => [t.name, t]));
@@ -68,9 +96,9 @@ export const TOOLS_BY_NAME: Record<string, AnyActionDef> =
 export function registerAllTools(register: (def: AnyActionDef) => void): AnyActionDef[] {
   // Prefer A's real settleJobs / classifyBackend when those modules exist.
   void tryAdoptRealDeps();
-  installDeps({ allActions: () => TOOLS as never[] });
-  for (const def of TOOLS) register(def);
-  return TOOLS;
+  installDeps({ allActions: () => ALL_ACTIONS as never[] });
+  for (const def of ALL_ACTIONS) register(def);
+  return ALL_ACTIONS;
 }
 
 /** Sanity check used by the contract test and by A's smoke test. */
@@ -92,3 +120,9 @@ export { directShot, applyPlan } from "./direct";
 export { cutFilm } from "./film";
 export { getJobs, waitForJobs } from "./jobs";
 export { generateMusic, generateSfx, placeCue, listCues } from "./music";
+export {
+  addCelLayer, listLayers, removeLayer, renderComp, rerollLayer,
+  restyleBackground, setBackground, setLayer, snapRegion,
+} from "./comp";
+export { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "./settings";
+export { FEATURES, FEATURES_BY_NAME, featureGroups, walkTo } from "../features";
