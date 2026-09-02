@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Scratch Cutroom server for the Playwright e2e suite (workstream E).
 #
-#   scripts/e2e-server.sh            # build SPA, boot :8785, seed, stay in foreground
+#   CUTROOM_E2E_SOURCE=<path-to-a-studio-folder> scripts/e2e-server.sh
+#                                    # build SPA, boot :8785, seed, stay in foreground
 #   CUTROOM_E2E_FRESH=1 …            # wipe the scratch data dir first
 #   CUTROOM_E2E_SKIP_BUILD=1 …       # reuse server/cutroom/static as-is
+#
+# CUTROOM_E2E_SOURCE must point at a studio folder (docs/ARCHITECTURE.md):
+# a directory with prompts/shots.jsonl, renders/ and audio/. The suite needs
+# real footage, so no default is guessed.
 #
 # Everything lands in a temp CUTROOM_DATA. This script REFUSES to run against
 # ~/.cutroom — the production store is never touched (docs/PLAN.md records the
@@ -18,7 +23,7 @@ PORT="${CUTROOM_E2E_PORT:-8785}"
 HOST="127.0.0.1"
 BASE="http://${HOST}:${PORT}"
 PID="${CUTROOM_E2E_PROJECT:-next-year}"
-FILM_SRC="${CUTROOM_E2E_FILM_SRC:-/Users/ryan-the-brodsky/Documents/programming/game7}"
+FILM_SRC="${CUTROOM_E2E_SOURCE:-${CUTROOM_E2E_FILM_SRC:-}}"
 DATA="${CUTROOM_E2E_DATA:-/tmp/cutroom-e2e/data}"
 LANES=(still i2i motion vo sfx music)
 
@@ -30,7 +35,8 @@ case "$DATA" in
   "$HOME/.cutroom"|"$HOME/.cutroom/"*) die "refusing to use the production store: $DATA" ;;
   ""|"/") die "bad CUTROOM_E2E_DATA: '$DATA'" ;;
 esac
-[ -f "$FILM_SRC/prompts/shots.jsonl" ] || die "no film at $FILM_SRC (need prompts/shots.jsonl)"
+[ -n "$FILM_SRC" ] || die "set CUTROOM_E2E_SOURCE to a studio folder (a directory with prompts/shots.jsonl, renders/, audio/)"
+[ -f "$FILM_SRC/prompts/shots.jsonl" ] || die "no studio folder at $FILM_SRC (need prompts/shots.jsonl)"
 
 # The API is open only when this is unset; an inherited value would 401 everything.
 unset CUTROOM_AUTH_TOKEN CUTROOM_ADMIN_TOKEN CUTROOM_DEMO || true

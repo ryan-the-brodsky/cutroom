@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed a Cutroom project from a game7-layout script (no media) over the API.
+"""Seed a Cutroom project from a studio-folder script (no media) over the API.
 
   python3 scripts/seed-film.py --url https://host --token ADMIN --project two-claudes \
       --shots docs/demo-films/two-claudes/shots.jsonl \
