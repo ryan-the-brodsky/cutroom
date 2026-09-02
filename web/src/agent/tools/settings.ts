@@ -136,9 +136,9 @@ export const setLaneDefault: ActionDef<LaneArgs> = {
   },
   annotations: { consequentialHint: true },
   where: { route: SETTINGS_ROUTE, anchor: ANCHORS.settingsLane,
-           label: "Settings → Lane defaults" },
+           label: "Settings → Where each part of the film is made" },
   keywords: ["lane", "default", "backend", "model", "voice", "project default", "route lane"],
-  howTo: "In Settings, find the Lane defaults table, pick a backend for the lane and press save.",
+  howTo: "In Settings, find \"Where each part of the film is made\", pick a backend for the lane and press save.",
   summarize: (a) => `Point the ${cut(a?.lane, 12)} lane at ${cut(a?.backend, 20)}`,
   async execute(args, ctx): Promise<ToolResult> {
     const pid = ctx.project;

@@ -200,6 +200,13 @@ table.list th { text-align: left; color: var(--dim); font-weight: 700;
   padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 12px; }
 table.list td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
 
+/* Settings reads as a page about the studio, not a form: label on the left,
+   the fact on the right, wrapping instead of truncating. */
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px; margin: 0; font-size: 13px; }
+.kv dt { color: var(--dim); }
+.kv dd { margin: 0; min-width: 0; }
+
 .region-wrap { position: relative; display: inline-block; max-width: 100%; }
 .region-wrap img { max-width: 100%; display: block; border-radius: 6px; }
 .region-wrap canvas { position: absolute; inset: 0; cursor: crosshair;
