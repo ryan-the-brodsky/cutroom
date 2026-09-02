@@ -285,7 +285,7 @@ export default function FilmEditorPage() {
       <h3>Cuts</h3>
       <div className="grid cards">
         {(animatics || []).map((a) => (
-          <div className="card" key={a.id}>
+          <div className="card" key={a.id} data-cut={a.path}>
             {playingCut === a.path ? (
               <video src={mediaUrl(pid, a.path)} controls autoPlay
                      style={{ width: "100%", borderRadius: 5 }} />
