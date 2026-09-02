@@ -786,3 +786,8 @@ at low cost, with the owner able to toggle providers without redeploying.
   `apply_motion_plan` / `/spend`, fal bake-off: Wan turbo stays default; Seedance for legible
   text, Pixverse v6 for effects bursts). 45 tools. Suites: 582 web, 210 server. Landing page
   + `/app` move (O) in progress.
+- **Wed 11:55 PT — the mock lane is gone from the hosted demo.** ChatGPT, starting a film from
+  nothing, reasoned its way to the free instant test backend and built 13 mock stills. Ryan:
+  judges must never see it. Disabled live; boot seeding no longer forces it on in demo mode
+  (`CUTROOM_DEMO_MOCK=1` opts in for local tests); viewers only see enabled backends. Per-token
+  caps removed (only the daily spend cap remains, $15). Bake-off delivered (Wan turbo default).
