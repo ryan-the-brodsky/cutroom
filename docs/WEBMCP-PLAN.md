@@ -208,7 +208,7 @@ and appends `"…(truncated)"`), catches everything and returns `{ ok:false }` �
   `shot.tab.{compose,generate,motion,audio,script}` · `shot.direct.{input,submit}` · `shot.plan.apply` ·
   `shot.takes.filter[data-kind]` · `shot.take[data-path]` · `shot.take.{keeper,source,freeze,compose}` ·
   `shot.gen.sub.{still,restyle,animate,chain}` · `shot.gen.{still,restyle,animate,chain}.{prompt,seeds,denoise,frames,steps,cfg,freeze_after,mode,beats,submit}` ·
-  `shot.gen.model` · `shot.motion.{live,freeze,trim}` · `shot.audio.{text,voice,futz,submit,vo_offset,mute}` ·
+  `shot.gen.model` · `shot.motion.{live,freeze,trim}` · `shot.audio.{text,voice,treatment,submit,vo_offset,mute}` ·
   `timeline.{render,scope}` · `settings.backend[data-id].{enable,health,save,delete}`.
 - **Trail.** `trail.step({ tool, title, anchor?, detail?, job? })` appends to an activity store
   rendered as a collapsible bottom-right drawer ("Agent trail": time · tool · summary · job link;
@@ -306,7 +306,7 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 11 | `set_keeper` | consequential | `shot`, `take?` (default selected), `note?` | ★ on the take | applied, previous keeper (history kept) |
 | 12 | `set_timeline_source` | consequential | `shot`, `take?` | ⬆ on the take (or clear) | applied, what plays now |
 | 13 | `set_shot_timing` | consequential | `shot`, `seconds?`, `vo_offset?`, `mute_vo?` | Film Editor quick panel (or Audio tab) | applied override |
-| 14 | `synthesize_vo` | consequential | `shot`, `text?`, `voice?`, `futz?`, `confirm_cost?` | Audio tab; fills; submits | job, settled take |
+| 14 | `synthesize_vo` | consequential | `shot`, `text?`, `voice?`, `treatment?` (none\|radio\|phone\|megaphone\|hall, default none), `confirm_cost?` | Audio tab; fills; submits | job, settled take, treatment |
 | 15 | `direct_shot` | readOnly (plan only) | `shot`, `instruction` | Direct box; types; compiles → PlanPreview shown | the EditPlan (ops with summaries) or a 422 message; nothing runs |
 | 16 | `apply_plan` | consequential | `shot`, `plan` (from 15) | ▶ apply plan | jobs[], applied ops |
 | 17 | `cut_film` | consequential | `scope` enum full/act1..4, `res` enum 720/1080 | Film Editor → Cut the film | job; on settle: animatic path + duration |
@@ -331,7 +331,7 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 35 | `render_timeline` | consequential | `scope_sec?`, `container?` | Timeline → render via engine | job; `engine offline` (cleanly) when the engine is not configured |
 
 | 36 | `create_project` | consequential | `id?` (slug), `title`, `fps?` | Projects → New empty project; types the slug, presses create, then opens the new Film Editor | project id, url, the lane defaults it inherited |
-| 37 | `write_script` | consequential | `project?`, `shots[]` (sid?, beat?, act?, type?, seconds?, register?, image_prompt, negative?, motion_prompt?, radio?, dialogue?, sfx?, ambient?, cut?, render_notes?), `replace?` | Film Editor → the strip; one batch POST; then the first shot's Script tab | count, sids, total_seconds, and what to call next |
+| 37 | `write_script` | consequential | `project?`, `shots[]` (sid?, beat?, act?, type?, seconds?, register?, image_prompt, negative?, motion_prompt?, narration?, dialogue?, sfx?, ambient?, cut?, render_notes?), `replace?` | Film Editor → the strip; one batch POST; then the first shot's Script tab | count, sids, total_seconds, and what to call next |
 | 38 | `set_project_cast` | consequential | `project?`, `characters[]` ({id?, name, descriptor, aliases?}) | Film Editor (the cast index is not a screen) | the cast with the aliases it derived |
 | 39 | `list_projects` | readOnly | — | none | every film: id, title, shot count, paused, url |
 
@@ -339,6 +339,7 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 41 | `play_take` | — | `shot`, `take?` (same words as `select_take`), `from?` | Film Editor (shot selected) → the screening room | shot, take, kind, is_still, seconds, from |
 | 42 | `stop_playback` | — | — | Screening room → ✕ close | was_playing, closed, stopped_at. Safe when nothing is playing |
 | 43 | `preview_timeline` | — | `project?`, `from?` (same grammar), `play?` (default true), `scope_sec?` | Timeline → playhead to `from`, clip selected, ▶ | from, now_playing_shot, duration, clips, note ("live compiled preview, video only; use play_cut for the rendered cut with audio") |
+| 46 | `set_style` | consequential | `preset?` enum anime-cel/anime-noir/anime-pastel, `prefix?` (custom look), `avoid?` (the negative every still carries), `refs?` (style-reference frames; `[]` turns reference conditioning off), `project?` | Film Editor header → the style chip (`film.style`) names the register; its prefix is the hover title | project, the register (name, prefix, avoid, ref count) |
 
 (19 rows because status/wait and select/keeper/source are kept atomic per Chrome guidance;
 "16" was the working count — the number is not load-bearing. Stay under ~25 for v1.
@@ -363,7 +364,7 @@ position, sids auto-assigned `B01-S1…` one beat per act, seconds 2-20 default
 viewer-allowed too, since a visitor who just wrote a script has to be able to
 name its cast and per-project ownership is not modelled. `write_script`'s
 descriptions carry the house prompt style — setting sentence, "Subject: …",
-framing, "cinematic anime film still", radio ≤ 25 words, dialogue ≤ 12 — so an
+framing, "cinematic anime film still", narration ≤ 25 words, dialogue ≤ 12 — so an
 LLM that has never seen the app writes prompts the still lane can use.
 
 Rows 40-43 are workstream M's screening room, appended 2026-09-02, for 43 tools
@@ -384,6 +385,22 @@ shot resolver, which is what makes "show me the film from the lighthouses" land
 on a frame. Row 43 is the same problem on the Timeline, whose transport existed
 only as palette-only registry rows: `TimelinePageHandles` (`kind: "timeline"`)
 exposes it in seconds, so nothing has to know the fps.)
+
+Row 46 is workstream P's style register, appended 2026-09-02 (44-45 are
+workstream N's `plan_motion` / `apply_motion_plan`, numbered here but not yet
+written into this table). It exists because the same judge who asked for a
+French Revolution short got western political cartoon out of the still lane:
+the agent had written "hand-painted 2D satire" and "caricature" into its own
+prompts, and nothing server-side had an opinion about how the film should look.
+The look is now a project fact — `project.settings.style`, seeded on every new
+project, applied to every still and i2i, exposed as `GET`/`POST
+/api/projects/{pid}/style` (viewer-allowed, like casting). `create_project`
+takes a `style`; `write_script`'s description and its `image_prompt` field now
+say plainly not to write style words or ask for text in frame; `describe_shot`
+and `get_context` both report the register by name, so an agent that reads the
+room knows the look is already handled. See docs/ARCHITECTURE.md "Style
+register" and the measured a/b/c in
+docs/research/style-register/RESULTS.md.
 
 ### Feature registry (`web/src/agent/features.ts`, `features.screen.ts`)
 
@@ -792,3 +809,27 @@ at low cost, with the owner able to toggle providers without redeploying.
   judges must never see it. Disabled live; boot seeding no longer forces it on in demo mode
   (`CUTROOM_DEMO_MOCK=1` opts in for local tests); viewers only see enabled backends. Per-token
   caps removed (only the daily spend cap remains, $15). Bake-off delivered (Wan turbo default).
+- **Wed 12:40 PT — the origin film is out of the platform (workstream Q).** Cutroom was
+  extracted from one film whose narration was a radio broadcast, and the film's own
+  vocabulary had become the product's: a shot column literally called `radio`, and a
+  "radio futz" checkbox as the only thing you could do to a voice. A judge's agent wrote a
+  French Revolution script into a field called `radio`. Two renames, both back-compatible
+  for one release. **`radio` → `narration`** on the Shot row (§4 rows 14 and 37 above):
+  `db.migrate_db()` runs on every boot, adds the column and copies the old one across; the
+  importer, `POST /shots` and `POST /shots/batch` accept either spelling and write
+  `narration`; `GET /shots/{sid}` and `/film` return both. **`futz` → `treatment`** on
+  `POST /generate/vo` and `synthesize_vo`: a named chain the line is heard through, one of
+  `none` (default) · `radio` · `phone` · `megaphone` · `hall`, implemented in
+  `engine.audio` over the primitives the futz chain was already built from. `futz: true`
+  still means `treatment: "radio"`. The Audio tab's checkbox is a select; the anchor
+  `shot.audio.futz` is now `shot.audio.treatment`. Nothing anywhere defaults to a
+  treatment — the platform has no house sound.
+- **Wed 12:20 PT — judge-path round 2 and the fal refusal.** ChatGPT built "revolution-of-rags"
+  from one paragraph: project, 15-shot script, stills (real lane after the mock removal),
+  narration, SFX, a 33 s score, two cuts, $0.92. Motion failed twice: fal's input checker on
+  Wan turbo refused a crowd plate (content policy); the adapter reported it as "no downloadable
+  outputs". Seedance accepted the same plate. Fixed: the adapter now states the refusal and
+  names the fallback; the motion model registry (N) lets the agent pick `seedance`/`wan` per
+  shot, with failure modes and fallbacks in the records; PixVerse removed. Landing page + skin
+  + `/app` (O) deployed with it (`sha-a4def0a`). Style register (P) and the origin-film
+  generalization sweep (Q: `radio`→`narration`, futz→voice treatment) in flight.

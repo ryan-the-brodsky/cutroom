@@ -12,6 +12,7 @@ from ..jobs.queue import submit_job
 from ..models import Comp, LaneConfig, Project, Shot, Take
 from ..storage import get_storage
 from .. import film
+from .. import style as style_mod
 from .deps import project_or_404, require_admin, store_for
 
 router = APIRouter()
@@ -51,7 +52,11 @@ async def create_project(req: Request):
         if s.get(Project, pid):
             raise HTTPException(409, f"project {pid} exists")
     project_quota(req)
-    settings: dict = {}
+    # Every film gets a style register on day one. The demo failed because a
+    # script written by an agent that had never seen this pipeline carried its
+    # own style words; the register is the house look as data, applied to every
+    # still the project ever makes (cutroom/style.py).
+    settings: dict = {"style": style_mod.normalize(body.get("style"))}
     fps = body.get("fps")
     if fps:
         try:
@@ -66,7 +71,44 @@ async def create_project(req: Request):
     from ..demo import apply_lane_env
     lanes = apply_lane_env(pid, log=lambda _m: None)
     return {"id": pid, "label": label, "lanes": lanes,
+            "style": settings["style"],
             **({"fps": settings["fps"]} if "fps" in settings else {})}
+
+
+@router.get("/projects/{pid}/style")
+def get_style(pid: str):
+    """The project's style register — the look applied to every still.
+
+    Films made before the register existed have none stored; they read as the
+    house default rather than as "no style", so what you see here is always
+    what the still lane will actually send."""
+    project_or_404(pid)
+    with session_scope() as s:
+        proj = s.get(Project, pid)
+        settings = dict((proj.settings if proj else None) or {})
+    return {"style": style_mod.project_style(settings),
+            "presets": sorted(style_mod.PRESETS),
+            "stored": bool(settings.get("style"))}
+
+
+@router.post("/projects/{pid}/style")
+async def set_style(pid: str, req: Request):
+    """Set the register. Body: `{preset}` for a named look, or any of
+    `{name, prefix, suffix, avoid, refs}` to write one by hand; fields you
+    leave out keep their current value.
+
+    Viewer-allowed on the hosted demo for the same reason casting is: choosing
+    what the film looks like is the creative act, not an admin setting."""
+    body = await req.json()
+    project_or_404(pid)
+    with session_scope() as s:
+        proj = s.get(Project, pid)
+        settings = dict(proj.settings or {})
+        base = style_mod.project_style(settings)
+        style = style_mod.normalize(body, base=base)
+        settings["style"] = style
+        proj.settings = settings
+    return {"ok": True, "style": style}
 
 
 @router.post("/projects/{pid}/import",

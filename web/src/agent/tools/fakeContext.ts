@@ -557,6 +557,24 @@ function defaultApi(path: string, body?: unknown): unknown {
     return sid ? (FIXTURE_COMPS[sid] || []) : Object.values(FIXTURE_COMPS).flat();
   }
   if (/\/api\/projects\/[^/]+\/dims\//.test(path)) return { width: 960, height: 544 };
+  // The style register (workstream P). GET reads it; POST patches and echoes.
+  const styleMatch = /\/api\/projects\/([^/]+)\/style$/.exec(path);
+  if (styleMatch) {
+    const b = (body || {}) as Record<string, unknown>;
+    const name = String(b.preset || (b.prefix ? "custom" : "") || "anime-cel");
+    return {
+      style: {
+        name,
+        prefix: String(b.prefix
+          || "Cinematic anime film still, 1990s TV anime cel look: clean ink outlines."),
+        suffix: "",
+        avoid: String(b.avoid || "text, lettering, photorealistic, caricature"),
+        refs: (b.refs as string[]) ?? ["anime-01.jpg", "anime-02.jpg", "anime-03.jpg"],
+      },
+      presets: ["anime-cel", "anime-noir", "anime-pastel"],
+      stored: true,
+    };
+  }
   if (path === "/api/projects") {
     if (body !== undefined) {
       const b = (body || {}) as Record<string, unknown>;

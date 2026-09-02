@@ -31,9 +31,10 @@ from ..engine import ffmpeg as e_ff
 from ..engine import images as e_img
 from ..engine import motion as e_motion
 from ..engine import panels as e_panels
-from ..models import Backend, Comp, LaneConfig, Shot, Take
+from ..models import Backend, Comp, LaneConfig, Project, Shot, Take
 from ..storage import get_storage
 from .. import film
+from .. import style as style_mod
 
 CHAIN_FREEZE = ("Static locked camera, the camera does not move, "
                 "no camera movement, fixed tripod shot.")
@@ -111,6 +112,40 @@ def pick_backend(project_id: str | None, lane: str,
                           dict((lc.params if lc else {}) or {}))
 
 
+def project_style(project_id: str) -> dict:
+    """The project's style register, defaulted for films made before it
+    existed (cutroom/style.py). Never raises: a look must not be able to
+    stop a render."""
+    try:
+        with session_scope() as s:
+            proj = s.get(Project, project_id)
+            return style_mod.project_style(proj.settings if proj else None)
+    except Exception:
+        return style_mod.default_style()
+
+
+def styled_request(project_id: str, choice: LaneChoice, adapter, p: dict,
+                   store) -> tuple[str, str, list[Path], dict]:
+    """Compose one still/i2i request against the project's style register.
+
+    Returns (prompt, negative, refs, style_applied). Style reference frames are
+    only resolved when the adapter can carry images and the backend has not
+    turned them off — folding them into a request that would drop them costs
+    input tokens for nothing.
+    """
+    st = project_style(project_id)
+    prompt, negative, applied = style_mod.compose(
+        p.get("prompt", ""), st, negative=p.get("negative", ""))
+    refs: list[Path] = []
+    want_refs = getattr(adapter, "accepts_style_refs", False) and \
+        choice.params.get("style_refs", True) is not False and \
+        (p.get("params") or {}).get("style_refs", True) is not False
+    if want_refs:
+        refs = style_mod.resolve_refs(st, store)
+    applied["refs"] = len(refs)
+    return prompt, negative, refs, applied
+
+
 def record_take(project_id: str, shot_sid: str | None, kind: str, rel: str,
                 *, backend_id=None, model=None, prompt=None, params=None,
                 sources=None, seed=None, job_id=None, meta=None) -> None:
@@ -139,15 +174,21 @@ async def gen_still(ctx, p: dict) -> dict:
     adapter = build_adapter(choice.cfg)
     name = _slug(p.get("name") or p.get("shot") or "still")
     seeds = [int(s) for s in (p.get("seeds") or [int(time.time()) % 10 ** 6])]
+    # The look is a property of the film, not of whatever the agent typed:
+    # the register goes on here, once, for every still the project makes.
+    prompt, negative, refs, style_applied = styled_request(
+        project, choice, adapter, p, store)
+    ctx.log(f"style: {style_applied['name']}"
+            + (f" +{len(refs)} refs" if refs else ""))
     wd = _workdir(ctx)
     takes = []
     try:
         for seed in seeds:
             req = GenRequest(
-                lane="still", workdir=wd, prompt=p["prompt"],
-                negative=p.get("negative", ""), width=int(p.get("width", 768)),
+                lane="still", workdir=wd, prompt=prompt,
+                negative=negative, width=int(p.get("width", 768)),
                 height=int(p.get("height", 432)), seed=seed,
-                model=choice.model,
+                model=choice.model, refs=refs,
                 params={**choice.params, **(p.get("params") or {}),
                         "_project": project},
                 log=ctx.log)
@@ -158,7 +199,11 @@ async def gen_still(ctx, p: dict) -> dict:
                 record_take(project, p.get("shot"), "still", rel,
                             backend_id=choice.cfg.id,
                             model=choice.model or res.meta.get("model"),
-                            prompt=p["prompt"], params=res.meta.get("options"),
+                            prompt=prompt,
+                            params={**(res.meta.get("options") or {}),
+                                    "style_applied": style_applied,
+                                    **({"usage": res.meta["usage"]}
+                                       if res.meta.get("usage") else {})},
                             seed=seed, job_id=ctx.job_id,
                             meta=choice.take_meta())
                 takes.append(rel)
@@ -177,14 +222,16 @@ async def gen_i2i(ctx, p: dict) -> dict:
     name = _slug(p.get("name") or f"{Path(p['source']).stem}-i2i")
     seeds = [int(s) for s in (p.get("seeds") or [4242])]
     denoise = float(p.get("denoise", 0.85))
+    prompt, negative, refs, style_applied = styled_request(
+        project, choice, adapter, p, store)
     wd = _workdir(ctx)
     takes = []
     try:
         for seed in seeds:
             req = GenRequest(
-                lane="i2i", workdir=wd, prompt=p["prompt"],
-                negative=p.get("negative", ""), source=src, seed=seed,
-                denoise=denoise, model=choice.model,
+                lane="i2i", workdir=wd, prompt=prompt,
+                negative=negative, source=src, seed=seed,
+                denoise=denoise, model=choice.model, refs=refs,
                 params={**choice.params, **(p.get("params") or {}),
                         "_project": project},
                 log=ctx.log)
@@ -194,8 +241,10 @@ async def gen_i2i(ctx, p: dict) -> dict:
                 store.copy_in(f, rel)
                 record_take(project, p.get("shot"), "i2i", rel,
                             backend_id=choice.cfg.id, model=choice.model,
-                            prompt=p["prompt"],
-                            params={"denoise": denoise}, sources=[p["source"]],
+                            prompt=prompt,
+                            params={"denoise": denoise,
+                                    "style_applied": style_applied},
+                            sources=[p["source"]],
                             seed=seed, job_id=ctx.job_id,
                             meta=choice.take_meta())
                 takes.append(rel)

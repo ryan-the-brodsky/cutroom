@@ -30,6 +30,7 @@ import {
 import {
   exportTimeline, listBackends, renderTimeline, setLaneDefault,
 } from "./settings";
+import { setStyle } from "./style";
 import { playCut, playTake, previewTimeline, stopPlayback } from "./screen";
 import { setShotTiming } from "./timing";
 import { FEATURES } from "../features";
@@ -93,6 +94,8 @@ export const TOOLS: AnyActionDef[] = [
   // workstream N — motion budget planning
   planMotion,
   applyMotionPlan,
+  // workstream P — the style register
+  setStyle,
 ];
 
 /**
@@ -145,6 +148,7 @@ export {
 } from "./comp";
 export { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "./settings";
 export { createProject, listProjects, setProjectCast, writeScript } from "./project";
+export { STYLE_PRESETS, setStyle } from "./style";
 export { playCut, playTake, previewTimeline, stopPlayback, pickCut, resolveFrom } from "./screen";
 export {
   applyMotionPlan, clipCost, fitBudget, framesForSeconds, motionProfile,

@@ -33,6 +33,11 @@ export default function FilmEditorPage() {
   const { data: cueSheet, refresh: refreshCues } =
     usePoll<{ music: CueRecord[]; sfx: CueRecord[] }>(
       `/api/projects/${pid}/cues`, 0);
+  // The style register is the look every still is generated in. It is applied
+  // server-side, so the only place a director can see it is here.
+  const { data: styleReg } =
+    usePoll<{ style?: { name?: string; prefix?: string; avoid?: string } }>(
+      `/api/projects/${pid}/style`, 0);
   const [q, setQ] = useQueryState();
   const sel = q.get("sel");
   const view = pick(q, "view", VIEWS, "board");
@@ -128,6 +133,11 @@ export default function FilmEditorPage() {
             <option value="720">720p preview</option>
             <option value="1080">1080p final</option>
           </select>
+          <span className="muted" data-action={ANCHORS.filmStyle}
+                title={styleReg?.style?.prefix || "the look applied to every still"}
+                style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+            🎨 {styleReg?.style?.name || "anime-cel"}
+          </span>
           <button className="primary" disabled={busy || !!cutJob}
             data-action={ANCHORS.filmCut}
             onClick={() => fire(cutFilm())}>

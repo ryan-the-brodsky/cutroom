@@ -119,11 +119,11 @@ export const describeShot: ActionDef<DescribeArgs> = {
   title: "Describe a shot",
   description:
     "Read one shot's script and state without changing anything: its beat, act, " +
-    "type, duration, image and motion prompts, dialogue or radio line, the curated " +
-    "keeper, what currently plays in the timeline, how many takes exist of each " +
-    "kind with the newest few paths, comps, and which backend each generation lane " +
-    "would use with its cost class. Use it before generating so the prompt you send " +
-    "builds on the shot the director actually wrote.",
+    "type, duration, image and motion prompts, dialogue or radio line, the film's " +
+    "style register, the curated keeper, what currently plays in the timeline, how " +
+    "many takes exist of each kind with the newest few paths, comps, and which " +
+    "backend each lane would use with its cost class. Use it before generating so " +
+    "the prompt you send builds on the shot the director actually wrote.",
   inputSchema: {
     type: "object",
     properties: {
@@ -190,6 +190,7 @@ export const describeShot: ActionDef<DescribeArgs> = {
     }
 
     const audio = await audioSummary(ctx, pid, shot.sid);
+    const style = await styleName(ctx, pid);
 
     const line = d.dialogue?.[0];
     return ok(`${shot.sid} · ${d.type || shot.type} · ${d.seconds ?? shot.seconds}s · ` +
@@ -200,6 +201,7 @@ export const describeShot: ActionDef<DescribeArgs> = {
       act: d.act ?? shot.act,
       type: d.type ?? shot.type,
       register: d.register,
+      ...(style ? { style } : {}),
       seconds: d.seconds,
       image_prompt: cut(d.image_prompt, 200),
       motion_prompt: d.motion_prompt ? cut(d.motion_prompt, 120) : null,
@@ -233,6 +235,17 @@ export const describeShot: ActionDef<DescribeArgs> = {
   },
 };
 
+/** The film's style register, by name. The look is a project fact, so both
+ * read-only tools report it: an agent that knows the film is "anime-cel" does
+ * not go writing style words into the next prompt. */
+async function styleName(ctx: ActionContext, pid: string): Promise<string | null> {
+  try {
+    const reg = await ctx.api<{ style?: { name?: string } }>(
+      `/api/projects/${pid}/style`);
+    return reg?.style?.name || null;
+  } catch { return null; }
+}
+
 // ---------------------------------------------------------------- get_context
 
 interface ContextArgs { [k: string]: never }
@@ -246,8 +259,8 @@ export const getContext: ActionDef<ContextArgs> = {
     "Report what is on screen right now: the current route and project, whether the " +
     "Film Editor or a Shot Editor is open, which shot, which tab and generate " +
     "sub-tab, the selected take, the keeper, what plays in the timeline, any jobs " +
-    "still running, what the project has spent, the WebMCP mode the page is in " +
-    "and the agent's playback speed. " +
+    "still running, what the project has spent, the film's style register, the " +
+    "WebMCP mode the page is in and the playback speed. " +
     "Call it first when you are unsure what the director is looking at, or after a " +
     "navigation, before acting on \"this shot\" or \"the newest one\".",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -298,6 +311,7 @@ export const getContext: ActionDef<ContextArgs> = {
     } catch { /* jobs unavailable */ }
 
     const spend = ctx.project ? await readSpend(ctx, ctx.project) : null;
+    const style = ctx.project ? await styleName(ctx, ctx.project) : null;
 
     const agent = (globalThis as { __cutroomAgent?: { mode?: string; tools?: unknown[] } })
       .__cutroomAgent;
@@ -313,6 +327,7 @@ export const getContext: ActionDef<ContextArgs> = {
             : `On ${route ?? "an unknown route"}`,
       {
         route, project: ctx.project, page,
+        ...(style ? { style } : {}),
         running_jobs: jobs,
         ...(spend ? { spend: { total_usd: spend.total_usd, by_lane: spend.by_lane } } : {}),
         webmcp_mode: mode,

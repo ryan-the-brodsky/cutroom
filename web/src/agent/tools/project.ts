@@ -49,7 +49,7 @@ function serverError(e: unknown, fallback: string): ReturnType<typeof err> {
 
 // ---------------------------------------------------------------- create_project
 
-interface CreateArgs { id?: string; title: string; fps?: number }
+interface CreateArgs { id?: string; title: string; fps?: number; style?: string }
 
 export const createProject: ActionDef<CreateArgs> = {
   name: "create_project",
@@ -57,16 +57,17 @@ export const createProject: ActionDef<CreateArgs> = {
   description:
     "Start a new, empty film in Cutroom and open its Film Editor. Give it a " +
     "title; the id is a slug derived from that unless you pass one. The new " +
-    "project inherits this instance's lane defaults, so generating on it goes " +
-    "to the configured providers rather than whatever backend happens to be " +
-    "first. Hosted demos cap how many films one visitor may start per day and " +
-    "say so plainly. Follow it with write_script to fill the film with shots.",
+    "project inherits this instance's lane defaults and a style register — " +
+    "the house anime look, applied to every still, so shot prompts never " +
+    "carry style words. Hosted demos cap how many films one visitor may start " +
+    "per day. Follow it with write_script to fill the film with shots.",
   inputSchema: {
     type: "object",
     properties: {
       title: { type: "string", description: "What the film is called, e.g. \"The Bread Riot\". Shown on the project card." },
       id: { type: "string", description: "URL slug for the project. Lowercase letters, digits and dashes. Derived from the title when omitted." },
       fps: { type: "number", minimum: 1, maximum: 60, description: "Frames per second for the cut. Default 24; leave it alone unless the director asks." },
+      style: { type: "string", description: "The film's look: anime-cel (default), anime-noir, anime-pastel, or a custom prefix sentence. Change it later with set_style." },
     },
     required: ["title"],
     additionalProperties: false,
@@ -86,6 +87,7 @@ export const createProject: ActionDef<CreateArgs> = {
       });
     }
     const fps = maybeNum(args?.fps);
+    const style = String(args?.style ?? "").trim();
 
     let page: ProjectsPageHandles | null = null;
     try {
@@ -98,7 +100,7 @@ export const createProject: ActionDef<CreateArgs> = {
     });
 
     const body = { id, label: title || id, title: title || id,
-                   ...(fps ? { fps } : {}) };
+                   ...(fps ? { fps } : {}), ...(style ? { style } : {}) };
     try {
       if (page) await page.createProject(id, body);
       else await ctx.api("/api/projects", body);
@@ -125,15 +127,25 @@ export const createProject: ActionDef<CreateArgs> = {
                              detail: url });
     } catch { /* the project exists either way */ }
 
+    // The register is the answer to "what does this film look like" — say it
+    // in the result so the agent never invents style words for a prompt.
+    let styleName = "";
+    try {
+      const reg = await ctx.api<{ style?: { name?: string } }>(
+        `/api/projects/${id}/style`);
+      styleName = reg?.style?.name || "";
+    } catch { /* the film exists whether or not we could read its look */ }
+
     return ok(`“${cut(title || id, 40)}” is open and empty`, {
       project: id,
       title: title || id,
       url,
       ...(fps ? { fps } : {}),
+      ...(styleName ? { style: styleName } : {}),
       lanes: Object.fromEntries(Object.entries(lanes)
         .filter(([, v]) => v?.backend)
         .map(([k, v]) => [k, v.model ? `${v.backend}:${cut(v.model, 24)}` : v.backend!])),
-      next: "call write_script with the shots — the film has none yet",
+      next: "call write_script with the shots — the film has none yet. Its look is set: no style words in image_prompt",
     });
   },
 };
@@ -180,8 +192,8 @@ const SHOT_SCHEMA = {
     type: { type: "string" as const, enum: ["STILL", "HERO"], description: "STILL for a plain shot, HERO for the one the eye lands on. Default STILL." },
     seconds: { type: "number" as const, minimum: 2, maximum: 20, description: "How long the shot holds, 2 to 20 seconds. Default 6. The whole film must stay under 300." },
     register: { type: "string" as const, description: "The colour and light register of this run of shots, e.g. \"R2 (warm lamplight, the bakery)\"." },
-    image_prompt: { type: "string" as const, description: "Setting sentence. Then \"Subject: …\" for what the camera is on. Then the framing. End with \"cinematic anime film still\"." },
-    negative: { type: "string" as const, description: "What must not appear: \"text, watermark, extra limbs, photorealistic, 3D render\"." },
+    image_prompt: { type: "string" as const, description: "Setting, then \"Subject: …\", then framing and light. No style words: the project's style register supplies the look." },
+    negative: { type: "string" as const, description: "Extra bans for this shot only. The project's style register already bans text, lettering and photorealism everywhere." },
     motion_prompt: { type: "string" as const, description: "The one thing that moves, if anything: \"only the wig trembles\". Leave it out for a held still." },
     radio: { type: "string" as const, description: "Narration over the shot. Twenty-five words at most — it has to fit the hold." },
     dialogue: { type: "array" as const, description: "Lines spoken in the shot, in order. Twelve words each at most.",
@@ -201,12 +213,12 @@ export const writeScript: ActionDef<ScriptArgs> = {
   title: "Write the script",
   description:
     "Write a film's whole shot list in one call — the list IS the cut, in " +
-    "order. House style for image_prompt: a sentence of setting, then " +
-    "\"Subject: …\" for what the camera is on, then the framing, then " +
-    "\"cinematic anime film still\". Keep radio narration under 25 words and " +
-    "each dialogue line under 12. Up to 40 shots, 2-20 seconds each, 300 " +
-    "seconds in total. Opens the Film Editor, writes, and shows the first " +
-    "shot's Script tab. Use replace to throw out the old script.",
+    "order. Each image_prompt describes setting, subject, framing and light. " +
+    "Do not add style words (hand-painted, caricature, cartoon, watercolour) " +
+    "and never ask for text in frame; the project's style register is applied " +
+    "to every still automatically. Radio under 25 words, dialogue under 12. " +
+    "Up to 40 shots, 2-20 seconds each, 300 seconds total. Use replace to " +
+    "throw out the old script.",
   inputSchema: {
     type: "object",
     properties: {
@@ -254,7 +266,7 @@ export const writeScript: ActionDef<ScriptArgs> = {
     const missing = shots.findIndex((s) => !String(s.image_prompt ?? "").trim());
     if (missing >= 0) {
       return err("needs_image_prompt", {
-        hint: `Shot ${missing + 1} has no image_prompt. Every shot needs one: setting, "Subject: …", framing, "cinematic anime film still".`,
+        hint: `Shot ${missing + 1} has no image_prompt. Every shot needs one: setting, "Subject: …", framing and light — no style words.`,
       });
     }
 

@@ -41,6 +41,7 @@ class GenRequest:
     prompt: str = ""
     negative: str = ""
     source: Path | None = None       # i2i / i2v input image
+    refs: list[Path] = field(default_factory=list)   # style-reference frames
     width: int = 768
     height: int = 432
     frames: int = 97                 # i2v (8k+1 for LTX-class models)

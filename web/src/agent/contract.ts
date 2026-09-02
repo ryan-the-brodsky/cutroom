@@ -399,6 +399,8 @@ export const TOOL_NAMES = [
   "play_cut", "play_take", "stop_playback", "preview_timeline",
   // workstream N: motion budget planning
   "plan_motion", "apply_motion_plan",
+  // workstream P: the project style register
+  "set_style",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -412,6 +414,7 @@ export const ANCHORS = {
   pause: "app.pause",
   // film editor
   filmCut: "film.cut", filmScope: "film.scope", filmRes: "film.res",
+  filmStyle: "film.style",                     // the style register chip
   filmShot: "film.shot",                       // + data-sid
   quickSeconds: "film.quick.seconds", quickVoOffset: "film.quick.vo_offset",
   quickMute: "film.quick.mute", quickOpen: "film.quick.open",

@@ -126,6 +126,23 @@ it only writes JSON and costs nothing.
 The two adapters the original pipeline had, generalized. `openrouter-image`
 supports i2i by attaching the source image (Gemini-image-class models).
 
+**Negatives on chat-completion image models.** Neither endpoint has a negative
+field — `/images/generations` has no such parameter, and a Gemini-image model
+reached through `chat/completions` has nowhere to put one — so until 2026-09-02
+the negative was collected, stored on the Take and then silently dropped: "text,
+watermark, photorealistic" never reached the model at all. Both adapters now
+fold it into the prompt as a closing `Avoid: …` sentence
+(`http_images.fold_avoid`). Adapters that do have a real negative field
+(ComfyUI) keep using it. Treat a folded negative as a strong preference rather
+than a constraint: Gemini still draws glyph marks on props with `text, lettering`
+in the list, so anything that must not appear belongs out of the subject, not
+just in the negative.
+
+**Style references.** `openrouter-image` sets `accepts_style_refs = True`, so
+the project's style register can attach reference frames ahead of the prompt as
+`image_url` content parts. Turn it off with `options.style_refs: false`.
+`openai-images` cannot: `/images/generations` takes no image input.
+
 ## fal / replicate  (lanes: still, motion)
 
 The remote-video seam the original pipeline declared but never implemented.

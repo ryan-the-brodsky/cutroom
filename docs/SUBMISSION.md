@@ -77,7 +77,10 @@ registry, so anything the agent can call is something you can find.
 
 An Agent trail drawer logs every step with the control it touched. Click a
 step and that control rings again. Paid lanes refuse to spend without an
-explicit `confirm_cost` and say the number first.
+explicit `confirm_cost` and say the number first. The film's look is the app's
+job rather than the agent's: every project carries a style register that the
+server puts on every still, so a visitor's agent writes what is in the shot and
+gets back a film that matches the rest of the film.
 
 ### 3. What people and agents can do together that was hard before
 

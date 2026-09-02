@@ -31,6 +31,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["cutroom*"]
 
+# The style-reference frames are part of the product, not sample data: without
+# them in the image a hosted still has no house look to match.
+[tool.setuptools.package-data]
+cutroom = ["assets/style/*.jpg"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

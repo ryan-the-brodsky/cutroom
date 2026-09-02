@@ -44,7 +44,8 @@ The design ideas worth keeping (they ARE the product):
    freezes** — the identical frame repeated, never a slow zoom or a loop.
 3. **Registers + prompt glossary** — a *register* is a named bundle of style words
    (lighting, line weight, palette, lens) attached to a shot, so consistency is data
-   rather than a phrase someone remembers to retype.
+   rather than a phrase someone remembers to retype. See "Style register" below for
+   the project-level version, which is the one that actually holds a film together.
 4. **Lanes** — still / i2i / motion / vo / fx / assemble. A *lane* is one kind of
    generation with a documented contract, and each lane is pointed at whichever
    backend a project chooses.
@@ -177,6 +178,51 @@ schema (`freeze_tail`, `chain`, `trim`, `set_source`, `set_seconds`, `vo_offset`
 3. **Director chat**: streaming agent (SSE). Hosted-safe mode gives Claude
    function tools scoped to the project (inspect shots/takes/comps, run ops,
    generate); self-host mode can run `claude -p` in the workspace like today.
+
+### Style register: the look is data, not prompt discipline
+
+A film has one look, and asking whoever writes the script to remember it does
+not work. The hosted demo proved it: an agent that had never seen this pipeline
+wrote "hand-painted 2D satire" and "caricature" into a French Revolution script
+and got western political cartoon back from the same model that had kept an
+earlier film anime-faithful. The words an LLM reaches for when it improvises a
+style are not the words the still lane needs.
+
+So the look lives on the project, not in the prompt:
+
+```jsonc
+project.settings.style = {
+  "name":   "anime-cel",
+  "prefix": "Cinematic anime film still, 1990s TV anime cel look: clean ink outlines, …",
+  "suffix": "",
+  "avoid":  "text, lettering, watermark, photorealistic, western cartoon, caricature, …",
+  "refs":   ["anime-01.jpg", "anime-02.jpg", "anime-03.jpg"]
+}
+```
+
+`cutroom/style.py` owns it. Every still and i2i is composed server-side as
+`prefix + shot prompt + suffix`, with the register's style words stripped out
+of the middle of the prompt (`hand-painted`, `caricature`, `comic` — subject
+words like "text" and "gore" are never stripped, since they mean something
+different inside a prompt than in a negative). The shot's own negative merges
+with `avoid` and rides along; the composed register is recorded on the Take as
+`params.style_applied`, so any frame can be traced back to the look that shaped
+it. Three named presets ship (`anime-cel` default, `anime-noir`,
+`anime-pastel`) and a custom prefix is always allowed.
+
+`refs` are style-reference frames — three 512 px stills from *Two Claudes*,
+shipped as package data under `cutroom/assets/style/` — attached ahead of the
+prompt on backends whose adapter takes image input (`accepts_style_refs`),
+with the instruction to match line, shading and palette but not content. They
+cost about 800 input tokens, under 1% of a still. Turn them off per backend
+with `options.style_refs: false` or per project with `refs: []`.
+
+Every new project is seeded with the house register at `POST /projects`, and a
+project made before the register existed reads as the default rather than as
+"no style". `GET`/`POST /api/projects/{pid}/style` is the whole API, and it is
+viewer-allowed on the demo for the same reason casting is: choosing what the
+film looks like is creative work, not an admin setting. Measured a/b/c
+comparison: `docs/research/style-register/RESULTS.md`.
 
 ### Data model
 
