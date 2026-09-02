@@ -103,7 +103,8 @@ The judge-facing instance for the WebMCP Challenge.
 | Environment | `production` (`aa83e186-a468-4901-aa8f-f1093013caf8`), region `sfo` |
 | Public URL | <https://cutroom-production-0f3c.up.railway.app> |
 | Volume | `cutroom-data` mounted at `/data` |
-| Source | the GHCR image `ghcr.io/ryan-the-brodsky/cutroom:latest` |
+| Source | the GHCR image `ghcr.io/ryan-the-brodsky/cutroom-demo`, pinned to a `sha-<short>` tag |
+| Status | live — `/` serves the SPA, `/api/health` 200, demo mode on |
 
 ### Why the image, not a source build
 
@@ -127,34 +128,81 @@ That leaves a **workspace-level plan / quota / payment limit** on
 "ryan-the-brodsky's Projects". Check Railway billing to restore source builds.
 
 So [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) builds
-`deploy/Dockerfile` in GitHub Actions, pushes it to
-`ghcr.io/ryan-the-brodsky/cutroom:latest`, and Railway pulls that image.
+`deploy/Dockerfile` in GitHub Actions and pushes it to the **public** package
+`ghcr.io/ryan-the-brodsky/cutroom-demo` (note the `-demo` suffix: the image is
+public even though it is built from this repo, so it is a separate package from
+anything named after the repo alone). Railway pulls that image.
 `railway.json` and `.railwayignore` are kept so a source build works again the
-moment Railway fixes the builder — to switch back, attach the repo as the
-source and drop the image.
+moment Railway fixes the builder.
 
-**Ship a change**: push to `main` → CI builds and pushes the image → redeploy
-the Railway service to pick up the new `:latest`.
+### Ship a change
+
+Two things make this less obvious than it looks, both learned the hard way:
+
+1. **Deploy by pinned tag, not `:latest`.** Railway will not re-pull a tag it
+   believes it already has, so `railway redeploy` on `:latest` silently
+   redeploys the *old* image. CI tags every build `sha-<short>`; point the
+   service at the new one — a distinct reference forces a real pull, and the
+   running image is then unambiguous.
+2. **Keep the GitHub source detached.** If a repo is attached as a source,
+   every push to `main` auto-triggers a *source* build, which this workspace's
+   dead builder fails in ~4 s — and `railway redeploy` then re-runs that failed
+   source build instead of pulling the image. Attaching an image clears the
+   repo; check with `get-service-config` that `source.branch` is `null`.
 
 ```bash
 # from the platform dir, once per machine
 railway link -p 03953bf7-7b2a-420c-b2d9-21c970adcfb0 -e production -s cutroom
 
-git push origin main                 # CI builds ghcr.io/.../cutroom:latest
-gh run watch --repo ryan-the-brodsky/cutroom
-railway redeploy --service cutroom -y
-curl -sf https://cutroom-production-0f3c.up.railway.app/api/health
+git push origin main
+gh run watch --repo ryan-the-brodsky/cutroom          # all three jobs green
+
+SHA=$(git rev-parse --short HEAD)
+railway service update -s cutroom --image "ghcr.io/ryan-the-brodsky/cutroom-demo:sha-$SHA"
+# or the Railway MCP: connect-service-source --image ghcr.io/.../cutroom-demo:sha-$SHA
+
+curl -sf https://cutroom-production-0f3c.up.railway.app/api/health   # {"ok":true}
+curl -s -o /dev/null -w '%{http_code}\n' https://cutroom-production-0f3c.up.railway.app/   # 200
 ```
+
+Verify **both** `/api/health` and `/` — health alone passes while the SPA is
+missing, which is exactly the failure that shipped once (see below).
+
+### Two bugs this image had, so they are not reintroduced
+
+- **The SPA was silently absent.** `web/dist` was copied to
+  `server/cutroom/static` *before* `pip install ./server`. setuptools only
+  packages importable directories; `static/` has no `__init__.py` and nothing
+  declares it as package data, so it never reached site-packages. `main.py`
+  mounts the SPA only `if static.is_dir()`, so the route was never registered
+  and every non-API path returned a JSON 404 while `/api/health` stayed green.
+  The Dockerfile now copies the bundle into the *installed* package after the
+  install and asserts `index.html` and `assets/` exist, so a regression fails
+  the build instead of shipping a working API with no UI.
+- **Healthchecks failed against a healthy server.** Railway probes the port it
+  injects, not `EXPOSE`. `PORT=8770` is baked into the image and set as a
+  service variable so the probe and uvicorn agree; without it the deployment
+  fails `HEALTHCHECK` five minutes after a perfectly good startup.
 
 Railway must be able to pull the image. Two ways, pick one:
 
-**(a) Make the GHCR package public.** Publishes the built container only — the
-repository stays private. Needs a token with `write:packages`
+**(a) Make the GHCR package public** — this is what is in force. Verify
+anonymously (200 = public):
+
+```bash
+T=$(curl -s "https://ghcr.io/token?scope=repository:ryan-the-brodsky/cutroom-demo:pull" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $T" \
+  -H 'Accept: application/vnd.oci.image.index.v1+json' \
+  https://ghcr.io/v2/ryan-the-brodsky/cutroom-demo/manifests/latest
+```
+
+If it ever reverts to private, flip it back with a `write:packages` token
 (`gh auth refresh -h github.com -s write:packages`) or the web UI:
 
 ```bash
-gh api -X PATCH /user/packages/container/cutroom -f visibility=public
-# or: github.com/users/ryan-the-brodsky/packages/container/cutroom/settings
+gh api -X PATCH /user/packages/container/cutroom-demo -f visibility=public
+# or: github.com/users/ryan-the-brodsky/packages/container/cutroom-demo/settings
 #     → Danger Zone → Change visibility → Public
 ```
 
