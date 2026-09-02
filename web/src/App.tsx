@@ -62,7 +62,9 @@ export default function App() {
   return (
     <div className="app">
       <nav className="sidebar">
-        <Link className="brand" to="/">CUTROOM</Link>
+        <Link className="brand" to="/" aria-label="Genga Studio">
+          <img src="/genga-wordmark.svg" alt="Genga Studio" width={496} height={84} />
+        </Link>
         <NavLink to={ROUTES.projects} end data-action={ANCHORS.navProjects}>Projects</NavLink>
         {projectPid && <>
           <NavLink to={filmPath(projectPid)} end
@@ -84,7 +86,7 @@ export default function App() {
       </nav>
       <div className="main">
         <div className="topbar">
-          <span className="title">{pid || "Cutroom"}</span>
+          <span className="title">{pid || "Genga Studio"}</span>
           <div style={{ flex: 1 }} />
           <AgentChip />
           <SystemChips />

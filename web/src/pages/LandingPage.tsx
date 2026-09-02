@@ -66,7 +66,7 @@ const STEPS = [
     title: "Write the script",
     body: "Name the film and say what happens. One call writes the whole shot list in " +
       "order, and the tool's own schema carries the house prompt style, so a model that " +
-      "has never seen Cutroom writes prompts the still lane can actually use.",
+      "has never seen Genga Studio writes prompts the still lane can actually use.",
   },
   {
     n: "02",
@@ -166,7 +166,7 @@ export default function LandingPage() {
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
-    document.title = "Cutroom · an agent made a film in this browser tab";
+    document.title = "Genga Studio · an agent made a film in this browser tab";
   }, []);
 
   const watch = cut
@@ -180,7 +180,9 @@ export default function LandingPage() {
   return (
     <div className="lp">
       <nav className="lp-nav">
-        <Link className="lp-nav-brand" to="/">CUTROOM</Link>
+        <Link className="lp-nav-brand" to="/" aria-label="Genga Studio">
+          <img src="/genga-wordmark.svg" alt="Genga Studio" width={496} height={84} />
+        </Link>
         <div className="lp-nav-links">
           <a className="lp-nav-link" href="#film">The film</a>
           <a className="lp-nav-link" href="#how">How it works</a>
@@ -194,6 +196,11 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- hero */}
       <header className="lp-hero">
         <div className="lp-hero-inner">
+          <img className="lp-hero-mark" src="/genga-wordmark.svg"
+               alt="Genga Studio" width={496} height={84} />
+          <p className="lp-hero-tagline">
+            Key frames from you. Holds, cels, and cuts from the studio.
+          </p>
           <span className="lp-hero-chip">
             <span className="lp-dot" aria-hidden />
             {tools} tools on document.modelContext
@@ -202,9 +209,14 @@ export default function LandingPage() {
             An agent made a 2-minute film <em>inside this browser tab.</em>
           </h1>
           <p className="lp-hero-sub">
-            Cutroom is a cutting room for AI-generated animation, and the page publishes
-            every one of its actions as a WebMCP tool, so an agent drives the same buttons
-            you would click.
+            Genga Studio is a cutting room for AI-generated animation, and the page
+            publishes every one of its actions as a WebMCP tool, so an agent drives the
+            same buttons you would click.
+          </p>
+          <p className="lp-hero-note">
+            <span lang="ja">原画</span> <i>genga</i> is the key drawings. An animator draws the
+            frames that matter and the studio fills the rest, which is how anime has always
+            been made on a budget, and how a film gets made here.
           </p>
           <div className="lp-hero-actions">
             <Link className="lp-btn lp-btn-primary" to={APP_BASE}>Open the studio</Link>
@@ -243,7 +255,7 @@ export default function LandingPage() {
           <p className="lp-section-sub">
             A student starts a four-line program that hands each chatbot's answer to the
             other, then walks away. An agent produced the whole short on the hosted demo
-            through Cutroom's own tools: 15 shots, three frozen motion bursts, 15 voice
+            through Genga Studio's own tools: 15 shots, three frozen motion bursts, 15 voice
             lines, a piano bed, four assembler passes. Every frame below is from the
             finished cut.
           </p>
@@ -288,7 +300,7 @@ export default function LandingPage() {
           <p className="lp-kicker">WebMCP</p>
           <h2 className="lp-section-title">Drive it by sentence.</h2>
           <p className="lp-section-sub">
-            Cutroom has about a hundred distinct actions across two rooms and five tabs.
+            Genga Studio has about a hundred distinct actions across two rooms and five tabs.
             Everything works, and almost nothing is findable. WebMCP lets the page hand an
             agent the whole list instead of making it hunt for buttons.
           </p>
@@ -405,7 +417,7 @@ export default function LandingPage() {
           <p className="lp-kicker">Cost</p>
           <h2 className="lp-section-title">What a film actually costs.</h2>
           <p className="lp-section-sub">
-            Generation is real and metered. Cutroom reports spend by lane and by backend,
+            Generation is real and metered. Genga Studio reports spend by lane and by backend,
             and fits a motion budget to a dollar figure before it spends anything.
           </p>
         </div>
@@ -442,7 +454,7 @@ export default function LandingPage() {
           <a href={FILM_DOC} target="_blank" rel="noreferrer">Two Claudes</a>
           <Link to={APP_BASE}>Studio</Link>
         </div>
-        <p>Cutroom. Built for the WebMCP Challenge.</p>
+        <p>Genga Studio · gengastudio.com · built for the WebMCP Challenge.</p>
       </footer>
 
       {playing && cut && <Player cut={cut} onClose={() => setPlaying(false)} />}

@@ -68,10 +68,9 @@ label.field { display: flex; flex-direction: column; gap: 3px;
   display: flex; flex-direction: column; padding: 10px; gap: 4px;
   flex-shrink: 0;
 }
-.sidebar .brand { font-family: var(--font-display); font-weight: 400;
-  letter-spacing: 0.14em; font-size: 16px;
-  color: var(--accent); padding: 6px 8px 14px; }
-.sidebar .brand:hover { color: var(--c-amber-bright); }
+.sidebar .brand { display: block; padding: 8px 8px 16px; }
+.sidebar .brand img { display: block; height: 20px; width: auto; }
+.sidebar .brand:hover img { opacity: 0.85; }
 .sidebar a { color: var(--dim); padding: 7px 10px; border-radius: var(--r-sm);
   display: block; font-weight: 600; font-size: 13px;
   transition: background var(--t-fast), color var(--t-fast); }

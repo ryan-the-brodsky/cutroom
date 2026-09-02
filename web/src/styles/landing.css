@@ -132,13 +132,9 @@
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--lp-line-soft);
 }
-.lp-nav-brand {
-  font-family: "Righteous", sans-serif;
-  font-size: 21px;
-  letter-spacing: 0.14em;
-  color: var(--lp-amber);
-}
-.lp-nav-brand:hover { color: var(--lp-amber); }
+.lp-nav-brand { display: block; flex-shrink: 0; }
+.lp .lp-nav-brand img { display: block; height: 19px; width: auto; }
+.lp-nav-brand:hover img { opacity: 0.85; }
 .lp-nav-links { display: flex; gap: 26px; margin-left: auto; }
 .lp-nav-link {
   color: var(--lp-dim);
@@ -192,6 +188,23 @@
 }
 .lp-hero-inner { position: relative; max-width: 880px; margin: 0 auto; }
 
+/* The wordmark leads the hero, the tagline says what the product does, and only
+   then the claim. Same two colours as the mark itself. */
+.lp img.lp-hero-mark {
+  display: block;
+  height: 54px;
+  width: auto;
+  margin: 0 auto 20px;
+}
+.lp-hero-tagline {
+  font-family: "Righteous", sans-serif;
+  font-size: 21px;
+  line-height: 1.35;
+  color: var(--lp-amber);
+  margin: 0 auto 28px;
+  max-width: 620px;
+}
+
 .lp-hero-chip {
   display: inline-flex;
   align-items: center;
@@ -224,8 +237,18 @@
   font-size: 19px;
   color: var(--lp-dim);
   max-width: 640px;
+  margin: 0 auto 16px;
+}
+/* The one place the word itself is explained. `--lp-faint` is for labels and
+   captions, not for a sentence, so this stays on `--lp-dim` and clears AA. */
+.lp-hero-note {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--lp-dim);
+  max-width: 600px;
   margin: 0 auto 34px;
 }
+.lp-hero-note i { font-style: italic; color: var(--lp-text); }
 .lp-hero-actions {
   display: flex;
   justify-content: center;
@@ -658,6 +681,8 @@
 /* ---------------------------------------------------------------- responsive */
 
 @media (max-width: 1000px) {
+  .lp img.lp-hero-mark { height: 46px; }
+  .lp-hero-tagline { font-size: 19px; }
   .lp-hero-title { font-size: 44px; }
   .lp-two { grid-template-columns: 1fr; gap: 32px; }
   .lp-strip-grid { grid-template-columns: repeat(2, 1fr); }
@@ -668,8 +693,11 @@
   .lp-nav { padding: 12px 18px; gap: 16px; }
   .lp-nav-links { display: none; }
   .lp-hero { padding: 64px 20px 56px; }
+  .lp img.lp-hero-mark { height: 34px; margin-bottom: 16px; }
+  .lp-hero-tagline { font-size: 17px; margin-bottom: 22px; }
   .lp-hero-title { font-size: 32px; }
   .lp-hero-sub { font-size: 16.5px; }
+  .lp-hero-note { font-size: 14px; }
   .lp-hero-actions { flex-direction: column; align-items: stretch; }
   .lp-btn { width: 100%; }
   .lp-nav .lp-btn { width: auto; }
