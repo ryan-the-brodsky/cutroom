@@ -431,3 +431,11 @@ and prompts live in the private parent repository and must stay there, and no
 `CUTROOM_DEMO_BUNDLE_TOKEN` is **not** dropped when this repo goes public — the
 bundle lives on the separate, permanently private `cutroom-demo-data` repo, so
 its read token is still needed.
+
+
+## Repo rename (2026-09-02)
+
+The GitHub repository is now `ryan-the-brodsky/genga-studio`; the old `cutroom` URL redirects.
+CI derives the image name from the repository, so builds after the rename publish
+`ghcr.io/ryan-the-brodsky/genga-studio-demo:sha-<short>`. Pin that name from the first green
+run after the rename onward; the older `cutroom-demo` tags stay valid for rollback.
