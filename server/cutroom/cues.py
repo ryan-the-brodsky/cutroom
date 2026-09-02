@@ -2,7 +2,7 @@
 
 A cue is a piece of audio placed on the film's timeline. Cues live in
 `Project.settings["music_cues"]` and `["sfx_cues"]` — the same two keys the
-game7 importer writes and the timeline compiler already reads
+folder importer writes and the timeline compiler already reads
 (`timeline/compile.py::_compile_cues`) — so an imported film's cue sheet and
 one an agent builds by hand are the same thing.
 

@@ -1,7 +1,8 @@
 """Project media storage.
 
-Every project gets a directory following the game7 layout convention, which
-keeps the engine, the importer, and human inspection all trivially compatible.
+Every project gets a directory following the studio folder layout (see
+docs/ARCHITECTURE.md), which keeps the engine, the importer, and human
+inspection all trivially compatible.
 All API paths are project-relative and resolved through `ProjectStore.resolve`,
 which jails them to the project root (no traversal).
 

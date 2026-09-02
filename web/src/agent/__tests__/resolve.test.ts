@@ -1,10 +1,10 @@
 /**
- * Resolver pins, against a recorded slice of the REAL `next-year` film.
+ * Resolver pins, against a recorded slice of the sample film *Next Year*.
  *
  * The fixtures are `GET /api/projects/next-year/film` and `…/cast` from a
  * scratch server booted off the demo bundle (97 shots, 17 cast members), so
- * every expectation here is a claim about the actual production data, not a
- * toy. Regenerate with:
+ * every expectation here is a claim about real production data, not a toy.
+ * Regenerate with:
  *
  *   CUTROOM_DATA=/tmp/cutroom-B/data cutroom --port 8782      # + import
  *   curl -s localhost:8782/api/projects/next-year/film > film.json
@@ -14,16 +14,13 @@ import { describe, expect, it, beforeEach } from "vitest";
 import castFixture from "./fixtures/next-year.cast.json";
 import sanitizedFilm from "./fixtures/next-year.film.json";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve as resolvePath } from "node:path";
-import { fileURLToPath } from "node:url";
 
 // The committed fixture is SANITIZED (prompts shortened, dialogue text removed) so the
-// film's script never lands in the public repo. The full recording lives in the private
-// game7 repo (prompts/fixtures/next-year.film.json) or at $CUTROOM_FILM_FIXTURE; the
-// real-data pins below run only when it is present.
-const FULL_PATH = process.env.CUTROOM_FILM_FIXTURE
-  ?? resolvePath(dirname(fileURLToPath(import.meta.url)), "../../../../../prompts/fixtures/next-year.film.json");
-const HAS_FULL = existsSync(FULL_PATH);
+// film's script never lands in the public repo. The full recording is an optional private
+// fixture, path from `CUTROOM_FILM_FIXTURE`; the real-data pins below run only when that
+// variable is set and the file is there. Unset, they skip and the sanitized slice is used.
+const FULL_PATH = process.env.CUTROOM_FILM_FIXTURE ?? "";
+const HAS_FULL = FULL_PATH !== "" && existsSync(FULL_PATH);
 const filmFixture: typeof sanitizedFilm = HAS_FULL
   ? JSON.parse(readFileSync(FULL_PATH, "utf8"))
   : sanitizedFilm;

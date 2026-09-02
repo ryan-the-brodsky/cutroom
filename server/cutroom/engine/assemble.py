@@ -1,7 +1,7 @@
 """The animatic assembler, re-grounded on ffmpeg.
 
-Replaces the film's PyAV assembler (which was welded to the ComfyUI venv and
-the game7 repo layout) with a portable implementation of the same contract:
+Replaces an earlier PyAV assembler (welded to a local ComfyUI virtualenv and
+one fixed folder layout) with a portable implementation of the same contract:
 
 - V track: ordered shots; each plays its source for its (overridden) seconds.
   Stills hold TRUE still. Motion sources that run short hold their last frame

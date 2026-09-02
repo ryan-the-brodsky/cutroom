@@ -4,7 +4,7 @@ import { callTool, gotoApp, railTakes } from "./agent";
 /**
  * J1b (WEBMCP-PLAN §5): "…the David Ross close up, shot 37".
  *
- * The two phrasings in Ryan's own sentence point at DIFFERENT shots — B10-S2 by
+ * The two phrasings in that one sentence point at DIFFERENT shots: B10-S2 by
  * name (HERO, dugout) and B11-S4 by film order (a cemetery still). The resolver's
  * job is to SURFACE that, not to guess. This is the spec that proves the app
  * refuses to act on an ambiguous instruction, which is the whole safety story.

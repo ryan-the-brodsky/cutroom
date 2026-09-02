@@ -4,12 +4,12 @@
  * Cutroom addresses shots as `B10-S2` sids. Directors do not. This turns any
  * of the four ways a human names a shot (sid, film ordinal, beat, or a
  * description of who and what is in it) into a ranked resolution, and says
- * out loud when two of them disagree — because Ryan's own hero sentence,
- * "make a few more generative cuts of the David Ross close-up", is a
- * different shot from "shot 37", and guessing would be worse than asking.
+ * out loud when two of them disagree: the hero sentence "make a few more
+ * generative cuts of the David Ross close-up" names a different shot from
+ * "shot 37", and guessing would be worse than asking.
  *
  * Index sources: `GET /api/projects/{pid}/film` (shots in film order) and
- * `GET /api/projects/{pid}/cast` (the character index the game7 importer
+ * `GET /api/projects/{pid}/cast` (the character index the folder importer
  * builds from prompts/characters.jsonl). Both are cached per project until
  * `index(pid, { force: true })`.
  *

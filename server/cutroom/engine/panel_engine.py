@@ -2,7 +2,7 @@
 """panel_engine.py — standalone Ping Pong / manga-screen panel composition engine.
 
 A self-contained, project-independent extraction of the `panel_screen` engine
-from the NEXT YEAR film toolkit (studio/game7/bin/anime-fx.py). Composes
+from the limited-animation FX toolkit Cutroom grew out of. Composes
 limited-animation "panel group shots": polygonal manga panels (trapezoids,
 wedges, slivers) that enter over a base in a designed rhythm, hold, and
 de-layer — with z-order, drop shadows, video-in-panel, border-break figures,

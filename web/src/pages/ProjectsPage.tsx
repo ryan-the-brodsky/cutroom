@@ -40,7 +40,7 @@ export default function ProjectsPage() {
 
       <h3>Import an existing production repo</h3>
       <div className="muted small" style={{ marginBottom: 8 }}>
-        Points at a game7-layout repo (prompts/shots.jsonl, renders/, audio/).
+        Points at a studio folder (prompts/shots.jsonl, renders/, audio/).
         Media is copied; shots, keepers, overrides, comps and takes are
         indexed. Runs as a job.
       </div>

@@ -40,7 +40,7 @@ function SystemChips() {
       <button
         className="small"
         data-action={ANCHORS.pause}
-        title="Pause/resume all generation (the MOTION_PAUSED sentinel, as an API)"
+        title="Pause/resume all generation (the pause sentinel, as an API)"
         onClick={() => api("/api/system/pause", { paused: !data.paused })}>
         {data.paused ? "▶ resume" : "⏸ pause"}
       </button>

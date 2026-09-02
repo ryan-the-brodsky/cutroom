@@ -10,9 +10,9 @@
 Outside demo mode (or with no admin token configured) every request is admin,
 so a self-host behaves exactly as it did before.
 
-The demo dataset ships as a tarball built from a game7-layout repo:
+The demo dataset ships as a tarball built from a studio folder:
 
-    cutroom demo-bundle ~/src/game7 /tmp/bundle.tar.zst
+    cutroom demo-bundle <path-to-a-studio-folder> /tmp/bundle.tar.zst
 
 `CUTROOM_DEMO_BUNDLE=<url>` downloads and imports it at boot when the
 instance has no projects yet (idempotent; progress lands in
@@ -183,11 +183,11 @@ def bundle_members(src: Path, max_bytes: int = MAX_FILE_BYTES,
 
 def build_bundle(src_root: str, out_path: str,
                  log=print) -> dict:
-    """Pack a game7 tree into a demo bundle. Falls back to .tar.gz when the
+    """Pack a studio folder into a demo bundle. Falls back to .tar.gz when the
     zstd binary is unavailable (Railway's slim images often lack it)."""
     src = Path(src_root).expanduser().resolve()
     if not (src / "prompts/shots.jsonl").exists():
-        raise RuntimeError(f"{src} is not a game7-layout repo "
+        raise RuntimeError(f"{src} is not a studio folder "
                            "(no prompts/shots.jsonl)")
     out = Path(out_path).expanduser().resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -352,10 +352,10 @@ def boot_import(force: bool = False) -> dict:
             if not archive.exists():
                 download_bundle(url, archive, settings.demo_bundle_token, log)
             extract_bundle(archive, src_dir, log)
-        from .importer.game7 import import_game7
+        from .importer.folder import import_folder
         pid = settings.demo_project
         log(f"importing {src_dir} as project {pid} …")
-        stats = import_game7(str(src_dir), pid, label=pid, log=log)
+        stats = import_folder(str(src_dir), pid, label=pid, log=log)
         enable_backend("mock", log)
         apply_lane_env(pid, log)
         from .db import session_scope as _ss

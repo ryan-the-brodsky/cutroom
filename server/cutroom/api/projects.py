@@ -44,7 +44,7 @@ async def create_project(req: Request):
 @router.post("/projects/{pid}/import",
              dependencies=[Depends(require_admin("importing projects"))])
 async def import_project(pid: str, req: Request):
-    """Ingest a game7-layout repo. Creates the project row if needed, then
+    """Ingest a studio folder. Creates the project row if needed, then
     runs the (long) media copy + index as a job."""
     body = await req.json()
     src = body.get("src_root", "")
@@ -80,7 +80,7 @@ def get_film(pid: str):
 @router.get("/projects/{pid}/cast")
 def get_cast(pid: str):
     """The character index the shot resolver matches names against.
-    [{id, name, aliases[], descriptor}] — built by the game7 importer from
+    [{id, name, aliases[], descriptor}] — built by the folder importer from
     prompts/characters.jsonl; refresh with `cutroom reimport-cast`."""
     project_or_404(pid)
     with session_scope() as s:
@@ -89,7 +89,7 @@ def get_cast(pid: str):
         cast = settings.get("cast")
         if not cast:
             # projects imported before the cast index existed
-            from ..importer.game7 import build_cast
+            from ..importer.folder import build_cast
             cast = build_cast(settings.get("characters") or [])
         return {"cast": cast}
 
@@ -97,14 +97,14 @@ def get_cast(pid: str):
 @router.post("/projects/{pid}/cast",
              dependencies=[Depends(require_admin("editing the cast"))])
 async def set_cast(pid: str, req: Request):
-    """Set the character index for a project created through the API (the game7
+    """Set the character index for a project created through the API (the folder
     importer does this from prompts/characters.jsonl; fresh projects need a way in).
     Body: {"characters": [{id, character, image_prompt?, negative?, seeds?}, …]}"""
     body = await req.json()
     rows = body.get("characters") or []
     if not isinstance(rows, list):
         raise HTTPException(400, "characters must be a list")
-    from ..importer.game7 import build_cast
+    from ..importer.folder import build_cast
     cast = build_cast(rows)
     with session_scope() as s:
         proj = s.get(Project, pid)

@@ -12,7 +12,7 @@ from cutroom import demo
 
 @pytest.fixture()
 def demo_client(data_dir, monkeypatch):
-    """A demo-mode app: judges hold `viewer`, Ryan holds `admin`."""
+    """A demo-mode app: visitors hold `viewer`, the owner holds `admin`."""
     monkeypatch.setenv("CUTROOM_DEMO", "1")
     monkeypatch.setenv("CUTROOM_AUTH_TOKEN", "judge")
     monkeypatch.setenv("CUTROOM_ADMIN_TOKEN", "boss")
@@ -72,13 +72,13 @@ def test_workers_are_closed_to_viewers(demo_client):
 
 
 def test_creative_work_stays_open_to_viewers(demo_client, tmp_path):
-    from cutroom.importer.game7 import import_game7
+    from cutroom.importer.folder import import_folder
     src = tmp_path / "src"
     (src / "prompts").mkdir(parents=True)
     (src / "prompts/shots.jsonl").write_text(
         '{"id": "B01-S1", "beat": "B01", "act": 1, "type": "HERO", '
         '"seconds": 4, "image_prompt": "a dugout"}\n')
-    import_game7(str(src), "p", log=lambda m: None)
+    import_folder(str(src), "p", log=lambda m: None)
     # reading the film, and submitting a free (mock) generation
     assert demo_client.get("/api/projects/p/film", headers=VIEWER).status_code == 200
     r = demo_client.post("/api/projects/p/generate/still",
@@ -90,13 +90,13 @@ def test_creative_work_stays_open_to_viewers(demo_client, tmp_path):
 def test_rate_limit_counts_per_token(demo_client, monkeypatch, tmp_path):
     from cutroom import config
     monkeypatch.setattr(config.get_settings(), "demo_jobs_per_min", 3)
-    from cutroom.importer.game7 import import_game7
+    from cutroom.importer.folder import import_folder
     src = tmp_path / "src"
     (src / "prompts").mkdir(parents=True)
     (src / "prompts/shots.jsonl").write_text(
         '{"id": "B01-S1", "beat": "B01", "act": 1, "type": "STILL", '
         '"seconds": 4, "image_prompt": "x"}\n')
-    import_game7(str(src), "p", log=lambda m: None)
+    import_folder(str(src), "p", log=lambda m: None)
     body = {"prompt": "x", "backend": "mock", "shot": "B01-S1"}
     codes = [demo_client.post("/api/projects/p/generate/still", json=body,
                               headers=VIEWER).status_code for _ in range(5)]
@@ -163,8 +163,8 @@ def test_bundle_round_trip_imports_a_browsable_project(tmp_path, client):
     assert (dest / "prompts/shots.jsonl").exists()
     assert not (dest / "assembly").exists()
 
-    from cutroom.importer.game7 import import_game7
-    stats = import_game7(str(dest), "round-trip", log=lambda m: None)
+    from cutroom.importer.folder import import_folder
+    stats = import_folder(str(dest), "round-trip", log=lambda m: None)
     assert stats["shots"] == 1
     film = client.get("/api/projects/round-trip/film").json()
     assert film[0]["sid"] == "B01-S1"

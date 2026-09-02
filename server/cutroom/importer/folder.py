@@ -1,10 +1,12 @@
-"""Import an existing game7-layout production repo into a Cutroom project.
+"""Import a studio folder layout on disk into a Cutroom project.
 
-Media trees are copied verbatim (renders/, audio/, assembly/), so every path
-recorded in curation/overrides keeps working. Shots come from
-prompts/shots.jsonl; keeper picks from renders/curation.json; timeline edits
-from dashboard/state/overrides-<id>.json; comps from dashboard/state/
-comps-<id>.json. Takes are then indexed from the copied trees.
+The studio folder layout is documented in docs/ARCHITECTURE.md ("Studio folder
+layout"). Media trees are copied verbatim (renders/, audio/, assembly/), so
+every path recorded in the curation and override files keeps working. Shots
+come from prompts/shots.jsonl; keeper picks from renders/curation.json;
+timeline edits from dashboard/state/overrides-<id>.json; comps from
+dashboard/state/comps-<id>.json.
+Takes are then indexed from the copied trees.
 """
 from __future__ import annotations
 
@@ -126,7 +128,7 @@ def build_cast(rows: list[dict]) -> list[dict]:
 
 def reimport_cast(project_id: str, src_root: str,
                   log: Callable[[str], None] = print) -> dict:
-    """Refresh project.settings['cast'] from a game7 tree — no media copy."""
+    """Refresh project.settings['cast'] from a studio folder, no media copy."""
     src = Path(src_root).expanduser().resolve()
     rows = _read_jsonl(src / "prompts/characters.jsonl")
     cast = build_cast(rows)
@@ -162,13 +164,13 @@ def _load_json(path: Path, default):
         return default
 
 
-def import_game7(src_root: str, project_id: str, label: str | None = None,
+def import_folder(src_root: str, project_id: str, label: str | None = None,
                  log: Callable[[str], None] = print,
                  copy_media: bool = True) -> dict:
     src = Path(src_root).expanduser().resolve()
     shots_jsonl = src / "prompts/shots.jsonl"
     if not shots_jsonl.exists():
-        raise RuntimeError(f"{src} is not a game7-layout repo "
+        raise RuntimeError(f"{src} is not a studio folder "
                            "(no prompts/shots.jsonl)")
     store = get_storage().create_project(project_id)
 

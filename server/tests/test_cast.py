@@ -1,18 +1,22 @@
 """Cast index — parsing prompts/characters.jsonl into resolvable aliases.
 
 The alias rules exist so a director can say "the David Ross close-up" or
-"the veteran catcher" and mean the same person. Pinned against the real
-game7 characters.jsonl when it is on this machine.
+"the veteran catcher" and mean the same person.
+
+The pins below run against a real prompts/characters.jsonl when one is
+supplied: an optional private fixture, path from CUTROOM_CAST_FIXTURE. With
+the variable unset they skip, so CI stays green anywhere.
 """
+import os
 from pathlib import Path
 
 import pytest
 
-from cutroom.importer.game7 import (build_cast, cast_entry, reimport_cast,
-                                    _read_jsonl)
+from cutroom.importer.folder import (build_cast, cast_entry, reimport_cast,
+                                     _read_jsonl)
 
-REAL = Path("/Users/ryan-the-brodsky/Documents/programming/game7/"
-            "prompts/characters.jsonl")
+_FIXTURE = os.environ.get("CUTROOM_CAST_FIXTURE", "").strip()
+REAL = Path(_FIXTURE).expanduser() if _FIXTURE else None
 
 
 def test_name_and_role_aliases():
@@ -50,7 +54,8 @@ def test_ignores_rows_without_a_character():
         [0]["name"] == "Ann"
 
 
-@pytest.mark.skipif(not REAL.exists(), reason="game7 repo not on this machine")
+@pytest.mark.skipif(REAL is None or not REAL.exists(),
+                    reason="set CUTROOM_CAST_FIXTURE to run the real-data pins")
 def test_the_real_characters_jsonl():
     cast = build_cast(_read_jsonl(REAL))
     assert len(cast) == 17
@@ -83,8 +88,8 @@ def _tiny_project(tmp_path: Path) -> Path:
 
 def test_cast_route_and_reimport(client, tmp_path):
     src = _tiny_project(tmp_path)
-    from cutroom.importer.game7 import import_game7
-    import_game7(str(src), "tiny", log=lambda m: None)
+    from cutroom.importer.folder import import_folder
+    import_folder(str(src), "tiny", log=lambda m: None)
 
     r = client.get("/api/projects/tiny/cast")
     assert r.status_code == 200

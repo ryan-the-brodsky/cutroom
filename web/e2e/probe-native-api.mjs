@@ -1,8 +1,11 @@
 import { chromium } from "@playwright/test";
 import http from "node:http";
 import fs from "node:fs";
+import path from "node:path";
+import url from "node:url";
 
-const PAGE = fs.readFileSync("/Users/ryan-the-brodsky/Documents/programming/game7/platform/web/e2e/fixtures/probe.html");
+const HERE = path.dirname(url.fileURLToPath(import.meta.url));
+const PAGE = fs.readFileSync(path.join(HERE, "fixtures", "probe.html"));
 const server = http.createServer((_q, s) => { s.writeHead(200, { "content-type": "text/html" }); s.end(PAGE); });
 await new Promise((r) => server.listen(8791, "127.0.0.1", r));
 

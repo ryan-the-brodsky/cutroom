@@ -23,7 +23,7 @@ def demo_budget_client(data_dir, monkeypatch):
 
 
 def _seed_project(client):
-    from cutroom.importer.game7 import import_game7
+    from cutroom.importer.folder import import_folder
     import tempfile
     from pathlib import Path
     src = Path(tempfile.mkdtemp()) / "src"
@@ -31,7 +31,7 @@ def _seed_project(client):
     (src / "prompts/shots.jsonl").write_text(
         '{"id": "B01-S1", "beat": "B01", "act": 1, "type": "STILL", '
         '"seconds": 4, "image_prompt": "x"}\n')
-    import_game7(str(src), "p", log=lambda m: None)
+    import_folder(str(src), "p", log=lambda m: None)
 
 
 def test_defaults_and_env_override(data_dir, monkeypatch):

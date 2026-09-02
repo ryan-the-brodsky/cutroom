@@ -26,7 +26,7 @@ from .models import Backend
 def _env_any(*names: str) -> str:
     """First non-empty of several accepted spellings of one key.
 
-    The provider docs, Ryan's ~/.claude/.env and the adapter code do not
+    The provider docs, your env file and the adapter code do not
     agree on names (FAL_KEY vs FAL_AI_API_KEY, ELEVEN_LABS_API_KEY vs
     ELEVENLABS_API_KEY), and a silently-unseeded backend looks exactly like
     a broken adapter. Accept them all."""
@@ -203,9 +203,9 @@ def create_app() -> FastAPI:
 
 
 def cmd_reimport_cast(args) -> None:
-    """Refresh a project's cast index from a game7 tree (no media copy)."""
+    """Refresh a project's cast index from a studio folder (no media copy)."""
     init_db()
-    from .importer.game7 import reimport_cast
+    from .importer.folder import reimport_cast
     out = reimport_cast(args.project, args.src_root)
     print(json.dumps(out, indent=2))
 
@@ -242,12 +242,12 @@ def cli() -> None:
         p.add_argument("--port", type=int, default=settings.port)
 
     rc = sub.add_parser("reimport-cast",
-                        help="rebuild project.settings.cast from a game7 tree")
+                        help="rebuild project.settings.cast from a studio folder")
     rc.add_argument("project")
     rc.add_argument("src_root")
     rc.set_defaults(func=cmd_reimport_cast)
 
-    db_ = sub.add_parser("demo-bundle", help="pack a game7 tree for the demo")
+    db_ = sub.add_parser("demo-bundle", help="pack a studio folder for the demo")
     db_.add_argument("src_root")
     db_.add_argument("out", help="path ending .tar.zst (or .tar.gz)")
     db_.set_defaults(func=cmd_demo_bundle)

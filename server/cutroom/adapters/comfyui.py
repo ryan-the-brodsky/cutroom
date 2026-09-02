@@ -1,6 +1,7 @@
 """ComfyUI adapter — any ComfyUI server, local or remote.
 
-The decisive change from the game7 scripts: NO filesystem coupling. Sources go
+The decisive change from the single-machine scripts Cutroom grew out of: NO
+filesystem coupling. Sources go
 up via POST /upload/image and results come back via GET /view, so the ComfyUI
 host can be this machine, a LAN box, or a rented GPU VM. Model discovery reads
 /object_info, which is what feeds the UI model pickers.

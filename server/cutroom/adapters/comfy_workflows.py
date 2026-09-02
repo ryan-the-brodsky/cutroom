@@ -1,7 +1,7 @@
 """ComfyUI graph builders — the two canonical lanes, fully parameterized.
 
-Defaults reproduce the game7 production recipes exactly (bible/anima-lane.md,
-bible/ltx-lane.md); every model filename, sampler, and knob is overridable per
+Defaults reproduce a production recipe verified on a real ComfyUI host for
+each lane; every model filename, sampler, and knob is overridable per
 backend (Backend.options["still"|"motion"]) and per request, so the same
 builder drives any checkpoints a ComfyUI host actually has.
 """

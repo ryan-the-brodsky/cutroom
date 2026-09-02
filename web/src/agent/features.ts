@@ -164,7 +164,7 @@ const SPECS: Spec[] = [
     keywords: ["new project", "create", "empty", "slug"],
     howTo: "On the Projects page, type a slug under \"New empty project\" and press create." },
   { name: "import_project", title: "Import a production repo", group: "Projects",
-    description: "Index a game7-layout repo (shots.jsonl, renders/, audio/) into a project. Media is copied; it runs as a job.",
+    description: "Index a studio folder (shots.jsonl, renders/, audio/) into a project. Media is copied; it runs as a job.",
     route: PROJECTS, anchor: ANCHORS.projectsImport, label: "Projects → Import",
     keywords: ["import", "repo", "shots.jsonl", "existing", "ingest"],
     howTo: "Fill the repo path and a project slug under \"Import an existing production repo\", then press import." },

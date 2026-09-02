@@ -721,8 +721,8 @@ async def animatic_assemble(ctx, p: dict) -> dict:
 # ===================================================================== import
 
 async def project_import(ctx, p: dict) -> dict:
-    from ..importer.game7 import import_game7
-    return await asyncio.to_thread(import_game7, p["src_root"], p["project"],
+    from ..importer.folder import import_folder
+    return await asyncio.to_thread(import_folder, p["src_root"], p["project"],
                                    p.get("label"), ctx.log,
                                    p.get("copy_media", True))
 

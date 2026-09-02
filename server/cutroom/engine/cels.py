@@ -1,8 +1,8 @@
 """The cel system — a background plate that video models never touch, plus
 z-ordered animated layers merged through feathered windows or figure mattes.
 
-Generalized from game7's comp_render.py / anime-fx.py cel_composite. The
-comp dict is the same data model the dashboard used:
+Generalized from the single-machine compositor Cutroom grew out of. The comp
+dict is the same data model that pipeline used:
 
 The background may be a still plate OR a clip: a still is the classic cel
 grammar (the plate never shimmers, video models never touch it), a clip lets
