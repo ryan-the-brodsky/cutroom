@@ -99,7 +99,12 @@ export default function FilmEditorPage() {
     setOverride,
     addCue,
     removeCue,
-    refresh: async () => { refresh(); refreshCuts(); refreshCues(); },
+    // Bump every poll, then give the refetches a beat so a caller (an agent tool that just
+    // cut the film) sees the new animatic in the Cuts gallery when it returns.
+    refresh: async () => {
+      refresh(); refreshCuts(); refreshCues();
+      await new Promise((r) => setTimeout(r, 700));
+    },
   });
 
   return (

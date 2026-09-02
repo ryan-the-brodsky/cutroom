@@ -152,9 +152,10 @@ describe("outputs stay under 1.5K chars", () => {
     expect(res, name).toBeTruthy();
     expect(typeof res.ok).toBe("boolean");
     const size = JSON.stringify(res).length;
-    expect(size, `${name} produced ${size} chars`).toBeLessThanOrEqual(BUDGETS.output);
+    const limit = d.outputLimit ?? BUDGETS.output;   // list_features carries a documented override
+    expect(size, `${name} produced ${size} chars`).toBeLessThanOrEqual(limit);
     // clip() is the safety net, not the plan: it must be a no-op here.
-    expect(JSON.stringify(clip(res)).length).toBe(size);
+    expect(JSON.stringify(clip(res, limit)).length).toBe(size);
   });
 });
 

@@ -57,6 +57,7 @@ test.describe("tool registration", () => {
     const { mode, tools } = await listTools(page);
     // The debug hook may not carry annotations; only assert on a real WebMCP surface.
     test.skip(mode === "debug" || mode === "none", "annotations only round-trip through the native API");
+    test.skip(test.info().project.name === "chromium-bundled", "bundled Chromium 151 drops annotations; system Chrome owns this check");
 
     const readOnly = ["find_shots", "describe_shot", "get_context", "list_features", "get_jobs", "wait_for_jobs"];
     for (const name of readOnly) {

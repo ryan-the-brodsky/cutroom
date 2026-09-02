@@ -227,6 +227,7 @@ export interface ActionDef<A = Record<string, unknown>> {
   keywords?: string[];
   howTo?: string;                                 // how a human does this by hand (1–2 sentences)
   surfaces?: { agent?: boolean; palette?: boolean };  // default both true
+  outputLimit?: number;                           // override BUDGETS.output for this tool (rare)
   summarize?: (args: A) => string;
   execute(args: A, ctx: ActionContext): Promise<ToolResult>;
 }
@@ -300,7 +301,7 @@ export function anchorSelector(anchor: Anchor, data?: Record<string, string>): s
  * Never truncates whitespace-free strings (paths, ids, urls) — those are identifiers the
  * agent passes back. Marks the top-level object with `truncated: true` when anything shrank.
  */
-export function clip<T>(value: T, limit = BUDGETS.output): T {
+export function clip<T>(value: T, limit: number = BUDGETS.output): T {
   const size = (v: unknown) => JSON.stringify(v)?.length ?? 0;
   if (size(value) <= limit) return value;
   const shrink = (v: unknown): unknown => {

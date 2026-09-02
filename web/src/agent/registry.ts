@@ -171,7 +171,7 @@ export async function perform(name: string, args: Record<string, unknown> | unde
 
   try {
     const out = await def.execute(value as never, ctx);
-    return clip(asResult(out), BUDGETS.output);
+    return clip(asResult(out), def.outputLimit ?? BUDGETS.output);
   } catch (e) {
     if ((e as Error)?.name === "AbortError") {
       return err("aborted", { hint: "the caller cancelled this tool", tool: name });

@@ -290,6 +290,7 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
     additionalProperties: false,
   },
   annotations: { readOnlyHint: true },
+  outputLimit: 2600,
   where: { route: FILM_ROUTE, label: "⌘K command palette" },
   keywords: ["features", "help", "what can you do", "capabilities", "palette", "commands"],
   howTo: "Press ⌘K (Ctrl+K on Windows) anywhere in Cutroom to open the command palette and type to filter.",
@@ -308,14 +309,15 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
       where: cut(whereLabel(d), 40),
       ...(howChars > 0 ? { how: cut(d.howTo, howChars) } : {}),
     }));
-    // No query: a compact one-line-per-feature map of EVERYTHING (discovery is the
-    // product's premise; never silently drop tools). With a query: detailed rows.
+    // No query: EVERY feature as a structured row (name · title · where). Discovery is the
+    // product's premise, so this tool carries a larger output allowance (outputLimit) rather
+    // than silently dropping tools. With a query: fewer rows, each with the how-to.
     let rows: unknown[];
     if (!q) {
-      rows = matched.map((d) => `${d.name} — ${cut(whereLabel(d), 34)}`);
-      for (const w of [34, 26, 18]) {
-        rows = matched.map((d) => `${d.name} — ${cut(whereLabel(d), w)}`);
-        if (JSON.stringify(rows).length < 1250) break;
+      rows = matched.map((d) => ({ name: d.name, title: cut(d.title, 22), where: cut(whereLabel(d), 26) }));
+      for (const [tw, ww] of [[22, 26], [18, 20], [14, 16]] as const) {
+        rows = matched.map((d) => ({ name: d.name, title: cut(d.title, tw), where: cut(whereLabel(d), ww) }));
+        if (JSON.stringify(rows).length < 2300) break;
       }
     } else {
       rows = build(8, 96);
