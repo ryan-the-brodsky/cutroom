@@ -165,7 +165,7 @@ def create_app() -> FastAPI:
     init_db()
     seed_backends()
 
-    app = FastAPI(title="Cutroom", version="0.1.0")
+    app = FastAPI(title="Genga Studio", version="0.1.0")
 
     from fastapi.responses import JSONResponse
 

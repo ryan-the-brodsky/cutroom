@@ -9,7 +9,7 @@ import { defineConfig, devices } from "@playwright/test";
  * do install navigator.modelContextTesting on the bundled Chromium 151, though not
  * on system Chrome 152).
  *
- * The server is a scratch Cutroom on :8785 with a temp CUTROOM_DATA — never ~/.cutroom.
+ * The server is a scratch Genga Studio server on :8785 with a temp CUTROOM_DATA — never ~/.cutroom.
  */
 const WEBMCP_ARGS = ["--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport"];
 const PORT = Number(process.env.CUTROOM_E2E_PORT ?? 8785);
@@ -18,7 +18,7 @@ export default defineConfig({
   testDir: "./e2e",
   testMatch: /.*\.spec\.ts/,
   outputDir: "./e2e-results",
-  fullyParallel: false,      // one Cutroom, one job queue, shared film state
+  fullyParallel: false,      // one server, one job queue, shared film state
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

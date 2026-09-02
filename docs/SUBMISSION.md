@@ -1,4 +1,4 @@
-# Devpost submission copy: Cutroom
+# Devpost submission copy: Genga Studio
 
 > Final text for every field of the WebMCP Challenge submission form.
 > Finalized 2026-09-01 against the shipped build (23 tools, hosted demo live).
@@ -12,7 +12,7 @@
 ## Project name
 
 ```
-Cutroom
+Genga Studio
 ```
 
 ## Tagline (60 char limit)
@@ -45,7 +45,7 @@ keeping the bold question lines.
 
 ### 1. Why your use case is a strong fit for WebMCP
 
-Cutroom is a cutting room for AI-generated animation. Shot lab, cel
+Genga Studio is a cutting room for AI-generated animation. Shot lab, cel
 compositor, motion-edit grammar, voice lane, music and SFX cue sheet,
 assembler, job queue. Roughly a hundred distinct actions across two rooms,
 five tabs and four generation consoles. Everything works. Almost nothing is
@@ -112,7 +112,7 @@ in one call, in order, with the house prompt style carried in the tool's own
 descriptions: a sentence of setting, then "Subject: …", then the framing, then
 "cinematic anime film still", narration under 25 words and dialogue lines under
 12. Its schema is the thing that teaches, so a model that has never seen
-Cutroom writes prompts the still lane can actually use. `set_project_cast`
+Genga Studio writes prompts the still lane can actually use. `set_project_cast`
 names who is in it, which is what makes "the Margot close-up" resolve later.
 From there the existing tools take over: generate, freeze, voice, score, cut.
 A visitor gets three films a day and the same providers the demo runs on, and
@@ -147,7 +147,7 @@ normalize. Vitest holds every entry to Chrome's budgets. 10,596 lines,
 
 ## What's new since Aug 25
 
-Cutroom itself was built 2026-07-12 to 07-15 and sat unchanged until this
+Genga Studio itself was built 2026-07-12 to 07-15 and sat unchanged until this
 week. Every line of the agent layer was written after the submission period
 opened, starting 2026-09-01 16:00 PDT: 46 commits, 112 files changed, 18,384
 insertions, of which `web/src/agent/**` is 10,596 lines across 41 files, all
@@ -170,7 +170,8 @@ substituted. That field is not public, so the token is safe there.
 
 ```
 Live URL (token included, one click, no signup) — this opens the studio directly:
-  https://cutroom-production-0f3c.up.railway.app/app?token=<JUDGE_TOKEN>
+  https://gengastudio.com/app?token=<JUDGE_TOKEN>
+  (fallback: https://cutroom-production-0f3c.up.railway.app/app?token=<JUDGE_TOKEN>)
 
   The bare URL (no /app) is the public landing page, which explains the project
   and links into the studio. Both register the WebMCP tools, so you can ask the
@@ -237,8 +238,8 @@ bed and a key press on the typing shot."* That runs `generate_music`,
 
 | Field | Value |
 |---|---|
-| Live URL (studio) | `https://cutroom-production-0f3c.up.railway.app/app?token=<JUDGE_TOKEN>` |
-| Landing page | <https://cutroom-production-0f3c.up.railway.app/> |
+| Live URL (studio) | `https://gengastudio.com/app?token=<JUDGE_TOKEN>` (fallback: `https://cutroom-production-0f3c.up.railway.app/app?token=<JUDGE_TOKEN>`) |
+| Landing page | <https://gengastudio.com/> (fallback <https://cutroom-production-0f3c.up.railway.app/>) |
 | Public repo | <https://github.com/ryan-the-brodsky/cutroom> (MIT, detected in About) |
 | Demo video | `<YOUTUBE_URL>` (public, under 3:00, audio) |
 | Implementation plan | <https://github.com/ryan-the-brodsky/cutroom/blob/main/docs/WEBMCP-PLAN.md> |
@@ -291,12 +292,12 @@ for (const def of agentDefs()) {
 
 ## Pre-submit checklist
 
-- [ ] `<LIVE_URL>/app?token=…` opens logged out in a fresh profile and the tools
+- [ ] `https://gengastudio.com/app?token=…` opens logged out in a fresh profile and the tools
       chip reads the catalogue count plus `native`.
-- [ ] `<LIVE_URL>/` renders the landing page and its "Open the studio" button
+- [ ] `https://gengastudio.com/` renders the landing page and its "Open the studio" button
       lands on `/app`.
-- [ ] Old deep links still work: `<LIVE_URL>/p/two-claudes` redirects to
-      `<LIVE_URL>/app/p/two-claudes`.
+- [ ] Old deep links still work: `https://gengastudio.com/p/two-claudes` redirects to
+      `https://gengastudio.com/app/p/two-claudes`.
 - [ ] All three prompts run clean against the hosted URL, recorded in
       `docs/TESTING-WEBMCP.md`.
 - [ ] The Two Claudes cut is in the Cuts gallery on the hosted instance and

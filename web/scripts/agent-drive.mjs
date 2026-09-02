@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * agent-drive — drive a Cutroom page through its NATIVE WebMCP tools from real Chrome.
+ * agent-drive — drive a Genga Studio page through its NATIVE WebMCP tools from real Chrome.
  *
  *   node scripts/agent-drive.mjs --url https://host/ [--token T] [--profile DIR] [--headed]
  *        [--steps steps.json] [--call tool '{"json":"args"}'] [--list] [--out DIR]

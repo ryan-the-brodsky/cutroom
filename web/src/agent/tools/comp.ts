@@ -4,7 +4,7 @@
  * A comp is a background — a still plate, or a clip — plus z-ordered animated
  * cel layers merged through feathered windows or per-frame figure mattes. The
  * background is never touched by a video model unless you say so: that is the
- * whole point of the cel grammar, and it is why a Cutroom shot can hold still
+ * whole point of the cel grammar, and it is why a Genga Studio shot can hold still
  * where an end-to-end video model would boil.
  *
  * Every tool here drives `CompEditor` through its page handles, so an agent's

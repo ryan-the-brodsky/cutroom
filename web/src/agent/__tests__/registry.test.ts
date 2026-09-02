@@ -27,7 +27,7 @@ function fakeCtx(): ActionContext & { steps: { tool: string; title: string }[] }
 const def = (over: Partial<ActionDef<any>> = {}): ActionDef<any> => ({
   name: "test_tool",
   title: "Test tool",
-  description: "Do a test thing in Cutroom.",
+  description: "Do a test thing in Genga Studio.",
   inputSchema: { type: "object", properties: {}, required: [] },
   where: { route: "/", label: "Nowhere" },
   howTo: "Press the button.",

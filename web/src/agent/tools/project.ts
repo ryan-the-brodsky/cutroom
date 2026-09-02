@@ -55,7 +55,7 @@ export const createProject: ActionDef<CreateArgs> = {
   name: "create_project",
   title: "Start a new film",
   description:
-    "Start a new, empty film in Cutroom and open its Film Editor. Give it a " +
+    "Start a new, empty film in Genga Studio and open its Film Editor. Give it a " +
     "title; the id is a slug derived from that unless you pass one. The new " +
     "project inherits this instance's lane defaults and a style register — " +
     "the house anime look, applied to every still, so shot prompts never " +
@@ -422,7 +422,7 @@ export const listProjects: ActionDef<Record<string, never>> = {
   name: "list_projects",
   title: "List the films",
   description:
-    "List every film on this Cutroom: its id, its title, how many shots it " +
+    "List every film on this server: its id, its title, how many shots it " +
     "holds and whether it is paused. Use it to find out whether the film the " +
     "director means already exists before starting another one, and to get " +
     "the project id the other tools take. Reads only; nothing is opened and " +
@@ -432,7 +432,7 @@ export const listProjects: ActionDef<Record<string, never>> = {
   where: { route: PROJECTS_ROUTE, anchor: ANCHORS.projectsCard, label: "Projects → the cards" },
   keywords: ["projects", "films", "list", "which project", "open", "switch"],
   howTo: "The Projects page is the front door — every film is a card with its shot count; click one to open its Film Editor.",
-  summarize: () => "List the films on this Cutroom",
+  summarize: () => "List the films on this server",
   async execute(_args, ctx): Promise<ToolResult> {
     let rows: ProjectRow[];
     try { rows = (await ctx.api<ProjectRow[]>("/api/projects")) || []; }

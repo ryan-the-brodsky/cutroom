@@ -5,7 +5,7 @@ import { anchor, callTool, gotoApp, urlParams } from "./agent";
  * J3 (WEBMCP-PLAN §5): "How do I do that by hand?" → show_me("freeze tail").
  *
  * This is the judges' "human-agent experience" in one tool: the agent does not
- * answer with prose, it walks you to the control and points at it. Cutroom has
+ * answer with prose, it walks you to the control and points at it. Genga Studio has
  * ~97 actions and no search — discovery IS the product problem.
  */
 const PID = "next-year";

@@ -13,7 +13,7 @@
  * Web Audio shell around them.
  *
  * Times in a plan are SHOT-RELATIVE seconds, except `shot_start` (film time).
- * Gain is decibels, as it is everywhere else in Cutroom: 0 is unity.
+ * Gain is decibels, as it is everywhere else in Genga Studio: 0 is unity.
  */
 
 // ------------------------------------------------------------------ the plan

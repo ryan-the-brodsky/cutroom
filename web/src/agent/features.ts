@@ -1,5 +1,5 @@
 /**
- * The feature registry — every user-facing action in Cutroom that is NOT a tool.
+ * The feature registry — every user-facing action in Genga Studio that is NOT a tool.
  *
  * A tool executes. A feature *teaches*: it navigates to where the control lives,
  * pulses it, and hands back the sentence a human would follow. Together with the
@@ -113,7 +113,7 @@ function feature(spec: Spec): ActionDef {
 const SPECS: Spec[] = [
   // ------------------------------------------------------------------ App shell
   { name: "go_to_projects", title: "Projects list", group: "App shell",
-    description: "Every project on this Cutroom, with its shot count and pause state.",
+    description: "Every project on this server, with its shot count and pause state.",
     route: PROJECTS, anchor: ANCHORS.navProjects, label: "Sidebar → Projects",
     keywords: ["projects", "home", "switch project", "list"],
     howTo: "Click Projects at the top of the sidebar." },
@@ -148,7 +148,7 @@ const SPECS: Spec[] = [
     keywords: ["pause", "stop", "halt", "resume", "sentinel"],
     howTo: "Press ⏸ pause in the topbar; press ▶ resume to let the pools start work again." },
   { name: "open_command_palette", title: "Command palette", group: "App shell",
-    description: "Fuzzy-search every feature in Cutroom by name, and jump straight to its control.",
+    description: "Fuzzy-search every feature in Genga Studio by name, and jump straight to its control.",
     route: FILM, anchor: ANCHORS.paletteInput, label: "⌘K palette",
     keywords: ["palette", "search", "command", "cmd k", "find feature"],
     howTo: "Press ⌘K (Ctrl+K on Windows) anywhere and type." },
@@ -656,7 +656,7 @@ const SPECS: Spec[] = [
     keywords: ["ruler", "seek", "click", "time", "jump"],
     howTo: "Click anywhere on the time ruler above the tracks." },
   { name: "timeline_select_clip", title: "Inspect a clip", group: "Timeline",
-    description: "Click a clip to see its frame range, its source in/out, its media handles and its Cutroom lineage.",
+    description: "Click a clip to see its frame range, its source in/out, its media handles and its Genga Studio lineage.",
     route: TIMELINE, anchor: ANCHORS.timelineClip, label: "Timeline → clip",
     keywords: ["clip", "select", "inspect", "handles", "lineage", "source"],
     howTo: "Click a clip block in one of the lanes; its detail card appears below." },
@@ -730,7 +730,7 @@ const SPECS: Spec[] = [
     keywords: ["lane", "default", "project default", "routing", "which model"],
     howTo: "Scroll to Lane defaults in Settings and pick a backend for the lane." },
   { name: "api_token", title: "API token", group: "Settings",
-    description: "The token a hosted Cutroom requires. It is stored in this browser only, never on the server.",
+    description: "The token a hosted Genga Studio requires. It is stored in this browser only, never on the server.",
     route: SETTINGS, anchor: ANCHORS.settingsToken, label: "Settings → API token",
     keywords: ["token", "auth", "hosted", "login", "password"],
     howTo: "Paste the token under API token in Settings and press save token." },

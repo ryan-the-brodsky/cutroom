@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scratch Cutroom server for the Playwright e2e suite (workstream E).
+# Scratch Genga Studio server for the Playwright e2e suite (workstream E).
 #
 #   CUTROOM_E2E_SOURCE=<path-to-a-studio-folder> scripts/e2e-server.sh
 #                                    # build SPA, boot :8785, seed, stay in foreground

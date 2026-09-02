@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Cutroom dev runner for this machine.
+# Genga Studio dev runner for this machine.
 #   ./dev.sh            server (:8770) + vite dev server (:5173)
 #   ./dev.sh server     API only
 #   ./dev.sh build      build SPA into the python package (serve from :8770)

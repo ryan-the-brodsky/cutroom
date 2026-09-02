@@ -1,6 +1,6 @@
 # WebMCP technical brief (researched 2026-09-01)
 
-Source-cited reference for the Cutroom WebMCP build. Everything here was verified against
+Source-cited reference for the Genga Studio WebMCP build. Everything here was verified against
 the spec, Chromium source, Chrome docs, or npm on 2026-09-01 unless marked UNVERIFIED.
 Read this before touching `web/src/agent/`.
 
@@ -140,7 +140,7 @@ document.querySelector("form").addEventListener("submit", (e) => {
 Attributes: `toolname`, `tooldescription`, `toolautosubmit`, `toolparamdescription`
 (on controls or a parent `<fieldset>`). `SubmitEvent.agentInvoked` + `respondWith()`.
 Schema synthesis is unspecified ("loose": text→string, select→enum). **ChatGPT Desktop
-ignores declarative tools entirely** — Cutroom uses the imperative API only.
+ignores declarative tools entirely** — Genga Studio uses the imperative API only.
 
 ## 3. Client landscape
 
@@ -198,7 +198,7 @@ tools in client-side script instead of on the backend." Replacing backend MCP is
 run both. The loop is discover → `executeTool` → JSON string → next call; browser agents keep
 DOM/screenshot access as a fallback and "can inspect page changes".
 
-## 7. Gotchas that shape the Cutroom design
+## 7. Gotchas that shape the Genga Studio design
 
 1. Feature-detect `document.modelContext ?? navigator.modelContext`; never rely on
    `provideContext`/`unregisterTool`.

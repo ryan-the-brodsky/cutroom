@@ -265,7 +265,7 @@ export const getContext: ActionDef<ContextArgs> = {
     "navigation, before acting on \"this shot\" or \"the newest one\".",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
-  where: { route: FILM_ROUTE, anchor: ANCHORS.navFilm, label: "Anywhere in Cutroom" },
+  where: { route: FILM_ROUTE, anchor: ANCHORS.navFilm, label: "Anywhere in Genga Studio" },
   keywords: ["context", "where", "current", "state", "screen", "now", "status"],
   howTo:
     "Look at the sidebar and the topbar — the project name, the breadcrumb and the " +
@@ -323,7 +323,7 @@ export const getContext: ActionDef<ContextArgs> = {
     return ok(
       page.kind === "shot" ? `Shot Editor — ${page.shot} · ${page.tab}`
         : page.kind === "film" ? `Film Editor — ${page.shots} shots`
-          : page.kind === "landing" ? `Cutroom landing page — the studio is at ${APP_BASE}`
+          : page.kind === "landing" ? `Genga Studio landing page — the studio is at ${APP_BASE}`
             : `On ${route ?? "an unknown route"}`,
       {
         route, project: ctx.project, page,
@@ -355,9 +355,9 @@ const whereLabel = (d: { where: unknown }): string => {
 
 export const listFeatures: ActionDef<FeaturesArgs> = {
   name: "list_features",
-  title: "List Cutroom features",
+  title: "List Genga Studio features",
   description:
-    "List what Cutroom can do and where each feature lives in the UI, optionally " +
+    "List what Genga Studio can do and where each feature lives in the UI, optionally " +
     "filtered by a word like \"freeze\", \"comp\", \"opacity\" or \"voice\". With no " +
     "query it returns every callable tool plus a count per screen; with a query it " +
     "searches the WHOLE application, including the hundred-odd controls that are " +
@@ -377,8 +377,8 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
   outputLimit: 4000,
   where: { route: FILM_ROUTE, label: "⌘K command palette" },
   keywords: ["features", "help", "what can you do", "capabilities", "palette", "commands"],
-  howTo: "Press ⌘K (Ctrl+K on Windows) anywhere in Cutroom to open the command palette and type to filter.",
-  summarize: (a) => (a?.query ? `List features matching “${cut(a.query, 30)}”` : "List Cutroom features"),
+  howTo: "Press ⌘K (Ctrl+K on Windows) anywhere in Genga Studio to open the command palette and type to filter.",
+  summarize: (a) => (a?.query ? `List features matching “${cut(a.query, 30)}”` : "List Genga Studio features"),
   async execute(args): Promise<ToolResult> {
     const all = deps.allActions() as unknown as {
       name: string; title: string; description: string; keywords?: string[];

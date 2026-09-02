@@ -27,7 +27,7 @@ from .planner import ANTHROPIC_VERSION, DEFAULT_ANTHROPIC_MODEL
 MAX_TURNS = 8
 
 CHAT_SYSTEM = """You are the on-call film technician for an AI-anime
-production running on the Cutroom platform. The director speaks from the
+production running on the Genga Studio platform. The director speaks from the
 production UI; you inspect the project with your tools and execute edits by
 compiling them into EditPlans and running them.
 
@@ -184,7 +184,7 @@ async def stream_openai(project: str, message: str, backend,
         yield {"kind": "error", "text": "openai-chat backend has no base_url"}
         return
     sys_prompt = ("You are a production advisor for an AI-anime film on the "
-                  "Cutroom platform (cel pipeline: still plates + region i2v "
+                  "Genga Studio platform (cel pipeline: still plates + region i2v "
                   "+ freeze/chain edits). You cannot run tools; give concrete, "
                   f"terse guidance. Context: {json.dumps(context)[:2000]}")
     body = {"model": (backend.options or {}).get("model") or "default",
@@ -224,7 +224,7 @@ async def stream_claude_cli(project: str, message: str, backend,
     api = f"http://{settings.host}:{settings.port}"
     auth = (f" -H 'Authorization: Bearer {settings.auth_token}'"
             if settings.auth_token else "")
-    prompt = f"""You are the on-call film technician for the Cutroom project
+    prompt = f"""You are the on-call film technician for the Genga Studio project
 '{project}'. Its media workspace is this directory. The platform API is at
 {api} (curl{auth}). Key routes: GET /api/projects/{project}/film ·
 POST /api/projects/{project}/direct {{"instruction": ...}} (plan only) ·

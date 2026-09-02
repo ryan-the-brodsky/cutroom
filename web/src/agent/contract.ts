@@ -1,5 +1,5 @@
 /**
- * Cutroom agent layer — the shared contract.
+ * Genga Studio agent layer — the shared contract.
  *
  * FROZEN AT G0 (2026-09-01). Every workstream imports from here; nobody edits this file
  * without the architect. See docs/WEBMCP-PLAN.md §3 for the design and

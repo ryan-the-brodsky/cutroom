@@ -1,4 +1,4 @@
-# Cutroom hosted deployment.
+# Genga Studio hosted deployment.
 #   cd platform && docker compose -f deploy/docker-compose.yml up --build
 #
 # GPU boxes are NOT containers here — they are ComfyUI hosts you register as

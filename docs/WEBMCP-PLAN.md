@@ -838,3 +838,20 @@ at low cost, with the owner able to toggle providers without redeploying.
   caricature → anime cel); reference frames opt-in per backend. `radio` → `narration` with a
   boot migration; "radio futz" → voice `treatment` (none default; radio, phone, megaphone,
   hall); baseball and dial leftovers removed from copy. 632 web / 256 server tests. 46 tools.
+
+## Rebrand (2026-09-02)
+
+The product was renamed from Cutroom to **Genga Studio**, on the domain
+**gengastudio.com**. 原画 *genga* is the Japanese term for the key drawings in
+animation.
+
+Every "Cutroom" above is left as written. This document is the record of what
+was planned and when, not a description of the current product, so restating it
+under the new name would falsify the record. Read those mentions as the old
+name for the same thing.
+
+Nothing internal changed. The Python package and import path `cutroom`, the
+`cutroom` CLI, the `CUTROOM_*` environment variables, the Docker image and
+Railway service names, the `~/.cutroom` data directory, the API paths and the
+WebMCP tool names are all unchanged, so the tool catalogue and the test
+evidence in this plan still describe the shipped build exactly.

@@ -1,4 +1,4 @@
-# Deploying Cutroom
+# Deploying Genga Studio
 
 ## Routes
 
@@ -13,7 +13,7 @@ The server is one origin with three kinds of path:
 `web/src/routes.ts` holds the single `APP_BASE` constant every route builder uses.
 Deep links minted before the move (`/p/…`, `/jobs`, `/settings`) redirect to their
 `/app/...` equivalent with the query string intact, so a pasted `?token=` link still
-works. The judge link is `<LIVE_URL>/app?token=<JUDGE_TOKEN>`, which skips the landing
+works. The judge link is `https://gengastudio.com/app?token=<JUDGE_TOKEN>`, which skips the landing
 page and opens the studio.
 
 The landing page's stills live in `web/public/landing/` and are served as real files by
@@ -124,10 +124,33 @@ The judge-facing instance for the WebMCP Challenge.
 | Railway project | `cutroom-demo` (`03953bf7-7b2a-420c-b2d9-21c970adcfb0`) |
 | Service | `cutroom` (`432042c8-5b3b-4ac4-9bdc-8c60a5ed3e97`) |
 | Environment | `production` (`aa83e186-a468-4901-aa8f-f1093013caf8`), region `sfo` |
-| Public URL | <https://cutroom-production-0f3c.up.railway.app> |
+| Public URL | <https://gengastudio.com> (fallback <https://cutroom-production-0f3c.up.railway.app>) |
 | Volume | `cutroom-data` mounted at `/data` |
 | Source | the GHCR image `ghcr.io/ryan-the-brodsky/cutroom-demo`, pinned to a `sha-<short>` tag |
 | Status | live — `/` serves the landing page, `/app` the studio, `/api/health` 200, demo mode on |
+
+### Custom domain
+
+`gengastudio.com` is live on this service. DNS is on Cloudflare and every
+record is **DNS-only** (grey cloud), not proxied.
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `gengastudio.com` | `nl382197.up.railway.app` |
+| CNAME | `www` | `59r5ux05.up.railway.app` |
+| TXT | `_railway-verify` | `railway-verify=5b8e4732bea75c291995b0648eb4f8e2c153c1079fda1f956e45d2691cbf0b8d` |
+
+The Railway side was created with:
+
+```bash
+railway domain gengastudio.com --service cutroom --port 8770
+railway domain www.gengastudio.com --service cutroom --port 8770
+```
+
+The Railway-provided `*.up.railway.app` URL stays valid as a fallback, so the
+health checks and judge links pointing at it keep working. The Railway
+**service** is still named `cutroom`. That is deliberate: it is an identifier,
+not the product name, and renaming it would move the deployment.
 
 ### Why the image, not a source build
 
@@ -380,6 +403,15 @@ importer re-imports `next-year` from the bundle automatically.
 
 Before judging opens, reset once so judges land on a clean film, and confirm
 `GET /api/projects` lists `next-year` with ~97 shots.
+
+### Repo rename
+
+The GitHub repository was renamed from `cutroom` to `genga-studio` along with
+the product. GitHub keeps a permanent redirect from the old path, so existing
+clone URLs, configured `git remote` entries and the `ryan-the-brodsky/cutroom`
+links in these docs all keep resolving. The GHCR image path
+(`ghcr.io/ryan-the-brodsky/cutroom-demo`) is a separate namespace and did not
+change.
 
 ### Flipping the repo public
 

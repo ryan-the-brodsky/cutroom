@@ -1,7 +1,7 @@
 /**
  * ⌘K — the human twin of the tool list.
  *
- * Cutroom has ~97 user-facing actions across two rooms, five tabs and four generate sub-tabs.
+ * Genga Studio has ~97 user-facing actions across two rooms, five tabs and four generate sub-tabs.
  * The palette is the registry projected for a person: title, where it lives, and how to do it
  * by hand. Enter runs an arg-less action; anything that needs arguments navigates there and
  * pulses the control so the human finishes it themselves.
@@ -145,7 +145,7 @@ export default function Palette() {
     <div className="pal-backdrop" onMouseDown={(e) => {
       if (e.target === e.currentTarget) setOpen(false);
     }}>
-      <div className="pal" role="dialog" aria-label="Cutroom command palette">
+      <div className="pal" role="dialog" aria-label="Genga Studio command palette">
         <input
           ref={inputRef}
           className="pal-input"

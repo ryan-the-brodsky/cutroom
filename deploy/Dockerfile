@@ -1,4 +1,4 @@
-# Cutroom — single-image deploy (API + SPA + in-process workers).
+# Genga Studio — single-image deploy (API + SPA + in-process workers).
 # GPU generation happens on ComfyUI hosts you point backends at; this image
 # only needs ffmpeg + python.
 #   docker build -f deploy/Dockerfile -t cutroom .

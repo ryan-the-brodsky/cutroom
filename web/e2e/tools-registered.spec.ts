@@ -4,7 +4,7 @@ import { agentMode, gotoApp, listTools } from "./agent";
 
 /**
  * The contract, checked against what the browser actually holds.
- * This is the spec that proves "Cutroom is a WebMCP app" — everything else builds on it.
+ * This is the spec that proves "Genga Studio is a WebMCP app" — everything else builds on it.
  */
 test.describe("tool registration", () => {
   test("the page exposes a WebMCP surface", async ({ page }) => {

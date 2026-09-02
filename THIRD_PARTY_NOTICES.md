@@ -1,8 +1,8 @@
 # Third-party notices
 
-Cutroom is distributed under the MIT License (see [`LICENSE`](LICENSE)). It
+Genga Studio is distributed under the MIT License (see [`LICENSE`](LICENSE)). It
 incorporates, or builds on, the third-party work listed below. Each item keeps
-its own copyright and license; nothing here is claimed as original to Cutroom.
+its own copyright and license; nothing here is claimed as original to Genga Studio.
 
 ---
 
@@ -13,7 +13,7 @@ its own copyright and license; nothing here is claimed as original to Cutroom.
 `use-player.ts`, the `clock/`, `composition/`, `video/` and `contracts/`
 subtrees). This is a surgical lift of FreeCut's player — its clock, its
 sequence/composition primitives, its video-source pool and its player event
-emitter — adapted to Cutroom's own timeline model, stores and persistence
+emitter — adapted to Genga Studio's own timeline model, stores and persistence
 layer. The design rationale for the lift is recorded in
 [`docs/FOUNDATION.md`](docs/FOUNDATION.md) §§8–11.
 
@@ -54,7 +54,7 @@ other Composition Player) source is present in this repository.
 
 FreeCut vendors **SoundTouch JS** (`src/infrastructure/audio/time-stretch.ts`)
 which is **LGPL-2.1**, not MIT. That file and its two importers were excluded
-from the lift; Cutroom contains no SoundTouch code and no LGPL-licensed source.
+from the lift; Genga Studio contains no SoundTouch code and no LGPL-licensed source.
 Audio time-stretching, if it is ever added, will use an MIT implementation.
 See `docs/FOUNDATION.md` §8 for the audit that found this.
 
@@ -73,7 +73,7 @@ license as §1. The feature is optional and off unless `CUTROOM_ENGINE_DIR` is s
 
 ## 3. Runtime dependencies
 
-Cutroom's Python and JavaScript dependencies are declared in
+Genga Studio's Python and JavaScript dependencies are declared in
 [`server/pyproject.toml`](server/pyproject.toml) and
 [`web/package.json`](web/package.json) and are installed from PyPI and npm
 rather than vendored. They carry their own licenses (predominantly MIT, BSD and
@@ -83,7 +83,7 @@ Apache-2.0): FastAPI, Uvicorn, SQLAlchemy, Pydantic, httpx, Pillow, NumPy, SciPy
 **ffmpeg** is invoked as an external binary (never linked, never redistributed
 here); the Docker image installs it from Debian. Depending on how it was built,
 ffmpeg may be LGPL-2.1+ or GPL-2.0+ — that is a property of the operator's
-image, not of Cutroom, and Cutroom's use is `subprocess` only.
+image, not of Genga Studio, and Genga Studio's use is `subprocess` only.
 
 ---
 

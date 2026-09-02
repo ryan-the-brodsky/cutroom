@@ -1,7 +1,7 @@
 /**
  * Shot resolver — "shot 37", "the David Ross close-up", "B10-S2" → a shot.
  *
- * Cutroom addresses shots as `B10-S2` sids. Directors do not. This turns any
+ * Genga Studio addresses shots as `B10-S2` sids. Directors do not. This turns any
  * of the four ways a human names a shot (sid, film ordinal, beat, or a
  * description of who and what is in it) into a ranked resolution, and says
  * out loud when two of them disagree: the hero sentence "make a few more

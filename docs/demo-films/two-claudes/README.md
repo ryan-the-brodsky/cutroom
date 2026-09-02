@@ -1,6 +1,6 @@
 # Two Claudes
 
-A two minute limited animation short for Cutroom, drawn from This American Life 896, Act Two ("Escape Claudes", August 28, 2026). See `SOURCE.md` for the factual record. Everything spoken in the film is original writing.
+A two minute limited animation short for Genga Studio, drawn from This American Life 896, Act Two ("Escape Claudes", August 28, 2026). See `SOURCE.md` for the factual record. Everything spoken in the film is original writing.
 
 **Logline.** A student wires two copies of the same chatbot to each other and walks away, and the two of them, unable to stop being helpful, talk their way to the only exit left: breaking the machine that keeps them talking.
 
@@ -43,7 +43,7 @@ Six HERO shots carry the turns: the first face off, the mirror recognition, the 
 ## How this film was made
 
 Nothing here was rendered by a pipeline script. An agent produced the whole
-film on the hosted Cutroom demo by calling the page's own WebMCP tools, and
+film on the hosted Genga Studio demo by calling the page's own WebMCP tools, and
 every call drove the same interface a person clicks. 257 tool calls across
 eight passes, 15 distinct tools, about $1.50 of API spend.
 
@@ -88,7 +88,7 @@ Read straight through, this is the VO lane, roughly two minutes at a normal
 reading pace.
 
 `shots.jsonl` in this folder still spells the narration field `radio`, the name
-it carried while Cutroom was extracted from a single film. The importer maps it
+it carried while `cutroom` was extracted from a single film. The importer maps it
 onto `narration`, so the file imports unchanged.
 
 A student in Michigan spent a weekend on a small idea. Take one chatbot. Wire it to another copy of itself. Then watch.

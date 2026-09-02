@@ -1,4 +1,4 @@
-# Backends — plugging generation into Cutroom
+# Backends — plugging generation into Genga Studio
 
 A backend row: `{id, type, label, base_url, api_key, options, enabled}`.
 Manage in **Settings → Backends** or `POST /api/backends`. API keys are

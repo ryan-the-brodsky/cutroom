@@ -1,4 +1,4 @@
-# Cutroom agent copy deck
+# Genga Studio agent copy deck
 
 > Every string an agent or the ⌘K palette sees, in catalogue order, with its
 > character count against the Chrome budget (docs/research/webmcp-api-brief.md §5:
@@ -62,7 +62,7 @@
 
 ## 3. `get_context` — Where am I?
 
-**where** `/p/:pid` · anchor `app.nav.film` · **“Anywhere in Cutroom”**
+**where** `/p/:pid` · anchor `app.nav.film` · **“Anywhere in Genga Studio”**
 
 **description** (446/500)
 
@@ -74,19 +74,19 @@
 
 **keywords** — `context` `where` `current` `state` `screen` `now` `status`
 
-## 4. `list_features` — List Cutroom features
+## 4. `list_features` — List Genga Studio features
 
 **where** `/p/:pid` · anchor `—` · **“⌘K command palette”**
 
 **description** (415/500)
 
-> List what Cutroom can do and where each feature lives in the UI, optionally filtered by a word like "freeze", "keeper", "cut" or "voice". Each entry gives the tool name, a title, the screen path ("Shot Editor → Motion edits") and how a human does it by hand. Use it to answer "what can this do?" or to teach the director a feature they have not found — then call show_me to navigate there and highlight the control.
+> List what Genga Studio can do and where each feature lives in the UI, optionally filtered by a word like "freeze", "keeper", "cut" or "voice". Each entry gives the tool name, a title, the screen path ("Shot Editor → Motion edits") and how a human does it by hand. Use it to answer "what can this do?" or to teach the director a feature they have not found — then call show_me to navigate there and highlight the control.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
 | `query` |  | string | 84/150 | Optional filter word, e.g. "freeze", "keeper", "generate", "timing", "cut the film". |
 
-**howTo** (96) — Press ⌘K (Ctrl+K on Windows) anywhere in Cutroom to open the command palette and type to filter.
+**howTo** (96) — Press ⌘K (Ctrl+K on Windows) anywhere in Genga Studio to open the command palette and type to filter.
 
 **keywords** — `features` `help` `what can you do` `capabilities` `palette` `commands`
 
@@ -96,7 +96,7 @@
 
 **description** (435/500)
 
-> Teach a Cutroom feature by driving to it: navigates to the screen where the feature lives, highlights the actual control with a pulse, and explains how a human does it by hand. Answers "where is that?", "how do I do that myself?" and "show me the freeze tool". Nothing is generated and nothing is changed — this only moves the view. Pass a feature name or plain words like "freeze tail", "cut the film", "set the keeper", "voice over".
+> Teach a Genga Studio feature by driving to it: navigates to the screen where the feature lives, highlights the actual control with a pulse, and explains how a human does it by hand. Answers "where is that?", "how do I do that myself?" and "show me the freeze tool". Nothing is generated and nothing is changed — this only moves the view. Pass a feature name or plain words like "freeze tail", "cut the film", "set the keeper", "voice over".
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
@@ -132,7 +132,7 @@
 
 **description** (482/500)
 
-> Generate new takes for a shot in Cutroom — stills, restyles of an existing take, or animated cel clips. Opens the shot's Generate console on screen, fills it, and submits one job per take with a fresh seed. Returns job ids and, when the backend is fast, the finished takes. Count is 1–4 (default 3). Prompt defaults to the shot's own written prompt; prompt_mode "append" adds yours to it. Animate keeps the first second live and freezes the rest. Paid backends require confirm_cost.
+> Generate new takes for a shot in Genga Studio — stills, restyles of an existing take, or animated cel clips. Opens the shot's Generate console on screen, fills it, and submits one job per take with a fresh seed. Returns job ids and, when the backend is fast, the finished takes. Count is 1–4 (default 3). Prompt defaults to the shot's own written prompt; prompt_mode "append" adds yours to it. Animate keeps the first second live and freezes the rest. Paid backends require confirm_cost.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|
@@ -291,7 +291,7 @@
 
 **description** (473/500)
 
-> Compile a plain-English direction into Cutroom's own edit plan and show it on screen as a preview — "keep the first second and hold his pose for the rest of the line", "restyle this warmer", "make it two seconds longer". Types the instruction into the shot's Direct box and compiles it; the film's deterministic grammar goes first and reads the real voice-over duration. NOTHING RUNS: this only returns the plan. Show it to the director, then call apply_plan to execute it.
+> Compile a plain-English direction into Genga Studio's own edit plan and show it on screen as a preview — "keep the first second and hold his pose for the rest of the line", "restyle this warmer", "make it two seconds longer". Types the instruction into the shot's Direct box and compiles it; the film's deterministic grammar goes first and reads the real voice-over duration. NOTHING RUNS: this only returns the plan. Show it to the director, then call apply_plan to execute it.
 
 | param | req | type | chars | description |
 |---|---|---|---|---|

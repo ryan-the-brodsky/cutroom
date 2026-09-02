@@ -55,7 +55,7 @@ export const generateTakes: ActionDef<GenArgs> = {
   name: "generate_takes",
   title: "Generate takes",
   description:
-    "Generate new takes for a shot in Cutroom — stills, restyles of an existing " +
+    "Generate new takes for a shot in Genga Studio — stills, restyles of an existing " +
     "take, or animated cel clips. Opens the shot's Generate console on screen, " +
     "fills it, and submits one job per take with a fresh seed. Returns job ids " +
     "and the takes. Count 1–4 (default 3). Prompt defaults to the shot's own. " +

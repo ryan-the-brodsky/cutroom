@@ -1,6 +1,6 @@
-# Cutroom timeline foundation + engine lift — phased plan
+# Genga Studio timeline foundation + engine lift — phased plan
 
-> The build plan for the decision in [FOUNDATION.md](./FOUNDATION.md): give Cutroom a real
+> The build plan for the decision in [FOUNDATION.md](./FOUNDATION.md): give Genga Studio a real
 > rational-time timeline and drive rendering/preview with FreeCut's lifted engine, without
 > hard-forking the app. Phases are ordered so each one leaves the tree green and, where a
 > browser surface exists, e2e-verifiable in Chrome. Estimates are engineer-time for a focused
@@ -81,7 +81,7 @@ Prove the model + compiler drive the real engine end-to-end, in a browser, on th
   engine (`renderProject`) in headless Chrome via Playwright, returns the mp4. (Later swap to
   a warm `serve.mjs` co-process for speed.)
 - **Endpoint** `POST /api/projects/{p}/timeline/render` → job → mp4 Take.
-- **Cutroom UI** `web/`: a **Timeline** view that fetches the compiled model and draws
+- **Genga Studio UI** `web/`: a **Timeline** view that fetches the compiled model and draws
   the clips as a real strip (in/out, per-clip duration, track lanes, total runtime), with a
   "render via engine" action that plays the result inline.
 - **e2e (claude-in-chrome):** load the app over the LAN URL (`CUTROOM_HOST=0.0.0.0`, the
@@ -99,7 +99,7 @@ Exit: real film visible as a real timeline in our UI; engine render plays; scree
   already falls through to `UrlSource`); set `crossOrigin='anonymous'` on video elements; our
   media endpoint must send CORP + Range.
 - **e2e:** scrub the playhead in our own UI; frames update from our server's media. The thing
-  Cutroom has never had.
+  Genga Studio has never had.
 
 ## Phase 5 — Track view + edit verbs  ·  ~3–5 weeks
 
@@ -143,7 +143,7 @@ Exit: real film visible as a real timeline in our UI; engine render plays; scree
 ## This session's target
 
 Phases 1–3: the data model, the compiler on the real film, and a browser-verified engine render
-through a Cutroom Timeline view. Phase 4+ (the interactive lift) is subsequent work.
+through a Genga Studio Timeline view. Phase 4+ (the interactive lift) is subsequent work.
 
 ---
 
@@ -162,7 +162,7 @@ of the sample film *Next Year*: **186 clips (76 stills · 21 motion · 89 VO), 7
 - `web/src/pages/TimelinePage.tsx` (+ route + nav): the film as a real clip strip — V1 clips
   (stills as true holds, motion with in/out + thumbnails), A1 VO offset under each shot, ruler,
   zoom, per-clip detail (source in/out, head/tail handles, lineage).
-- Verified in a **real browser** (Playwright + system Chrome) against the running Cutroom server:
+- Verified in a **real browser** (Playwright + system Chrome) against the running Genga Studio server:
   186 clip elements, header "186 clips · 7:43 · 24fps · 1920×1080", zero page errors.
 - **End-to-end on real data:** pulled the compiler's `/timeline/freecut` output for the real
   film, scoped to 24s, served the real media by URL, drove the FreeCut engine → **frame-exact
@@ -207,7 +207,7 @@ added a `@`→src alias (vite + tsconfig) and `vite-env.d.ts`. Wrote `PreviewSta
 (~150 lines) driving `HeadlessPlayer` + `Sequence`; media loads **same-origin** through the
 server (no COOP/COEP needed, per the recon). Verified live: a **scrubbable preview** composites the
 real film's media by URL; clicking a clip seeks (the right frame appeared for B02-S5), the red
-playhead + scrubber stay in sync. This is the thing Cutroom never had. (Video/stills scrub; audio
+playhead + scrubber stay in sync. This is the thing Genga Studio never had. (Video/stills scrub; audio
 playback is a later pass.)
 
 **Phase 5 (partial) — edit-ops library.** `timeline/edits.py` + `edits.ts` (35 tests): slip,

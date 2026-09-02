@@ -24,7 +24,7 @@ follow it.
 
 ### A note on commit dates
 
-This repository was `git init`-ed on 2026-09-01, when Cutroom was split out of
+This repository was `git init`-ed on 2026-09-01, when `cutroom` was split out of
 the private parent repository into its own public repo. So
 `cebcf93`'s *commit* timestamp is 2026-09-01 even though the *work* is from
 July. The independent evidence that the snapshot predates the submission period:
@@ -39,7 +39,7 @@ July. The independent evidence that the snapshot predates the submission period:
 - The snapshot's own verification log (README "Verification status"): 36 pytest
   tests, 97 shots / 567 takes / 7 comps imported, act 1 assembled to a 194 s
   animatic — all done in July.
-- **The parent repository.** Cutroom was extracted from a private parent
+- **The parent repository.** `cutroom` was extracted from a private parent
   repository, where it lived as a subdirectory. The private parent repository
   (commit `b05a754`) holds the film pipeline this was built out of.
 
@@ -55,7 +55,7 @@ the contemporaneous record, and the parent repo holds the original history.
 
 ## Prior work — what `cebcf93` already contained (built 2026-07-12..15)
 
-Cutroom was already a complete, working, tested application before the
+Genga Studio was already a complete, working, tested application before the
 hackathon. Top-level areas, all pre-existing:
 
 - **`server/cutroom/` (58 files)** — the FastAPI application and engine library:

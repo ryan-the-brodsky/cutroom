@@ -1,4 +1,4 @@
-# FOUNDATION — should Cutroom extend an existing editor?
+# FOUNDATION — should Genga Studio extend an existing editor?
 
 > Landscape evaluation, 2026-07-14. Six parallel research passes: open-source browser
 > editors, open-source engines, OTIO/interchange, the commercial AI-film field, a pro-NLE
@@ -13,7 +13,7 @@
 
 **We did not build a video editor. We built a shot database with a render button.**
 
-Cutroom is ~10k lines: `Project → Shot → Take → Comp → Job`, adapters, a director
+Genga Studio is ~10k lines: `Project → Shot → Take → Comp → Job`, adapters, a director
 grammar, and a linear assembler. The Film Editor is a strip of shot cells with a `seconds`
 field. `engine/assemble.py` renders one segment per shot and concats them.
 
@@ -32,7 +32,7 @@ That single absence explains the shape of the whole codebase:
 
 An independent parity audit reached the same diagnosis from the outside:
 
-> "Cutroom is an excellent generative shot manager with a genuinely novel NL edit surface —
+> "[Genga Studio] is an excellent generative shot manager with a genuinely novel NL edit surface —
 > and its `Take`/variant model already gives it FCP Auditions for free. But it is not yet an
 > NLE, and the reason is precise and singular: **it has no time model.** Shots are slots,
 > not clips-on-a-track-with-in-and-out-points."
@@ -230,9 +230,9 @@ Its lineage is *analysis* lineage (derived **from** media) rather than *generati
 
 ### The risk the audit did not weigh, and I think is the biggest one
 
-**FreeCut is local-first; Cutroom is server-authoritative.** FreeCut's `PRODUCT.md` is
+**FreeCut is local-first; Genga Studio is server-authoritative.** FreeCut's `PRODUCT.md` is
 explicit: local-first, no cloud, no subscription. It persists to **OPFS** via a
-`workspace-fs` layer. Cutroom keeps project state in a DB, media on the server, and jobs in a
+`workspace-fs` layer. Genga Studio keeps project state in a DB, media on the server, and jobs in a
 server-side queue with GPU pools.
 
 Marrying them means rewiring FreeCut's storage/persistence layer — and its undo
@@ -485,7 +485,7 @@ vitest stress run; the headless render is Chrome-driven and Node-version-insensi
 ## 10. Target architecture
 
 ```
-   Cutroom server (keep — this IS the product)
+   Genga Studio server (keep — this IS the product)
    generation · Take lineage · jobs/pools · adapters · director grammar · anime bible
                                     │
                           timeline model  ← single source of truth, our schema, our store

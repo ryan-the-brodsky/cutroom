@@ -1,4 +1,4 @@
-# Testing Cutroom's WebMCP layer
+# Testing Genga Studio's WebMCP layer
 
 Owner: workstream E. Companion to [`WEBMCP-PLAN.md`](WEBMCP-PLAN.md) §8 and
 [`research/webmcp-api-brief.md`](research/webmcp-api-brief.md).
@@ -175,7 +175,7 @@ npm run e2e:headed                # watch it drive
 npx playwright test e2e/j1-generate.spec.ts --headed --debug
 ```
 
-`web/playwright.config.ts` starts `scripts/e2e-server.sh` (a scratch Cutroom on **:8785** with
+`web/playwright.config.ts` starts `scripts/e2e-server.sh` (a scratch `cutroom` server on **:8785** with
 a temp `CUTROOM_DATA`, the film imported, `mock` backend, all lanes on mock) via `webServer`
 and points `baseURL` at `http://localhost:8785`. It **never touches `~/.cutroom`.**
 

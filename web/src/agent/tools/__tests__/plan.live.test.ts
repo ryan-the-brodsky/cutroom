@@ -1,5 +1,5 @@
 /**
- * Live check: plan_motion -> apply_motion_plan against a real Cutroom server
+ * Live check: plan_motion -> apply_motion_plan against a real Genga Studio server
  * with mock lanes, plus GET /api/projects/{pid}/spend.
  *
  * Skipped unless CUTROOM_LIVE_URL is set, so `npm test` stays hermetic:

@@ -1,11 +1,13 @@
-# CUTROOM — hosted studio platform architecture
+# Genga Studio — hosted studio platform architecture
 
 > A hosted, multi-project web application for making limited-animation films,
 > with pluggable generation backends.
 
+The engine and its package are called `cutroom`; the product is Genga Studio.
+
 ## 1. Origins
 
-Cutroom grew out of a single-machine pipeline for a limited-animation short.
+Genga Studio grew out of a single-machine pipeline for a limited-animation short.
 That pipeline is not part of this repository. It was a pile of scripts welded
 to one box: a fixed ComfyUI install at a hard-coded address, model filenames
 baked in, an assembler that only ran inside the ComfyUI virtualenv, a
@@ -13,7 +15,7 @@ directory scan standing in for an asset database, JSON files on disk standing
 in for state, and a single-page UI that could only ever serve one film on one
 machine.
 
-Cutroom keeps the ideas and throws away the coupling. Every generator is an
+Genga Studio keeps the ideas and throws away the coupling. Every generator is an
 adapter behind a lane contract, every path is project-relative, state is a
 database, and the whole thing serves many films to many people over HTTP.
 
@@ -56,7 +58,7 @@ The design ideas worth keeping (they ARE the product):
 
 ## 2. Product shape
 
-**Cutroom** is a self-hostable web application for directing AI-generated
+**Genga Studio** is a self-hostable web application for directing AI-generated
 limited-animation film. One server, N projects, M pluggable generation backends.
 
 ```
@@ -241,7 +243,7 @@ Project ── Shot (script row: prompts, register, audio fields, order)
 
 A Shot's audio fields are `narration` (what a voice says over the shot),
 `dialogue` (in-scene lines), `sfx` and `ambient`. None of them presumes a
-genre: `narration` carried the name `radio` while Cutroom was extracted from
+genre: `narration` carried the name `radio` while `cutroom` was extracted from
 one film whose narration happened to be a broadcast, and the API still accepts
 and returns that spelling for one release. The rename is applied by
 `db.migrate_db()`, which runs on every boot: it adds the new column, copies the
@@ -256,8 +258,8 @@ curation, overrides, and scans renders into Take rows.
 
 ### Studio folder layout
 
-A *studio folder* is the plain on-disk shape Cutroom reads and writes. It is not
-a Cutroom invention: it is what a film looks like when a small team keeps it in a
+A *studio folder* is the plain on-disk shape `cutroom` reads and writes. It is not
+a Genga Studio invention: it is what a film looks like when a small team keeps it in a
 directory, and it stays readable with `ls` and a text editor.
 
 ```

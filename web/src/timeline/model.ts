@@ -1,5 +1,5 @@
 /**
- * The Cutroom timeline model — the TS mirror of the server's
+ * The Genga Studio timeline model — the TS mirror of the server's
  * `cutroom.timeline.model` (see FOUNDATION.md §4). Frame-based rational time
  * (integer frames + a timeline fps — never float seconds); a clip's timeline
  * position (`start`/`duration`) is independent of the source slice it shows

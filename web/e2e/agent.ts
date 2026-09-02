@@ -1,5 +1,5 @@
 /**
- * E2E agent bridge — the single door the specs use to reach Cutroom's tools.
+ * E2E agent bridge — the single door the specs use to reach Genga Studio's tools.
  *
  * Prefers the NATIVE WebMCP API, falls back to workstream A's debug hook.
  * Order (all evaluated inside page script — see docs/TESTING-WEBMCP.md §1.7):

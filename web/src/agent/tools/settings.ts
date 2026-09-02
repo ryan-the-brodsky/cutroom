@@ -1,5 +1,5 @@
 /**
- * Lanes, backends and getting the cut out of Cutroom (workstream I).
+ * Lanes, backends and getting the cut out of Genga Studio (workstream I).
  *
  * `list_backends` and `export_timeline` are reads. `set_lane_default` changes
  * what every future generation runs on, so it drives the Settings page's lane
@@ -53,7 +53,7 @@ export const listBackends: ActionDef<Record<string, never>> = {
   name: "list_backends",
   title: "List generation backends",
   description:
-    "Report every generation backend this Cutroom knows: its id and adapter " +
+    "Report every generation backend this server knows: its id and adapter " +
     "type, which lanes it can serve (still, i2i, motion, vo, music, sfx, " +
     "direction), whether it is enabled, whether a key is stored, and whether it " +
     "costs money per job. Nothing is probed, so it is instant and never bills. " +
@@ -226,7 +226,7 @@ export const exportTimeline: ActionDef<ExportArgs> = {
   description:
     "Hand the cut to another program. \"otio\" is OpenTimelineIO JSON, which " +
     "opens natively in Resolve, Nuke Studio and Kdenlive and carries each " +
-    "clip's Cutroom lineage in its metadata; \"edl\" is a CMX3600 edit decision " +
+    "clip's Genga Studio lineage in its metadata; \"edl\" is a CMX3600 edit decision " +
     "list, the universal conform format. Nothing is rendered and nothing " +
     "changes — this compiles the current film and returns a download URL plus " +
     "the first lines, so you can check the cut before opening it downstream.",

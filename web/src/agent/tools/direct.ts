@@ -29,7 +29,7 @@ export const directShot: ActionDef<DirectArgs> = {
   name: "direct_shot",
   title: "Direct this shot",
   description:
-    "Compile a plain-English direction into Cutroom's own edit plan and show it on " +
+    "Compile a plain-English direction into Genga Studio's own edit plan and show it on " +
     "screen as a preview — \"hold his pose for the rest of the line\", \"restyle this " +
     "warmer\", \"make it two seconds longer\". Types the instruction into the shot's " +
     "Direct box and compiles it; the deterministic grammar goes first and reads the " +

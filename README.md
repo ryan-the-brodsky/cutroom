@@ -1,15 +1,17 @@
-# CUTROOM
+# Genga Studio
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/ryan-the-brodsky/cutroom/actions/workflows/ci.yml/badge.svg)](https://github.com/ryan-the-brodsky/cutroom/actions/workflows/ci.yml)
 [![WebMCP](https://img.shields.io/badge/WebMCP-document.modelContext-8a63d2)](docs/WEBMCP-PLAN.md)
 
-> **Live demo:** _(hosted URL — pending first deploy)_ ·
+> **Live demo:** [gengastudio.com](https://gengastudio.com) ·
 > **Third-party code:** [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) ·
 > **Prior work vs. new work:** [`docs/PRIOR-WORK.md`](docs/PRIOR-WORK.md)
 
-Cutroom is a hosted web application for making limited-animation films:
-one server, N film projects, M pluggable generation backends.
+Genga Studio is a hosted web application for making limited-animation films:
+one server, N film projects, M pluggable generation backends. Anime on a
+budget, the way anime always was. 原画 genga, the key drawings; an animator
+draws the frames that matter and the studio fills the rest.
 
 ```
 cutroom/
@@ -27,7 +29,7 @@ cutroom/
 ./dev.sh server      # http://127.0.0.1:8770
 ```
 
-`/` is the public landing page (what Cutroom is, the demo film, how the WebMCP
+`/` is the public landing page (what Genga Studio is, the demo film, how the WebMCP
 layer works). The studio itself lives at **`/app`**, and old deep links
 (`/p/…`, `/jobs`, `/settings`) redirect there. The landing page registers the
 same WebMCP tools, so a visitor who lands on `/` can ask the page what it does.
@@ -89,7 +91,7 @@ Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
   (the 16GB discipline, generalized); CPU work runs parallel. Remote workers
   on GPU VMs claim jobs over HTTP (`cutroom-worker`).
 
-## Drive Cutroom with an agent (WebMCP)
+## Drive Genga Studio with an agent (WebMCP)
 
 **An agent made a film with this.** [Two Claudes](docs/demo-films/two-claudes/README.md)
 is a 130-second limited-animation short. An agent produced it end to end on the
@@ -97,7 +99,7 @@ hosted demo through the page's own WebMCP tools: 15 shots, three frozen motion
 bursts, 15 voice lines, a music bed, SFX cues, four assembler passes. 257 tool
 calls, about $1.50, no pipeline script.
 
-Cutroom has about a hundred distinct actions across two rooms and five tabs,
+Genga Studio has about a hundred distinct actions across two rooms and five tabs,
 and finding any of them means clicking. WebMCP lets the page hand an agent the
 whole list instead.
 
@@ -113,7 +115,8 @@ you learn the app by watching the agent drive it. Reads are the only silent
 calls, an Agent trail logs every step, and paid backends refuse to spend
 without an explicit `confirm_cost`.
 
-Open the [live demo](https://cutroom-production-0f3c.up.railway.app/app) in
+Open the [live demo](https://gengastudio.com/app) (the Railway URL
+<https://cutroom-production-0f3c.up.railway.app/app> still works) in
 ChatGPT Desktop's browser (Settings › Browser › Enable site tools) or Chrome
 149+ with `chrome://flags/#enable-webmcp-testing`, then ask:
 

@@ -6,7 +6,7 @@ import { normalizeInput } from "../webmcp";
 
 const def = (name: string, title: string, over: Partial<ActionDef<any>> = {}): ActionDef<any> => ({
   name, title,
-  description: `Do ${title.toLowerCase()} in Cutroom.`,
+  description: `Do ${title.toLowerCase()} in Genga Studio.`,
   inputSchema: { type: "object", properties: {}, required: [] },
   where: { route: "/", label: "Somewhere" },
   howTo: "Click it.",

@@ -23,7 +23,7 @@ const openShot: ActionDef<OpenShotArgs> = {
   name: "open_shot",
   title: "Open a shot",
   description:
-    "Open a shot in Cutroom's Shot Editor and put a specific tab on screen. Accepts a shot id " +
+    "Open a shot in Genga Studio's Shot Editor and put a specific tab on screen. Accepts a shot id " +
     "(B10-S2), a number in film order (37), a beat (B10) or a description. Navigates the real " +
     "UI so the human sees where the work happens.",
   inputSchema: {
@@ -92,7 +92,7 @@ const showMe: ActionDef<ShowMeArgs> = {
   name: "show_me",
   title: "Show me where that lives",
   description:
-    "Find a Cutroom feature by name, navigate to the screen it lives on, highlight the exact " +
+    "Find a Genga Studio feature by name, navigate to the screen it lives on, highlight the exact " +
     "control, and explain how a human does it by hand. Use this to teach the UI rather than " +
     "doing the work for the director.",
   inputSchema: {
@@ -121,7 +121,7 @@ const showMe: ActionDef<ShowMeArgs> = {
       .sort((a, b) => b.score - a.score);
     if (!scored.length) {
       return err("feature_not_found", {
-        hint: "call list_features to see everything Cutroom can do",
+        hint: "call list_features to see everything Genga Studio can do",
         known: all().slice(0, 20).map((d) => d.name),
       });
     }

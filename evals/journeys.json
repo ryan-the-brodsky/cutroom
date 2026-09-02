@@ -1,5 +1,5 @@
 {
-  "$comment": "Cutroom WebMCP evals — the hero journeys from docs/WEBMCP-PLAN.md §5, in a runnable shape. Run them by hand through chrome-devtools-mcp (docs/TESTING-WEBMCP.md §3), or read them as the spec that j*.spec.ts encodes. Each journey is ONE human utterance; the agent gets only the tool list, never the expected sequence.",
+  "$comment": "Genga Studio WebMCP evals — the hero journeys from docs/WEBMCP-PLAN.md §5, in a runnable shape. Run them by hand through chrome-devtools-mcp (docs/TESTING-WEBMCP.md §3), or read them as the spec that j*.spec.ts encodes. Each journey is ONE human utterance; the agent gets only the tool list, never the expected sequence.",
   "version": 1,
   "updated": "2026-09-01",
   "target": {

@@ -157,7 +157,7 @@ export const showMe: ActionDef<ShowArgs> = {
   name: "show_me",
   title: "Show me how",
   description:
-    "Teach a Cutroom feature by driving to it: navigates to the screen where the " +
+    "Teach a Genga Studio feature by driving to it: navigates to the screen where the " +
     "feature lives, highlights the actual control with a pulse, and explains how a " +
     "human does it by hand. Answers \"where is that?\", \"how do I do that myself?\" " +
     "and \"show me the freeze tool\". Nothing is generated and nothing is changed — " +
