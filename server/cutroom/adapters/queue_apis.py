@@ -228,8 +228,26 @@ class FalAdapter(Adapter):
                 await asyncio.sleep(4)
             else:
                 raise AdapterError("fal job timeout")
-            result = (await c.get(response_url, headers=headers)).json()
-        urls = _find_media_urls(result)
+            rr = await c.get(response_url, headers=headers)
+            try:
+                result = rr.json()
+            except ValueError:
+                raise AdapterError(f"fal result [{rr.status_code}]: {rr.text[:300]}")
+            if rr.status_code != 200 or (isinstance(result, dict) and result.get("detail")):
+                # fal reports refusals here (422 with detail[]); say why, and what to try.
+                detail = result.get("detail") if isinstance(result, dict) else None
+                msg = "; ".join(
+                    str(d.get("msg") or d.get("type") or d) for d in detail
+                ) if isinstance(detail, list) else str(detail or rr.text[:300])
+                hint = ""
+                if "content" in msg.lower() or "policy" in msg.lower():
+                    hint = (" fal's input checker on this model refused the plate. "
+                            "Rerun with a different motion model (the registry's fallback, "
+                            "e.g. model:'seedance' or model:'wan'), or regenerate the plate "
+                            "with a calmer composition.")
+                raise AdapterError(f"fal refused the request on {model}: {msg[:300]}.{hint}")
+        urls = [u for u in _find_media_urls(result)
+                if not u.startswith("https://docs.fal.ai")]
         if not urls:
             raise AdapterError("fal returned no media urls; response: "
                                f"{str(result)[:500]}")
