@@ -599,3 +599,11 @@ at low cost, with Ryan able to toggle providers without redeploying.
   rate-limited like a judge; page handles hid the server's 429 text; "newest motion" matched a
   crop intermediate; `wait_for_jobs` rejected job objects. All four fixed (1ec04b0); memory
   limit raise + cpu pool 1 delegated to D; retry runs staged for the 5 slates + 3 motion shots.
+- **Production cycle 2 (Tue 19:15–19:45 PT)** — Railway workspace is an inactive Hobby trial:
+  memory hard-capped at 1 GB, volume at 500 MB, source builder dead (D verified via the
+  limits API; a paid plan clears all three). Within the cap: cpu pool 1, CPU 2 vCPU, and the
+  full-frame cel path now streams through ffmpeg instead of the in-memory compositor. Result:
+  fal motion clips land without restarts (B02-S2, B04-S2 with the doctrine freeze). Slate
+  shots re-generated (5 stills + 5 VO, zero failures). Found + fixed: `set_timeline_source` /
+  `set_keeper` ignored the monitor selection; run steps double-froze. Finishing run + re-cut
+  in flight. New workstream H: ElevenLabs music + SFX as film cues and WebMCP tools (Ryan).
