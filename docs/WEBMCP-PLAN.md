@@ -700,3 +700,9 @@ at low cost, with the owner able to toggle providers without redeploying.
   The owner subscribed to the paid Railway plan; service limits raised to **8 GB / 8 vCPU**
   (`serviceInstanceLimitsUpdate` accepted); `CUTROOM_CPU_POOL_SIZE=2`, `CUTROOM_ENCODER_THREADS=4`.
   Volume still 500 MB; growing it next.
+- **Judge-path test (Wed 09:30 PT)** — Ryan drove the hosted demo from ChatGPT Desktop's
+  built-in browser: the page chip read "35 tools · native", ChatGPT described the app from
+  `list_features`, then asked for a brand-new film and hit the admin gate on project creation
+  (friendly message, as designed). Decision: judges must be able to start a film from nothing.
+  Workstream K: `create_project` (viewer-allowed, capped per token), `write_script` (batch shot
+  upsert), `set_project_cast`, `list_projects`. Public-facing scrub (J) landed and pinned.
