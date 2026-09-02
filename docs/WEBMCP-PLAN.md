@@ -112,6 +112,16 @@ sprint plan with a submission package, and a v2 roadmap after it.
 6. **Cost and doctrine guards live in the tool, not the prompt.** Paid backends require
    `confirm_cost: true`; the tool reports the backend, its cost class and what will happen.
    Doctrine defaults (freeze after ~1s, no zoom) are the tool defaults.
+
+   > **Amended 2026-09-02 (workstream N).** The freeze-after-1s default is withdrawn. The
+   > live window turned out to be a property of the *backend*, not of image-to-video: the
+   > local LTX rig holds about a second, hosted Wan-class models hold three to five. Every
+   > motion backend now carries a `motion_profile` (clip length, fps, frame counts,
+   > resolutions, price) and **clips play in full** at that length. Freeze-tail and
+   > chain-stitching are SURGICAL repair tools: when a clip is good for its first N seconds
+   > and then drifts, keep the good frames and hold or continue from them instead of
+   > rerolling the whole clip. They are not defaults. The historical FIRST-SECOND LAW
+   > (2026-07) applied to the local LTX lane only. The zoom ban and the boil ban stand.
 7. **Budgets are contract.** Names ≤30, descriptions ≤500, param descriptions ≤150, outputs
    ≤1.5K chars, enforced by a unit test over the registry.
 
@@ -255,6 +265,11 @@ and appends `"…(truncated)"`), catches everything and returns `{ ok:false }` �
   passes through as a descriptive error.
 - Doctrine defaults: `animate` uses 49 frames + `freeze_after: 1.0` unless overridden; no zoom
   parameter exists; `freeze_tail` refuses stills with the server's own guard message.
+
+  > **Amended 2026-09-02 (workstream N).** `animate` now takes `seconds` and derives frames
+  > from the motion backend's `motion_profile`; `freeze_after` is applied **only** when a
+  > caller passes `live_seconds` (or `freeze_after`) explicitly. `generate_takes` reports the
+  > profile it used. The no-zoom rule and the `freeze_tail`-on-stills guard are unchanged.
 
 ### 3.8 Demo mode + hosting (server `config.py`, `main.py`, new `cutroom/demo.py`)
 

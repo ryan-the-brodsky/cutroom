@@ -6,6 +6,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
+from ..config import get_settings
 from ..db import session_scope
 from ..jobs.queue import submit_job
 from ..models import Comp, LaneConfig, Project, Shot, Take
@@ -448,6 +449,63 @@ SPEND_LANES = {
     "chain": "motion", "fx": "motion", "comp": "comp", "panel": "comp",
     "vo": "vo", "sfx": "sfx", "music": "music", "animatic": "assembly",
 }
+
+
+@router.get("/projects/{pid}/spend")
+def project_spend(pid: str):
+    """What this project has cost, by lane and by backend.
+
+    One adapter call = one charge. A motion job records a crop take AND the
+    composite take from the same call, so takes are collapsed on
+    (job, backend, model, seed) before they are priced — otherwise every
+    animated shot would read double.
+    """
+    project_or_404(pid)
+    from .. import budget
+    per_backend_cost: dict[str, float] = {}
+    by_lane: dict[str, dict] = {}
+    by_backend: dict[str, dict] = {}
+    counted = 0
+    seen: set[tuple] = set()
+    with session_scope() as s:
+        rows = s.execute(select(Take).where(Take.project_id == pid)
+                         .order_by(Take.created_at)).scalars()
+        total = 0.0
+        for tk in rows:
+            bid = tk.backend_id
+            if not bid:
+                continue                      # imported / derived: free
+            key = (tk.job_id or f"take:{tk.id}", bid, tk.model, tk.seed)
+            if key in seen:
+                continue
+            seen.add(key)
+            if bid not in per_backend_cost:
+                per_backend_cost[bid] = budget.cost_usd(bid)
+            usd = per_backend_cost[bid]
+            if usd <= 0:
+                continue                      # local / mock: never billed
+            lane = SPEND_LANES.get(tk.kind, tk.kind)
+            total += usd
+            counted += 1
+            lr = by_lane.setdefault(lane, {"usd": 0.0, "calls": 0})
+            lr["usd"] += usd
+            lr["calls"] += 1
+            br = by_backend.setdefault(bid, {"usd": 0.0, "calls": 0,
+                                             "cost_usd": usd})
+            br["usd"] += usd
+            br["calls"] += 1
+    for d in (by_lane, by_backend):
+        for v in d.values():
+            v["usd"] = round(v["usd"], 4)
+    return {
+        "project": pid,
+        "total_usd": round(total, 4),
+        "by_lane": by_lane,
+        "by_backend": by_backend,
+        "takes": counted,
+        "ledger_24h_usd": budget.spent_24h(),
+        "demo_budget_usd": round(get_settings().demo_budget_usd, 2),
+    }
 
 
 @router.get("/projects/{pid}/lanes")

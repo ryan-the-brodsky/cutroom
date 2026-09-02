@@ -15,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 
 from .api import (audio, backends, comps, cues, deps, direction, generate,
                   jobs, media, projects, separate, system, timeline)
-from .adapters.registry import default_backends
+from .adapters.motion_profiles import default_profile_for_row, env_profile
+from .adapters.registry import ADAPTER_TYPES, default_backends
 from .budget import BudgetExceeded, default_cost
 from .config import get_settings
 from .db import init_db, session_scope
@@ -100,7 +101,9 @@ def seed_backends() -> None:
         forced["openrouter-image"] = {"model": settings.openrouter_image_model}
     if os.environ.get("CUTROOM_FAL_MOTION_MODEL"):
         forced["fal"] = {"model": settings.fal_motion_model,
-                         "models": [settings.fal_motion_model]}
+                         "models": [settings.fal_motion_model],
+                         "motion_profile": default_profile_for_row(
+                             "fal", "fal", settings.fal_motion_model) or {}}
     for r in rows:
         key, opts = env_keyed.get(r["id"], ("", {}))
         # the configured model is the default whether or not a key is present,
@@ -114,6 +117,22 @@ def seed_backends() -> None:
             forced.setdefault(r["id"], {})["cost_usd"] = \
                 default_cost(r["id"], r["type"])
         r["options"].setdefault("cost_usd", default_cost(r["id"], r["type"]))
+        # The live window is a backend property (docs/BACKENDS.md "Motion
+        # profiles"): seed one on every motion-capable row so the tools have a
+        # clip length and a cost to plan with. CUTROOM_MOTION_PROFILE_<ID>
+        # (JSON) overrides outright, on new and existing rows alike.
+        cls = ADAPTER_TYPES.get(r["type"])
+        if cls and "motion" in getattr(cls, "lanes", set()):
+            prof = default_profile_for_row(r["id"], r["type"],
+                                           r["options"].get("model"))
+            if prof:
+                r["options"].setdefault("motion_profile", prof)
+                # a row seeded for an older model carries the wrong window;
+                # the model the env settled on is the authority
+                forced.setdefault(r["id"], {}).setdefault("motion_profile", prof)
+            if env_profile(r["id"]) is not None:
+                forced.setdefault(r["id"], {})["motion_profile"] = \
+                    env_profile(r["id"])
 
     if settings.demo:
         for r in rows:

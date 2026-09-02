@@ -5,6 +5,7 @@
 import type { ActionDef, GenSub, ToolResult } from "../contract";
 import { ANCHORS, err, genFieldAnchor, genSubAnchor, ok } from "../contract";
 import { deps, type BackendChoice } from "./deps";
+import { clampSeconds, framesForSeconds, motionProfile, type MotionProfile } from "./plan";
 import {
   SHOT_ROUTE, asError, costGate, cut, fetchShot, freshSeeds, lookupShot, maybeNum,
   normalizeCount, openShotPage, pickTake, plateOf, safeState,
@@ -22,6 +23,8 @@ interface GenArgs {
   denoise?: number;
   region?: number[];
   frames?: number;
+  seconds?: number;
+  live_seconds?: number;
   freeze_after?: number;
   seeds?: number[] | string;
   backend?: string;
@@ -36,9 +39,13 @@ const LANES: Record<Lane, { sub: GenSub; apiLane: string; noun: string }> = {
   animate: { sub: "animate", apiLane: "motion", noun: "clip" },
 };
 
-/** Doctrine defaults (§3.7): first-second law, true freezes only. */
-const ANIMATE_FRAMES = 49;
-const ANIMATE_FREEZE_AFTER = 1.0;
+/**
+ * Doctrine (2026-09-02, §3.7 addendum): a clip PLAYS IN FULL. Its length is the
+ * motion backend's own profile default (~2 s local, 5 s on fal's Wan turbo),
+ * not a constant here. Nothing freezes unless the caller asks: `live_seconds`
+ * is the explicit opt-in, for a clip that is good for N seconds and then
+ * drifts. True freezes only, no zoom.
+ */
 const RESTYLE_DENOISE = 0.85;
 
 export const generateTakes: ActionDef<GenArgs> = {
@@ -47,11 +54,11 @@ export const generateTakes: ActionDef<GenArgs> = {
   description:
     "Generate new takes for a shot in Cutroom — stills, restyles of an existing " +
     "take, or animated cel clips. Opens the shot's Generate console on screen, " +
-    "fills it, and submits one job per take with a fresh seed. Returns job ids and, " +
-    "when the backend is fast, the finished takes. Count is 1–4 (default 3). " +
-    "Prompt defaults to the shot's own written prompt; prompt_mode \"append\" adds " +
-    "yours to it. Animate keeps the first second live and freezes the rest. Paid " +
-    "backends require confirm_cost.",
+    "fills it, and submits one job per take with a fresh seed. Returns job ids " +
+    "and, when the backend is fast, the finished takes. Count is 1–4 (default 3). " +
+    "Prompt defaults to the shot's own prompt; prompt_mode \"append\" adds yours. " +
+    "Animate clips play in full at the backend's clip length (seconds overrides " +
+    "it). Paid backends require confirm_cost.",
   inputSchema: {
     type: "object",
     properties: {
@@ -63,8 +70,9 @@ export const generateTakes: ActionDef<GenArgs> = {
       source_take: { type: "string", description: "For restyle: the take to restyle. A path, or \"latest\", \"newest still\", \"keeper\". Defaults to the selected take." },
       denoise: { type: "number", description: "Restyle strength, 0.35–0.95. 0.55 keeps the layout, 0.85 restyles. Default 0.85." },
       region: { type: "array", items: { type: "number" }, description: "For animate: the cel region as [left, top, right, bottom]. Omit to animate the full frame." },
-      frames: { type: "integer", description: "For animate: frame count (8k+1; 49 ≈ 2s, 97 ≈ 4s). Default 49, the first-second law." },
-      freeze_after: { type: "number", description: "For animate: seconds of live motion before a true freeze holds the pose. Default 1.0." },
+      seconds: { type: "number", description: "For animate: clip length in seconds. Defaults to the backend's own clip length and is clamped to what it supports." },
+      frames: { type: "integer", description: "For animate: exact frame count, when you need one. Normally leave it and pass seconds instead." },
+      live_seconds: { type: "number", description: "For animate: freeze after this many seconds. Only for a model that drifts after N seconds — clips play in full otherwise." },
       seeds: { type: "array", items: { type: "integer" }, description: "Exact seeds to use, one per take. Omit for fresh random seeds (the usual case)." },
       backend: { type: "string", description: "Force a specific backend id instead of the project's lane default (e.g. \"mock\", \"comfyui\", \"fal\")." },
       model: { type: "string", description: "Force a specific model on that backend." },
@@ -109,6 +117,10 @@ export const generateTakes: ActionDef<GenArgs> = {
     const gate = costGate(choice, count, noun, args?.confirm_cost === true);
     if (gate) return gate;
     const backendId = choice.backend || "the lane default";
+    // The live window is a backend property, so read it before filling frames.
+    let profile: MotionProfile = {};
+    let seconds = 0;
+    if (lane === "animate") profile = await motionProfile(ctx, choice.backend);
 
     // ---- 3. read the shot so the prompt builds on what the director wrote
     let detail;
@@ -197,13 +209,17 @@ export const generateTakes: ActionDef<GenArgs> = {
         ? args!.region! : null;
       page.setGenField(sub, "fullFrame", !region);
       if (region) page.setGenField(sub, "region", region);
-      const frames = maybeNum(args?.frames) ?? ANIMATE_FRAMES;
-      const freezeAfter = maybeNum(args?.freeze_after) ?? ANIMATE_FREEZE_AFTER;
+      seconds = clampSeconds(profile, maybeNum(args?.seconds)
+        ?? profile.seconds_default ?? 2);
+      const frames = maybeNum(args?.frames) ?? framesForSeconds(profile, seconds);
+      // Freeze ONLY on request: a repair for a clip that drifts, never a default.
+      const live = maybeNum(args?.live_seconds) ?? maybeNum(args?.freeze_after);
       page.setGenField(sub, "frames", frames);
-      page.setGenField(sub, "freeze_after", freezeAfter);
+      page.setGenField(sub, "freeze_after", live ?? 0);
       await ctx.trail.step({
         tool: "generate_takes",
-        title: `${region ? "Cel region" : "Full frame"} · ${frames}f · freeze after ${freezeAfter}s`,
+        title: `${region ? "Cel region" : "Full frame"} · ${seconds}s · ${frames}f` +
+          (live ? ` · freeze after ${live}s` : ""),
         anchor: genFieldAnchor(sub, "frames"),
       });
     }
@@ -263,6 +279,14 @@ export const generateTakes: ActionDef<GenArgs> = {
         jobs,
         backend: backendId,
         cost_class: choice.cost_class,
+        ...(lane === "animate"
+          ? { seconds, motion_profile: {
+                seconds_default: profile.seconds_default,
+                seconds_max: profile.seconds_max,
+                fps: profile.fps,
+                holds_seconds: profile.live_seconds_default,
+              } }
+          : {}),
         seeds,
         takes,
         tab: `${s.tab} → ${s.sub}`,

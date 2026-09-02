@@ -30,12 +30,18 @@ The design ideas worth keeping (they ARE the product):
    captures ffmpeg's stderr and reports its exit (including "killed by signal", the shape an
    OOM kill takes) rather than surfacing a bare `BrokenPipeError` from the write, because on a
    capped box that error is the only evidence you get.
-2. **The FIRST-SECOND LAW.** An image-to-video model's first second or so is clean
-   limited animation; after that the style drifts and the frame starts to *boil* (the
-   line work crawling and reforming every frame). So take the good burst and stop:
-   freeze-tail (burst, then the last frame held as a **true freeze**, the identical
-   frame repeated, never a slow zoom or a loop), chain-gen (breath-stitching short
-   front-loaded beats), and the director grammar built on them.
+2. **The live window is a backend property.** How long an image-to-video model holds
+   before the style drifts and the frame starts to *boil* (the line work crawling and
+   reforming every frame) differs per model: about one second on the local LTX rig,
+   three to five on hosted Wan-class models. So it is config, not a constant — every
+   motion backend carries a `motion_profile` (clip length, fps, frame counts,
+   resolutions, price) and a clip plays in **full** at that length.
+
+   Freeze-tail and chain-stitching are SURGICAL repair tools: when a clip is good for
+   its first N seconds and then drifts, keep the good frames and hold or continue from
+   them instead of rerolling the whole clip. They are not defaults. The historical
+   FIRST-SECOND LAW (2026-07) applied to the local LTX lane only. Holds stay **true
+   freezes** — the identical frame repeated, never a slow zoom or a loop.
 3. **Registers + prompt glossary** — a *register* is a named bundle of style words
    (lighting, line weight, palette, lens) attached to a shot, so consistency is data
    rather than a phrase someone remembers to retype.

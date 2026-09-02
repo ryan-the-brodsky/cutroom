@@ -17,6 +17,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from ..adapters import build_adapter
+from ..adapters import motion_profiles as mprof
 from ..adapters.base import BackendConfig, GenRequest
 from ..adapters.registry import ADAPTER_TYPES
 from ..config import get_settings
@@ -26,6 +27,7 @@ from ..db import session_scope
 from ..engine import assemble as e_asm
 from ..engine import audio as e_audio
 from ..engine import cels as e_cels
+from ..engine import ffmpeg as e_ff
 from ..engine import images as e_img
 from ..engine import motion as e_motion
 from ..engine import panels as e_panels
@@ -209,10 +211,24 @@ async def _i2v(ctx, project: str, p: dict, source_png: Path, width: int,
                height: int, wd: Path, prompt: str) -> tuple[Path, LaneChoice]:
     choice = pick_backend(project, "motion", p.get("backend"), p.get("model"))
     adapter = build_adapter(choice.cfg)
+    # The live window is a backend property. `seconds` is what the caller asked
+    # for in film time; queue backends map it to their own duration parameter,
+    # frame-count backends use `frames`.
+    prof = mprof.profile_for(choice.cfg.options, choice.cfg.type,
+                             choice.model or choice.cfg.options.get("model"))
+    seconds = p.get("seconds")
+    frames = p.get("frames")
+    if seconds is None and frames is None:
+        seconds = mprof.seconds_default(prof)
+    if frames is None:
+        frames = mprof.frames_for_seconds(prof, seconds)
+    if seconds is None:
+        seconds = mprof.seconds_for_frames(prof, frames)
     req = GenRequest(
         lane="motion", workdir=wd, prompt=prompt,
         negative=p.get("negative", ""), source=source_png,
-        width=width, height=height, frames=int(p.get("frames", 97)),
+        width=width, height=height, frames=int(frames),
+        duration=float(seconds),
         steps=p.get("steps"), cfg=p.get("cfg"),
         seed=int(p.get("seed", 42)), model=choice.model,
         params={**choice.params, **(p.get("params") or {}),
@@ -262,12 +278,12 @@ async def gen_motion(ctx, p: dict) -> dict:
         if clip.suffix == ".webm":
             store.copy_in(clip, crop_rel)
         else:
-            from ..engine import ffmpeg as e_ff
             await asyncio.to_thread(e_ff.transcode, clip, store.resolve(crop_rel))
         record_take(project, p.get("shot"), "crop", crop_rel,
                     backend_id=choice.cfg.id, model=choice.model,
                     prompt=p["prompt"],
-                    params={"region": snapped, "frames": p.get("frames", 97),
+                    params={"region": snapped, "frames": p.get("frames"),
+                            "seconds": p.get("seconds"),
                             "steps": p.get("steps"), "cfg": p.get("cfg"),
                             "seed": p.get("seed", 42)},
                     sources=[plate_rel], seed=p.get("seed"), job_id=ctx.job_id)

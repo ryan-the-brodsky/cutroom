@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from ..adapters import build_adapter
+from ..adapters import motion_profiles as mprof
 from ..adapters.registry import ADAPTER_TYPES, pool_for
 from ..db import session_scope
 from ..director.apply import _gen_pool
@@ -26,6 +27,37 @@ LANE_JOBS = {
 }
 
 
+MOTION_LANES = ("motion", "chain")
+
+
+def apply_motion_profile(pid: str, lane: str, body: dict) -> dict:
+    """Resolve `seconds` -> frames against the chosen backend's profile.
+
+    Doctrine (2026-09-02): a clip plays in FULL. `freeze_after` is applied only
+    when the caller asks for it — it is a repair tool for a clip that drifts,
+    not a default. `seconds` defaults to the profile's own clip length.
+    """
+    if lane not in MOTION_LANES:
+        return body
+    bid = budget.resolve_backend_id(pid, "motion", body.get("backend"))
+    prof = mprof.backend_profile(bid)
+    seconds = body.get("seconds")
+    if seconds is None and body.get("frames") is None:
+        seconds = mprof.seconds_default(prof)
+    if seconds is not None:
+        seconds = mprof.clamp_seconds(prof, seconds)
+        body["seconds"] = seconds
+        body.setdefault("frames", mprof.frames_for_seconds(prof, seconds))
+    elif body.get("frames") is not None:
+        body["seconds"] = mprof.seconds_for_frames(prof, body["frames"])
+    # `live_seconds` is the explicit opt-in spelling of freeze_after.
+    if body.get("live_seconds") is not None and body.get("freeze_after") is None:
+        body["freeze_after"] = mprof.clamp_live(prof, body.pop("live_seconds"))
+    body.pop("live_seconds", None)
+    body["motion_profile"] = {"backend": bid, **prof}
+    return body
+
+
 @router.post("/projects/{pid}/generate/{lane}")
 async def generate(pid: str, lane: str, req: Request):
     project_or_404(pid)
@@ -44,6 +76,7 @@ async def generate(pid: str, lane: str, req: Request):
     budget.check_submission(pid, pool_lane, body.get("backend"), takes)
     if lane == "music":
         body["lane"] = "music"
+    body = apply_motion_profile(pid, lane, body)
     payload = {"project": pid, **body}
     if pool_lane is None:
         pool = "cpu"

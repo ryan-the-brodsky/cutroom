@@ -172,12 +172,28 @@ describe("generate_takes", () => {
     expect(g.rec.calls().filter((c) => c === "submitGenerate(still)")).toHaveLength(4);
   });
 
-  it("uses doctrine defaults for animate: 49 frames, freeze after 1s, full frame", async () => {
+  // Doctrine 2026-09-02: a clip plays in FULL. Its length comes from the
+  // backend's motion profile (2 s at 24 fps for a rig with no profile), and
+  // nothing freezes unless the caller asks.
+  it("animates at the backend's clip length with no freeze", async () => {
     await generateTakes.execute({ shot: "B10-S2", lane: "animate", count: 1 }, f.ctx);
     expect(f.shotPage.gen.frames).toBe(49);
-    expect(f.shotPage.gen.freeze_after).toBe(1.0);
+    expect(f.shotPage.gen.freeze_after).toBe(0);
     expect(f.shotPage.gen.fullFrame).toBe(true);
     expect(f.shotPage.gen.prompt).toBe(FIXTURE_DETAIL["B10-S2"].motion_prompt);
+  });
+
+  it("takes seconds and clamps them to the profile", async () => {
+    await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, seconds: 4 }, f.ctx);
+    expect(f.shotPage.gen.frames).toBe(97);            // 4s x 24fps, 8k+1
+    expect(f.shotPage.gen.freeze_after).toBe(0);
+  });
+
+  it("freezes only when live_seconds is asked for", async () => {
+    await generateTakes.execute(
+      { shot: "B10-S2", lane: "animate", count: 1, live_seconds: 1.5 }, f.ctx);
+    expect(f.shotPage.gen.freeze_after).toBe(1.5);
   });
 
   it("passes a cel region through and turns full frame off", async () => {

@@ -49,10 +49,18 @@ Dev mode with hot reload: `./dev.sh` (API :8770 + vite :5173).
   prompt; layers reroll independently; the background restyles under
   persistent layers (low denoise keeps staged geometry). Deterministic
   re-render from the data model.
-- **Motion edits under the FIRST-SECOND LAW** — video models render about one
-  clean second before the style drifts, so Cutroom takes the good burst and
-  holds it: freeze-tail (a **true freeze**, the same frame repeated, never a
-  slow zoom or a boiling loop), breath-stitching chains, trims.
+- **Motion edits as repair, not as policy** — the live window is a property of
+  the backend (about a second on the local LTX rig, three to five on hosted
+  Wan-class models), carried as a `motion_profile` on the backend row, so clips
+  play in full at the model's own length. When a clip *does* drift after N
+  seconds, freeze-tail (a **true freeze**, the same frame repeated, never a slow
+  zoom or a boiling loop), breath-stitching chains and trims keep the good
+  frames instead of rerolling. The 2026-07 FIRST-SECOND LAW was the local
+  model's ceiling, not a law.
+- **A motion budget you can hand to the agent** — `plan_motion` ranks the shots
+  worth animating and fits them to a dollar figure at the backend's real price;
+  `apply_motion_plan` spends it; `GET /api/projects/{id}/spend` says what the
+  film has cost, by lane and by backend.
 - **Natural-language direction** — instructions compile to previewable
   **EditPlans** (a validated ops vocabulary). The deterministic grammar
   handles the documented edit language with zero API keys ("keep the first

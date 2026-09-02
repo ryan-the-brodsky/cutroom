@@ -17,6 +17,7 @@ from .comfyui import ComfyUIAdapter
 from .elevenlabs import ElevenLabsAdapter
 from .http_images import OpenAIImagesAdapter, OpenRouterImageAdapter
 from .mock import MockAdapter
+from .motion_profiles import LTX_PROFILE
 from .queue_apis import FalAdapter, ReplicateAdapter
 
 ADAPTER_TYPES: dict[str, type[Adapter]] = {
@@ -54,7 +55,8 @@ def default_backends() -> list[dict]:
     return [
         {"id": "local-comfyui", "type": "comfyui",
          "label": "ComfyUI (local)", "base_url": "http://127.0.0.1:8188",
-         "enabled": True, "options": {"concurrency": 1}},
+         "enabled": True, "options": {"concurrency": 1,
+                                      "motion_profile": dict(LTX_PROFILE)}},
         {"id": "elevenlabs", "type": "elevenlabs",
          "label": "ElevenLabs", "api_key": eleven_key,
          "enabled": bool(eleven_key), "options": {"model": "eleven_v3"}},
@@ -65,9 +67,16 @@ def default_backends() -> list[dict]:
         {"id": "openai-images", "type": "openai-images",
          "label": "OpenAI-compatible images", "enabled": False,
          "options": {"size": "1536x1024"}},
+        # no motion_profile here on purpose: it depends on the model, which
+        # CUTROOM_FAL_MOTION_MODEL rewrites at boot. seed_backends() derives it
+        # once the model is settled.
         {"id": "fal", "type": "fal", "label": "fal.ai", "enabled": False,
          "options": {"model": "fal-ai/ltx-video",
-                     "models": ["fal-ai/ltx-video"]}},
+                     "models": ["fal-ai/ltx-video",
+                                "fal-ai/wan/v2.2-a14b/image-to-video/turbo",
+                                "fal-ai/bytedance/seedance/v1/pro/fast/image-to-video",
+                                "fal-ai/pixverse/v6/image-to-video",
+                                "fal-ai/pixverse/v4.5/image-to-video"]}},
         {"id": "replicate", "type": "replicate", "label": "Replicate",
          "enabled": False, "options": {}},
         {"id": "mock", "type": "mock",

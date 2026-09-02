@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..adapters import build_adapter
+from ..adapters.motion_profiles import describe, profile_for
 from ..adapters.registry import ADAPTER_TYPES
 from ..db import session_scope
 from ..models import Backend
@@ -27,6 +28,12 @@ def list_backends():
             cls = ADAPTER_TYPES.get(b.type)
             d["lanes"] = sorted(getattr(cls, "lanes", set())) if cls else \
                 (["direction"] if b.type in DIRECTION_TYPES else [])
+            if "motion" in d["lanes"]:
+                # The live window is a backend property, not a global law.
+                prof = profile_for(b.options or {}, b.type,
+                                   (b.options or {}).get("model"))
+                d["motion_profile"] = prof
+                d["motion_profile_summary"] = describe(prof)
             out.append(d)
         return out
 

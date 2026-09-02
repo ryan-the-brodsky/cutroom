@@ -50,7 +50,7 @@ class GenRequest:
     seed: int = 42
     model: str | None = None         # per-request model override
     voice: str | None = None         # tts
-    duration: float | None = None    # sfx/music seconds
+    duration: float | None = None    # sfx/music/i2v seconds
     params: dict = field(default_factory=dict)
     log: Callable[[str], None] = lambda s: None
 

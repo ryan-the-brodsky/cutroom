@@ -145,6 +145,69 @@ Results are found by walking the response for media URLs, so most models
 need zero code. A fal/replicate motion backend slots straight into the cel
 pipeline: crop → hosted i2v → composite back onto the plate locally.
 
+## Motion profiles  (the live window is a backend property)
+
+Every motion-capable backend row carries `options.motion_profile`, and
+`GET /api/backends` returns the effective one on each motion row:
+
+```json
+{
+  "seconds_default": 5.0,        // clip length when nobody says otherwise
+  "seconds_max": 5.0,            // longest clip the model will make
+  "seconds_options": [5.0],      // discrete durations, where the API has them
+  "live_seconds_default": 5.0,   // how long it holds before it drifts (ADVICE)
+  "live_seconds_max": 5.0,
+  "fps": 16,
+  "frames_options": [81],        // frame counts the model accepts
+  "resolutions": ["480p", "580p", "720p"],
+  "cost_per_clip_usd": 0.05      // or cost_per_second_usd
+}
+```
+
+`POST /api/projects/{pid}/generate/motion` accepts `seconds` (converted to
+frames at the profile's fps and clamped to what the model supports) and, as an
+explicit opt-in, `live_seconds` → `freeze_after`. The agent tool
+`generate_takes(lane:"animate")` takes the same two arguments and reports the
+profile it used; `describe_shot` shows the motion lane's profile.
+
+**Clips play in full.** Freeze-tail and chain-stitching are SURGICAL repair
+tools: when a clip is good for its first N seconds and then drifts, keep the
+good frames and hold or continue from them instead of rerolling the whole clip.
+They are not defaults. The historical FIRST-SECOND LAW (2026-07) applied to the
+local LTX lane only — LTX holds about a second, hosted Wan-class models hold
+three to five, so the number belongs in config, not in the tools. Holds are
+still **true freezes** (no zoom), and boil never auto-plays.
+
+Seeding and overrides:
+
+* `seed_backends()` writes a profile onto every motion-capable row from the
+  model table in `cutroom/adapters/motion_profiles.py`.
+* `CUTROOM_MOTION_PROFILE_<BACKEND_ID>` (JSON, dashes → underscores) replaces
+  a row's profile outright, on new and existing rows.
+* An admin editing `options.motion_profile` in Settings sets a *partial*
+  override: keys given win, the rest of the model table survives.
+* Per-project overrides use the existing `CUTROOM_LANE_MOTION=fal:<model>`
+  (for example `CUTROOM_LANE_MOTION=fal:fal-ai/pixverse/v6/image-to-video`),
+  which pins the project's motion lane to that backend and model. The global
+  default stays `CUTROOM_FAL_MOTION_MODEL`.
+
+### fal endpoints with a payload map
+
+`FAL_PAYLOAD_MAPS` in `cutroom/adapters/queue_apis.py` holds the per-endpoint
+request shape, so adding a model is a table row rather than a code change.
+Verified against each endpoint's OpenAPI schema on 2026-09-02; prices are what
+the model page publishes. See `docs/research/motion-bakeoff/RESULTS.md`.
+
+| endpoint | 5 s price | duration field | anime control |
+|---|---|---|---|
+| `fal-ai/wan/v2.2-a14b/image-to-video/turbo` (default) | $0.05 @480p, $0.075 @580p, $0.10 @720p | **none** — fixed ~5 s / 81 f | none; the look comes from the plate |
+| `fal-ai/bytedance/seedance/v1/pro/fast/image-to-video` | ~$0.108 @720p (token priced) | `duration`, string, 2–12 | `camera_fixed: true` locks the frame |
+| `fal-ai/pixverse/v6/image-to-video` | $0.175 @540p ($0.035/s) | `duration`, **integer**, 1–15 | `style: "anime"` |
+| `fal-ai/pixverse/v4.5/image-to-video` | $0.15 @540p flat | `duration`, string, "5" or "8" | `style: "anime"` + a named `camera_movement` enum |
+
+Wan turbo also has no `negative_prompt`; the adapter logs and drops one rather
+than sending a field the endpoint rejects.
+
 ## Direction providers  (lane: direction)
 
 - **anthropic** — hosted-safe agent chat + EditPlan planner.

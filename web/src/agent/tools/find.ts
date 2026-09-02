@@ -5,6 +5,7 @@
 import type { ActionContext, ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok, shotTabAnchor } from "../contract";
 import { deps } from "./deps";
+import { motionProfile, readSpend } from "./plan";
 import {
   FILM_ROUTE, SHOT_ROUTE, compactCandidate, cut, fetchShot, lookupShot,
 } from "./util";
@@ -160,14 +161,19 @@ export const describeShot: ActionDef<DescribeArgs> = {
       .slice(0, 5).map((p) => cut(p.split("/").pop(), 40));
 
     const lanes: Record<string, string> = {};
+    let motionBackend: string | null = null;
     await Promise.all(LANES.map(async ([lane, label]) => {
       try {
         const c = await deps.classifyBackend(pid, lane, undefined, ctx.api);
         if (!c.backend) return;
+        if (lane === "motion") motionBackend = c.backend;
         lanes[label] = `${c.backend}${c.cost_class === "paid"
           ? ` (paid${c.cost_usd ? ` ≈$${c.cost_usd}` : ""})` : " (free)"}`;
       } catch { /* lane unknown is fine */ }
     }));
+    // The live window is a backend property: report what an animate would make.
+    const prof = await motionProfile(ctx, motionBackend);
+    const spend = await readSpend(ctx, pid);
 
     const audio = await audioSummary(ctx, pid, shot.sid);
 
@@ -193,6 +199,18 @@ export const describeShot: ActionDef<DescribeArgs> = {
       comps: d.comps?.length || 0,
       ...(audio ? { audio } : {}),
       lanes,
+      motion_profile: {
+        backend: motionBackend,
+        seconds: prof.seconds_default,
+        seconds_max: prof.seconds_max,
+        fps: prof.fps,
+        holds_seconds: prof.live_seconds_default,
+        per_clip_usd: prof.cost_per_clip_usd
+          ?? (prof.cost_per_second_usd !== undefined
+            ? Math.round((prof.cost_per_second_usd * (prof.seconds_default ?? 5)) * 1000) / 1000
+            : undefined),
+      },
+      ...(spend ? { project_spend_usd: spend.total_usd } : {}),
     });
   },
 };
@@ -210,7 +228,8 @@ export const getContext: ActionDef<ContextArgs> = {
     "Report what is on screen right now: the current route and project, whether the " +
     "Film Editor or a Shot Editor is open, which shot, which tab and generate " +
     "sub-tab, the selected take, the keeper, what plays in the timeline, any jobs " +
-    "still running, the WebMCP mode the page is in and the agent's playback speed. " +
+    "still running, what the project has spent, the WebMCP mode the page is in " +
+    "and the agent's playback speed. " +
     "Call it first when you are unsure what the director is looking at, or after a " +
     "navigation, before acting on \"this shot\" or \"the newest one\".",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -253,6 +272,8 @@ export const getContext: ActionDef<ContextArgs> = {
       }));
     } catch { /* jobs unavailable */ }
 
+    const spend = ctx.project ? await readSpend(ctx, ctx.project) : null;
+
     const agent = (globalThis as { __cutroomAgent?: { mode?: string; tools?: unknown[] } })
       .__cutroomAgent;
     const mode = agent?.mode
@@ -267,6 +288,7 @@ export const getContext: ActionDef<ContextArgs> = {
       {
         route, project: ctx.project, page,
         running_jobs: jobs,
+        ...(spend ? { spend: { total_usd: spend.total_usd, by_lane: spend.by_lane } } : {}),
         webmcp_mode: mode,
         speed: ctx.speed,
       },

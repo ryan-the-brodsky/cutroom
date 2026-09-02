@@ -67,9 +67,99 @@ async def _download_all(urls: list[str], workdir: Path, headers: dict,
     return out
 
 
+
+# --------------------------------------------------------------- payload maps
+#: Per-model request shaping for fal image-to-video endpoints. Every endpoint
+#: names its input image `image_url` and its prompt `prompt`, but duration,
+#: resolution and the anime controls all differ, and several endpoints have no
+#: duration field at all. Verified against
+#: https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=<id> on 2026-09-02;
+#: prices are the string each model page publishes. See
+#: docs/research/motion-bakeoff/RESULTS.md.
+#:
+#:   duration_key   the field that carries clip length (None = fixed length)
+#:   duration_type  "int" | "str"  — pixverse v6 wants 5, v4.5 wants "5"
+#:   resolution_key + resolutions  — the model's own enum
+#:   defaults       payload keys always sent unless the caller overrides them
+FAL_PAYLOAD_MAPS: dict[str, dict] = {
+    # the shipped default: flat per-video price, no duration field, no negative
+    "fal-ai/wan/v2.2-a14b/image-to-video/turbo": {
+        "image_key": "image_url", "prompt_key": "prompt",
+        "duration_key": None, "resolution_key": "resolution",
+        "resolutions": ["480p", "580p", "720p"],
+        "aspect_key": "aspect_ratio", "negative_key": None, "seed_key": "seed",
+        "defaults": {"resolution": "480p", "enable_prompt_expansion": False},
+    },
+    # cheapest per second with a hard camera lock — the limited-animation knob
+    "fal-ai/bytedance/seedance/v1/pro/fast/image-to-video": {
+        "image_key": "image_url", "prompt_key": "prompt",
+        "duration_key": "duration", "duration_type": "str",
+        "duration_range": [2, 12],
+        "resolution_key": "resolution", "resolutions": ["480p", "720p", "1080p"],
+        "aspect_key": "aspect_ratio", "negative_key": None, "seed_key": "seed",
+        "defaults": {"resolution": "720p", "camera_fixed": True,
+                     "generate_audio": False},
+    },
+    # the only family with a first-class anime style switch; billed per second
+    "fal-ai/pixverse/v6/image-to-video": {
+        "image_key": "image_url", "prompt_key": "prompt",
+        "duration_key": "duration", "duration_type": "int",
+        "duration_range": [1, 15],
+        "resolution_key": "resolution",
+        "resolutions": ["360p", "540p", "720p", "1080p"],
+        "aspect_key": None, "negative_key": "negative_prompt",
+        "seed_key": "seed",
+        "defaults": {"resolution": "540p", "style": "anime",
+                     "thinking_type": "disabled",
+                     "generate_audio_switch": False,
+                     "generate_multi_clip_switch": False},
+    },
+    # same anime switch, plus the only named camera-move enum in the catalogue
+    "fal-ai/pixverse/v4.5/image-to-video": {
+        "image_key": "image_url", "prompt_key": "prompt",
+        "duration_key": "duration", "duration_type": "str",
+        "duration_values": [5, 8],
+        "resolution_key": "resolution",
+        "resolutions": ["360p", "540p", "720p", "1080p"],
+        "aspect_key": None, "negative_key": "negative_prompt",
+        "seed_key": "seed",
+        "defaults": {"resolution": "540p", "style": "anime",
+                     "camera_movement": "fix_bg"},
+    },
+}
+
+
+def payload_map(model: str | None) -> dict:
+    """Longest-prefix match, so a versioned sub-path still finds its map."""
+    if not model:
+        return {}
+    best: tuple[int, dict] = (0, {})
+    for prefix, m in FAL_PAYLOAD_MAPS.items():
+        if model.startswith(prefix) and len(prefix) > best[0]:
+            best = (len(prefix), m)
+    return dict(best[1])
+
+
+def _duration_value(m: dict, seconds: float):
+    """Snap seconds onto whatever this endpoint accepts."""
+    vals = m.get("duration_values")
+    if vals:
+        seconds = min(vals, key=lambda v: abs(float(v) - seconds))
+    lo, hi = (m.get("duration_range") or [1, 15])[:2]
+    seconds = max(float(lo), min(float(seconds), float(hi)))
+    return str(int(round(seconds))) if m.get("duration_type") == "str" \
+        else int(round(seconds))
+
+
 class FalAdapter(Adapter):
     """fal.ai queue API. options: {"model": "fal-ai/ltx-video",
-    "extra_payload": {...}, "prompt_key": "prompt", "image_key": "image_url"}"""
+    "extra_payload": {...}, "prompt_key": "prompt", "image_key": "image_url"}
+
+    Endpoints differ in more than their name: pixverse takes `duration` as a
+    string on v4.5 and an integer on v6, seedance calls the same idea
+    `duration` but locks the camera with `camera_fixed`, and Wan 2.2 turbo has
+    no duration field at all. FAL_PAYLOAD_MAPS holds those differences as
+    config so a new model is a table row, not a code change."""
     type_name = "fal"
     lanes = {"still", "motion"}
 
@@ -118,11 +208,34 @@ class FalAdapter(Adapter):
         if not model:
             raise AdapterError("fal backend needs a model id (e.g. fal-ai/ltx-video)")
         headers = {"Authorization": f"Key {self.cfg.api_key}"}
-        payload = {self.opt("prompt_key", default="prompt"): req.prompt}
+        m = payload_map(model)
+        payload: dict = {}
+        # model defaults < backend options < this request
+        payload.update(m.get("defaults") or {})
+        payload[self.opt("prompt_key", default=m.get("prompt_key", "prompt"))] = \
+            req.prompt
+        if req.lane == "motion" and m:
+            # clip length: only where the endpoint actually has the field
+            secs = req.duration
+            if secs:
+                if m.get("duration_key"):
+                    payload[m["duration_key"]] = _duration_value(m, float(secs))
+                else:
+                    req.log(f"{model} has no duration field — fixed-length clip; "
+                            f"trim to {float(secs):g}s downstream")
+            if m.get("seed_key"):
+                payload.setdefault(m["seed_key"], req.seed)
         payload.update(self.opt("extra_payload") or {})
         payload.update(req.params.get("payload", {}))
         if req.negative:
-            payload.setdefault("negative_prompt", req.negative)
+            neg = m.get("negative_key", "negative_prompt") if m \
+                else "negative_prompt"
+            if neg:
+                payload.setdefault(neg, req.negative)
+            else:
+                req.log(f"{model} takes no negative prompt — dropping it")
+        if m.get("aspect_key") is None and m:
+            payload.pop("aspect_ratio", None)
         # fal's Wan endpoints reject aspect_ratio="auto" for inputs outside
         # their supported set — resolve it from the actual source dims.
         if payload.get("aspect_ratio", "auto") == "auto" and req.width and \
@@ -132,7 +245,8 @@ class FalAdapter(Adapter):
                 (("16:9", 16 / 9), ("9:16", 9 / 16), ("1:1", 1.0)),
                 key=lambda kv: abs(kv[1] - ratio))[0]
         if req.source:
-            payload[self.opt("image_key", default="image_url")] = \
+            payload[self.opt("image_key",
+                             default=m.get("image_key", "image_url"))] = \
                 _data_uri(Path(req.source))
         base = (self.cfg.base_url or "https://queue.fal.run").rstrip("/")
         async with httpx.AsyncClient(timeout=120) as c:

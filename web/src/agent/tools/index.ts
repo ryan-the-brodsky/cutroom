@@ -22,6 +22,7 @@ import { getJobs, waitForJobs } from "./jobs";
 import { freezeTail, trimClip } from "./motion";
 import { generateMusic, generateSfx, listCues, placeCue } from "./music";
 import { openShot, showMe } from "./navigate";
+import { applyMotionPlan, planMotion } from "./plan";
 import { selectTake, setKeeper, setTimelineSource } from "./picks";
 import {
   createProject, listProjects, setProjectCast, writeScript,
@@ -89,6 +90,9 @@ export const TOOLS: AnyActionDef[] = [
   playTake,
   stopPlayback,
   previewTimeline,
+  // workstream N — motion budget planning
+  planMotion,
+  applyMotionPlan,
 ];
 
 /**
@@ -142,5 +146,9 @@ export {
 export { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "./settings";
 export { createProject, listProjects, setProjectCast, writeScript } from "./project";
 export { playCut, playTake, previewTimeline, stopPlayback, pickCut, resolveFrom } from "./screen";
+export {
+  applyMotionPlan, clipCost, fitBudget, framesForSeconds, motionProfile,
+  planMotion, rankShots,
+} from "./plan";
 export { SCREEN_FEATURES } from "../features.screen";
 export { FEATURES, FEATURES_BY_NAME, featureGroups, walkTo } from "../features";

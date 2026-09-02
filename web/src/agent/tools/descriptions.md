@@ -144,8 +144,9 @@
 | `source_take` |  | string | 111/150 | For restyle: the take to restyle. A path, or "latest", "newest still", "keeper". Defaults to the selected take. |
 | `denoise` |  | number | 80/150 | Restyle strength, 0.35–0.95. 0.55 keeps the layout, 0.85 restyles. Default 0.85. |
 | `region` |  | array | 90/150 | For animate: the cel region as [left, top, right, bottom]. Omit to animate the full frame. |
-| `frames` |  | integer | 84/150 | For animate: frame count (8k+1; 49 ≈ 2s, 97 ≈ 4s). Default 49, the first-second law. |
-| `freeze_after` |  | number | 85/150 | For animate: seconds of live motion before a true freeze holds the pose. Default 1.0. |
+| `seconds` |  | number | 121/150 | For animate: clip length in seconds. Defaults to the backend's own clip length and is clamped to what it supports. |
+| `frames` |  | integer | 104/150 | For animate: exact frame count, when you need one. Normally leave it and pass seconds instead. |
+| `live_seconds` |  | number | 141/150 | For animate: freeze after this many seconds. Only for a model that drifts after N seconds — clips play in full otherwise. |
 | `seeds` |  | array | 79/150 | Exact seeds to use, one per take. Omit for fresh random seeds (the usual case). |
 | `backend` |  | string | 98/150 | Force a specific backend id instead of the project's lane default (e.g. "mock", "comfyui", "fal"). |
 | `model` |  | string | 39/150 | Force a specific model on that backend. |
@@ -167,7 +168,7 @@
 |---|---|---|---|---|
 | `shot` | • | string | 74/150 | The shot: a sid (B10-S2), its number in the cut, a beat, or a description. |
 | `take` |  | string | 89/150 | Which clip: a path, or "newest motion", "latest", "plays". Defaults to the selected clip. |
-| `live_seconds` |  | number | 88/150 | Seconds of live motion kept before the freeze holds. Default 1.0 (the first-second law). |
+| `live_seconds` |  | number | 129/150 | Seconds of good motion to keep before the freeze holds. Set it where the clip starts to degrade. Default 1.0. |
 
 **howTo** (156) — Select a clip in the takes rail, open the Motion edits tab, set "keep first (s)" and press ❄ freeze tail — the rest of the clip becomes a true frozen frame.
 

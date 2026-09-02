@@ -57,18 +57,19 @@ export const freezeTail: ActionDef<FreezeArgs> = {
   name: "freeze_tail",
   title: "Freeze the tail",
   description:
-    "Keep the first moment of a motion clip live and hold the rest as a true " +
-    "freeze — the held-cel edit anime uses so a gesture reads and then the pose " +
-    "sits. Opens the shot's Motion edits tab, selects the clip, sets how many " +
-    "seconds stay live (default 1.0) and presses ❄ freeze tail. This is a real " +
-    "frozen frame, never a slow zoom or a drift. Returns the job and, when it " +
-    "finishes fast, the new take.",
+    "Repair a clip that goes wrong late: keep its good first seconds live and " +
+    "hold the last good frame as a true freeze, instead of rerolling the whole " +
+    "clip. Use it when you can see a clip drift, warp or wander after N seconds " +
+    "— clips otherwise play in full. It is also the held-cel edit anime uses so " +
+    "a gesture reads and the pose sits. Opens Motion edits, selects the clip, " +
+    "sets the seconds kept and presses ❄ freeze tail. A real frozen frame, " +
+    "never a zoom or a drift.",
   inputSchema: {
     type: "object",
     properties: {
       shot: { type: "string", description: "The shot: a sid (B10-S2), its number in the cut, a beat, or a description." },
       take: { type: "string", description: "Which clip: a path, or \"newest motion\", \"latest\", \"plays\". Defaults to the selected clip." },
-      live_seconds: { type: "number", description: "Seconds of live motion kept before the freeze holds. Default 1.0 (the first-second law)." },
+      live_seconds: { type: "number", description: "Seconds of good motion to keep before the freeze holds. Set it where the clip starts to degrade. Default 1.0." },
     },
     required: ["shot"],
     additionalProperties: false,

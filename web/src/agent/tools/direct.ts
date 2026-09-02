@@ -30,11 +30,11 @@ export const directShot: ActionDef<DirectArgs> = {
   title: "Direct this shot",
   description:
     "Compile a plain-English direction into Cutroom's own edit plan and show it on " +
-    "screen as a preview — \"keep the first second and hold his pose for the rest of " +
-    "the line\", \"restyle this warmer\", \"make it two seconds longer\". Types the " +
-    "instruction into the shot's Direct box and compiles it; the film's deterministic " +
-    "grammar goes first and reads the real voice-over duration. NOTHING RUNS: this " +
-    "only returns the plan. Show it to the director, then call apply_plan to execute it.",
+    "screen as a preview — \"hold his pose for the rest of the line\", \"restyle this " +
+    "warmer\", \"make it two seconds longer\". Types the instruction into the shot's " +
+    "Direct box and compiles it; the deterministic grammar goes first and reads the " +
+    "real voice-over duration. Clips play in full unless the direction asks for a " +
+    "freeze. NOTHING RUNS: it only returns the plan. Show it, then call apply_plan.",
   inputSchema: {
     type: "object",
     properties: {

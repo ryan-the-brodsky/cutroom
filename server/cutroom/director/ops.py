@@ -54,7 +54,9 @@ OPS: dict[str, dict[str, tuple[bool, str]]] = {
         "cfg": (False, ""), "seed": (False, ""),
         "feather": (False, ""), "matte": (False, "window|figure"),
         "start_frame": (False, "INK-FIRST staged start image"),
-        "freeze_after": (False, "seconds — auto freeze-tail the result"),
+        "freeze_after": (False, "seconds — freeze-tail the result. Only for "
+                         "a model that drifts after N seconds; omit and the "
+                         "clip plays in full"),
         "shot": (False, ""), "name": (False, ""),
         "backend": (False, ""), "model": (False, ""),
     },

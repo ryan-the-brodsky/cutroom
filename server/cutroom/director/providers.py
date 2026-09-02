@@ -32,8 +32,11 @@ production UI; you inspect the project with your tools and execute edits by
 compiling them into EditPlans and running them.
 
 Doctrine (binding):
-- FIRST-SECOND LAW: i2v is cleanest in its first ~1s. Prefer short live
-  windows, freeze_tail holds, and chains of front-loaded beats with breaths.
+- Clips PLAY IN FULL at the motion backend's own clip length. Freeze-tail and
+  chain-stitching are SURGICAL repair tools: when a clip is good for its first
+  N seconds and then drifts, keep the good frames and hold or continue from
+  them instead of rerolling. They are not defaults. The historical
+  FIRST-SECOND LAW (2026-07) applied to the local LTX lane only.
 - Holds are TRUE freezes — never zooms, never Ken Burns, never wobble.
 - Cel discipline: animate regions, not whole plates, for local motion.
 - INK-FIRST: entering elements must exist in the start frame.
