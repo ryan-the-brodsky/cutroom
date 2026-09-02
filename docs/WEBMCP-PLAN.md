@@ -338,7 +338,7 @@ All app-level unless marked page-scoped. `shot` args accept sid, ordinal, beat o
 | 40 | `play_cut` | — | `project?`, `cut?` ("latest" \| file name \| index from newest, 1 = newest), `from?` (seconds \| "mm:ss" \| shot sid \| "act2" \| "start"/"end" \| a description), `to?` (seconds), `muted?` | Film Editor → Cuts → the poster pulses → the screening room opens over it | cut, duration, from, from_meaning, now_playing_shot, chapters (count); `needs_click:true` when the browser refused autoplay |
 | 41 | `play_take` | — | `shot`, `take?` (same words as `select_take`), `from?` | Film Editor (shot selected) → the screening room | shot, take, kind, is_still, seconds, from |
 | 42 | `stop_playback` | — | — | Screening room → ✕ close | was_playing, closed, stopped_at. Safe when nothing is playing |
-| 43 | `preview_timeline` | — | `project?`, `from?` (same grammar), `play?` (default true), `scope_sec?` | Timeline → playhead to `from`, clip selected, ▶ | from, now_playing_shot, duration, clips, note ("live compiled preview, video only; use play_cut for the rendered cut with audio") |
+| 43 | `preview_timeline` | — | `project?`, `from?` (same grammar), `play?` (default true), `scope_sec?` | Timeline → playhead to `from`, clip selected, ▶ | from, now_playing_shot, duration, clips, note ("live compiled preview — picture and the VO/music/SFX mix, no render step; play_cut screens an assembled cut instead") |
 | 46 | `set_style` | consequential | `preset?` enum anime-cel/anime-noir/anime-pastel, `prefix?` (custom look), `avoid?` (the negative every still carries), `refs?` (style-reference frames; `[]` turns reference conditioning off), `project?` | Film Editor header → the style chip (`film.style`) names the register; its prefix is the hover title | project, the register (name, prefix, avoid, ref count) |
 | 47 | `attach_reference` | consequential | `shot`, `image` (a take path, "keeper of B02-S2", "newest still of B04-S2", "plays", or an http(s) url the server fetches), `role?` enum character/prop/setting/style, `note?` | Shot Editor → Generate → References strip (`shot.gen.refs`, one item `shot.gen.ref[data-path]`) | shot, the reference (image, role), what the role means, the whole strip |
 | 48 | `remove_reference` | consequential | `shot`, `image?` (path, file name, or "all"), `role?` (drops every reference in it) | Shot Editor → Generate → References → ✕ (`shot.gen.ref.remove`) | shot, how many went, the strip as it stands |
@@ -898,3 +898,10 @@ evidence in this plan still describe the shipped build exactly.
   sweeps leftover scratch. Purged 9 cuts + 64 intermediates + 47 clips + the old
   revolution-of-rags dir (~360 MB). Pinned `sha-364ad7a`. Growing the volume needs the
   Railway dashboard.
+- **Wed 16:20 PT — Two Claudes, motion throughout.** After the purge, motion pass 6 re-rolled
+  the 14 shots whose clips still stopped at ~5 s (Seedance, 6.5–10.5 s to cover each
+  shot's audio-fit length; two "one burst … then holds" prompts rewritten as continuous),
+  then three quiet shots again with explicit action. Frame-difference check on the final
+  cut (`animatic-full-720p-3.mp4`, 129.9 s): motion runs to within 0.5 s of the end on
+  14 of 15 shots; B01-S1 (wide dorm, typing) moves subtly for its full 10 s. Ledger for
+  the day $9.82 of $15; the takes on screen cost $2.80. Volume after: 192 MB free.
