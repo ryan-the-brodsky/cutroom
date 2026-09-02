@@ -855,3 +855,9 @@ Nothing internal changed. The Python package and import path `cutroom`, the
 Railway service names, the `~/.cutroom` data directory, the API paths and the
 WebMCP tool names are all unchanged, so the tool catalogue and the test
 evidence in this plan still describe the shipped build exactly.
+- **Wed 14:15 PT — Genga Studio is live.** Product renamed (workstream R: 118 user-facing
+  mentions, identifiers kept), wordmark + favicon, hero "Key frames from you. Holds, cels, and
+  cuts from the studio." Domain gengastudio.com on Cloudflare DNS → Railway custom domain,
+  certificate valid; `https://gengastudio.com` serves the landing page, `/app` the studio, native
+  tools register there. GitHub repo renamed `ryan-the-brodsky/genga-studio` (old URL redirects).
+  Pinned `sha-4a684bc`.
