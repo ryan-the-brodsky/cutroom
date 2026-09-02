@@ -66,7 +66,7 @@ export type ShotTab = "compose" | "generate" | "motion" | "audio" | "script";
 export type GenSub = "still" | "restyle" | "animate" | "chain";
 export type KindFilter = "all" | "stills" | "i2i" | "motion" | "fx" | "crops";
 export type GenField =
-  | "prompt" | "negative" | "seeds" | "denoise" | "frames" | "steps" | "cfg"
+  | "prompt" | "negative" | "seeds" | "denoise" | "frames" | "seconds" | "steps" | "cfg"
   | "freeze_after" | "fullFrame" | "region" | "backend" | "model" | "beats"
   /** One-off reference images for the next submit: [{image, role}]. */
   | "references";

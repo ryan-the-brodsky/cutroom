@@ -61,7 +61,7 @@ export function deriveMotionPrompt(imagePrompt?: string | null): string {
   if (!ip) return "";
   const m = ip.match(/Subject:\s*([^.]{10,160})/i);
   const subject = (m ? m[1] : ip.split(".")[0]).trim().slice(0, 160);
-  return `Subtle ambient motion true to the plate: ${subject}. Locked camera, small continuous movement, everything else holds.`;
+  return `Continuous, clearly visible motion for the whole clip, true to the plate: ${subject}. Locked camera; the subject keeps moving the entire time; nothing freezes.`;
 }
 
 export const generateTakes: ActionDef<GenArgs> = {
@@ -261,10 +261,15 @@ export const generateTakes: ActionDef<GenArgs> = {
       if (region) page.setGenField(sub, "region", region);
       seconds = clampSeconds(profile, maybeNum(args?.seconds)
         ?? profile.seconds_default ?? 2);
-      const frames = maybeNum(args?.frames) ?? framesForSeconds(profile, seconds);
+      const typedFrames = maybeNum(args?.frames);
+      const frames = typedFrames ?? framesForSeconds(profile, seconds);
       // Freeze ONLY on request: a repair for a clip that drifts, never a default.
       const live = maybeNum(args?.live_seconds) ?? maybeNum(args?.freeze_after);
-      page.setGenField(sub, "frames", frames);
+      // Seconds travel to the server as seconds. Frames go only when the director typed
+      // them: a frame count computed here against one model's grid and read back on
+      // another's turned 5 s requests into 3 s clips.
+      page.setGenField(sub, "seconds", seconds);
+      page.setGenField(sub, "frames", typedFrames ?? "");
       page.setGenField(sub, "freeze_after", live ?? 0);
       await ctx.trail.step({
         tool: "generate_takes",

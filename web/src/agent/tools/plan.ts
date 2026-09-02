@@ -242,6 +242,8 @@ export interface Ranked {
   /** Which register this shot reads as — drives the model choice. */
   register?: Register;
   skipped?: string;
+  shot_seconds?: number;       // the scripted length of the shot
+  seconds_explicit?: boolean;  // caller asked for a clip length
 }
 
 const W = { hero: 3, motion_prompt: 2.5, longest: 2, climax: 1.5, has_motion: -4 };
@@ -270,6 +272,7 @@ export function rankShots(
     const plate = r.keeper || r.stills?.[0] || null;
     if (!plate) {
       out.push({ shot: r.sid, score: -Infinity, seconds, why: "",
+                 shot_seconds: Number(r.seconds) || 0, seconds_explicit: opts.seconds != null,
                  skipped: "no plate — set a keeper still first" });
       continue;
     }
@@ -291,6 +294,7 @@ export function rankShots(
 
     out.push({
       shot: r.sid, score: Math.round(score * 1000) / 1000, seconds,
+      shot_seconds: dur, seconds_explicit: opts.seconds != null,
       register: registerOf(r),
       why: why.length ? why.join(", ") : `act ${act || 1}, ${dur || "?"}s`,
     });
@@ -342,10 +346,16 @@ export function fitBudget(
     if (r.skipped) { dropped += 1; continue; }
     if (items.length >= cap) { dropped += 1; continue; }
     if (models.length) {
-      const picked = pickModel(models, budget - total, r.seconds, r.register);
+      // Cover the shot: a 9 s shot gets a 9 s clip when the model can make one,
+      // unless the caller fixed the clip length. A short clip in a long shot is a hold.
+      const wantSeconds = (r.seconds_explicit || !r.shot_seconds)
+        ? r.seconds
+        : Math.max(2, Math.min(r.shot_seconds, Number(models[0]?.seconds_max) || r.seconds, 12));
+      const picked = pickModel(models, budget - total, wantSeconds, r.register);
       if (!picked.model) { dropped += 1; continue; }
-      const est = modelCost(picked.model, r.seconds);
-      items.push({ shot: r.shot, seconds: r.seconds,
+      const secs = Math.min(wantSeconds, Number(picked.model.seconds_max) || wantSeconds);
+      const est = modelCost(picked.model, secs);
+      items.push({ shot: r.shot, seconds: Math.round(secs * 10) / 10,
                    est_usd: Math.round(est * 10000) / 10000, why: r.why,
                    model: picked.model.key, model_why: picked.why,
                    ...(r.register ? { register: r.register } : {}) });

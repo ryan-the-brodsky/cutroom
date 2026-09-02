@@ -178,7 +178,8 @@ describe("generate_takes", () => {
   // nothing freezes unless the caller asks.
   it("animates at the backend's clip length with no freeze", async () => {
     await generateTakes.execute({ shot: "B10-S2", lane: "animate", count: 1 }, f.ctx);
-    expect(f.shotPage.gen.frames).toBe(49);
+    expect(f.shotPage.gen.seconds).toBe(2);             // the profile default, in seconds
+    expect(f.shotPage.gen.frames).toBe("");              // frames only when typed
     expect(f.shotPage.gen.freeze_after).toBe(0);
     expect(f.shotPage.gen.fullFrame).toBe(true);
     expect(f.shotPage.gen.prompt).toBe(FIXTURE_DETAIL["B10-S2"].motion_prompt);
@@ -187,7 +188,7 @@ describe("generate_takes", () => {
   it("takes seconds and clamps them to the profile", async () => {
     await generateTakes.execute(
       { shot: "B10-S2", lane: "animate", count: 1, seconds: 4 }, f.ctx);
-    expect(f.shotPage.gen.frames).toBe(97);            // 4s x 24fps, 8k+1
+    expect(f.shotPage.gen.seconds).toBe(4);            // seconds travel as seconds
     expect(f.shotPage.gen.freeze_after).toBe(0);
   });
 

@@ -72,7 +72,7 @@ export default function ShotPage() {
   const { busy, error, run, setError } = useAsync();
 
   const [gen, setGen] = useState<any>({ backend: "", model: "", seeds: "",
-    prompt: "", denoise: 0.85, frames: 97, steps: "", cfg: "", live: 1.0,
+    prompt: "", denoise: 0.85, frames: "", seconds: 5, steps: "", cfg: "", live: 1.0,
     freeze_after: "", region: null as number[] | null, fullFrame: false,
     voice: "", text: "", treatment: "none", beats:
       '[{"prompt": "", "live": 1.0, "breath": 0.4}]' });
@@ -154,7 +154,8 @@ export default function ShotPage() {
   const genAnimate = () => submitGen("motion", {
     plate, prompt: gen.prompt || shot?.motion_prompt,
     region: gen.fullFrame ? undefined : gen.region,
-    frames: numOr(gen.frames, 97), steps: numOr(gen.steps), cfg: numOr(gen.cfg),
+    // Seconds is the unit of direction; frames only when the director typed a count.
+    seconds: numOr(gen.seconds), frames: numOr(gen.frames), steps: numOr(gen.steps), cfg: numOr(gen.cfg),
     freeze_after: numOr(gen.freeze_after),
     name: `${sid}-${gen.fullFrame ? "full" : "cel"}`,
     backend: gen.backend || undefined, model: gen.model || undefined });
@@ -601,8 +602,13 @@ export default function ShotPage() {
                               setGen({ ...gen, prompt: e.target.value })} />
                 </label>
                 <div className="row">
+                  <label className="field">seconds
+                    <input style={{ width: 56 }} value={gen.seconds}
+                           data-action={genFieldAnchor("animate", "seconds")}
+                           onChange={(e) =>
+                             setGen({ ...gen, seconds: e.target.value })} /></label>
                   <label className="field">frames
-                    <input style={{ width: 64 }} value={gen.frames}
+                    <input style={{ width: 64 }} value={gen.frames} placeholder="auto"
                            data-action={genFieldAnchor("animate", "frames")}
                            onChange={(e) =>
                              setGen({ ...gen, frames: e.target.value })} /></label>
