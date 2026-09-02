@@ -874,3 +874,6 @@ evidence in this plan still describe the shipped build exactly.
   `list_references` and `generate_takes.references`: per-shot images with roles (character,
   prop, setting, style) sent to the model before the prompt; a/b on Gemini shows the exact dorm
   reproduced. 49 tools. Pinned `genga-studio-demo:sha-c96136f`.
+- **Wed 16:20 PT — invite-only gate.** `/app` without a token (or with a stale one) now shows
+  a clear gate: the wordmark, "This studio is invite-only", a paste box for the token, and a
+  way back to the landing page. Pinned `genga-studio-demo:sha-a787a57`.
