@@ -96,11 +96,14 @@ export default function ShotPage() {
     v === "" || v === null || v === undefined ? d : Number(v);
 
   const submitGen = async (lane: string, body: any) => {
+    let why = "";
     const d = await run(() => api<{ job: string; pool?: string }>(
-      `/api/projects/${pid}/generate/${lane}`, { shot: sid, ...body }),
+      `/api/projects/${pid}/generate/${lane}`, { shot: sid, ...body })
+      .catch((e: any) => { why = e?.detail || e?.message || String(e); throw e; }),
       (v: any) => { pushToast({ text: `${lane} queued`, job: v.job });
                     setWatchJob(v.job); });
-    if (!d?.job) throw new Error(`${lane} did not queue — see the error above`);
+    // The agent layer reads this message verbatim — carry the server's reason.
+    if (!d?.job) throw new Error(`${lane} did not queue — ${why || "see the error above"}`);
     return d;
   };
   const fire = (p: Promise<unknown>) => { void p.catch(() => {}); };

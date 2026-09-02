@@ -16,7 +16,11 @@ interface JobRow {
 }
 
 const asIds = (raw: unknown): string[] => {
-  if (Array.isArray(raw)) return raw.map(String).filter(Boolean).slice(0, 8);
+  if (Array.isArray(raw)) {
+    return raw.map((x) => (x && typeof x === "object")
+      ? String((x as Record<string, unknown>).job ?? (x as Record<string, unknown>).id ?? "")
+      : String(x ?? "")).filter(Boolean).slice(0, 8);
+  }
   if (typeof raw === "string" && raw.trim()) {
     return raw.split(/[,\s]+/).filter(Boolean).slice(0, 8);
   }
@@ -114,7 +118,7 @@ export const waitForJobs: ActionDef<WaitArgs> = {
   inputSchema: {
     type: "object",
     properties: {
-      jobs: { type: "array", items: { type: "string" }, description: "The job ids to wait for (up to 8), as returned by a generation tool." },
+      jobs: { type: "array", description: "The job ids to wait for (up to 8), as returned by a generation tool (ids, or the job objects a previous wait returned)." },
       timeout_s: { type: "integer", minimum: 1, maximum: 60, default: 30, description: "How long to wait, in seconds. Capped at 60." },
     },
     required: ["jobs"],

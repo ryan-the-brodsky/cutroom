@@ -191,7 +191,8 @@ export async function listTakes(ctx: ActionContext, pid: string, sid: string): P
 }
 
 const STILL_KINDS = new Set(["still", "i2i", "crop"]);
-const MOTION_KINDS = new Set(["motion", "fx", "chain"]);
+const MOTION_KINDS = new Set(["motion", "fx", "chain", "comp", "panel"]);
+const INTERMEDIATE_KINDS = new Set(["crop", "matte", "ref"]);   // never "the newest clip"
 
 /**
  * Resolve `take` the way a director says it: a path, a filename, or one of
@@ -224,7 +225,7 @@ export async function pickTake(
         ? { path: shot.active_source, kind: kindOf(shot.active_source) } : null;
     }
     if (/motion|clip|animat|video|move/.test(word)) {
-      const hit = newest((r) => MOTION_KINDS.has(r.kind) || IS_CLIP(r.path));
+      const hit = newest((r) => !INTERMEDIATE_KINDS.has(r.kind) && (MOTION_KINDS.has(r.kind) || IS_CLIP(r.path)));
       return hit ? { path: hit.path, kind: hit.kind } : null;
     }
     if (/still|image|frame|plate|restyle|i2i/.test(word)) {
@@ -233,7 +234,7 @@ export async function pickTake(
     }
     if (/latest|newest|last|recent|this|it/.test(word)) {
       const hit = opts.prefer === "clip"
-        ? newest((r) => IS_CLIP(r.path)) || pool[0]
+        ? newest((r) => IS_CLIP(r.path) && !INTERMEDIATE_KINDS.has(r.kind)) || pool[0]
         : opts.prefer === "image"
           ? newest((r) => IS_IMAGE(r.path)) || pool[0]
           : pool[0];

@@ -98,7 +98,7 @@ def _bucket_key(request: Request, kind: str) -> str:
 def rate_limit(request: Request, paid: bool = False) -> None:
     """12 paid jobs/hour and 60 jobs/minute per token (in-memory, per node)."""
     settings = get_settings()
-    if not settings.demo:
+    if not settings.demo or is_admin(request):
         return
     now = time.time()
     checks = [("min", 60.0, settings.demo_jobs_per_min,
