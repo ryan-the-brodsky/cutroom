@@ -117,8 +117,7 @@ def rate_limit(request: Request, paid: bool = False) -> None:
                 raise HTTPException(429, (
                     f"demo rate limit: {cap} {label} per "
                     f"{'hour' if window > 100 else 'minute'}. Try again in "
-                    f"{wait}s, or submit with backend 'mock' — mock jobs are "
-                    "instant, free and uncapped."))
+                    f"{wait}s."))
         for kind, window, cap, label in checks:
             _hits[_bucket_key(request, kind)].append(now)
 
@@ -381,7 +380,10 @@ def boot_import(force: bool = False) -> dict:
         pid = settings.demo_project
         log(f"importing {src_dir} as project {pid} …")
         stats = import_folder(str(src_dir), pid, label=pid, log=log)
-        enable_backend("mock", log)
+        if settings.demo_mock:
+            # Local-development test lane. Never on a hosted demo unless asked for:
+            # an agent will pick the free instant backend over the real ones.
+            enable_backend("mock", log)
         apply_lane_env(pid, log)
         from .db import session_scope as _ss
         from .jobs.queue import submit_job

@@ -64,6 +64,7 @@ class Settings(BaseSettings):
 
     # ---- hosted demo -----------------------------------------------------
     demo: bool = False
+    demo_mock: bool = False   # CUTROOM_DEMO_MOCK=1 enables the test lane on a demo boot
     admin_token: str = ""
     demo_budget_usd: float = 10.0
     demo_paid_jobs_per_hour: int = 12

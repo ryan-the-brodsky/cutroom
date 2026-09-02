@@ -19,11 +19,18 @@ ALL_TYPES = tuple(ADAPTER_TYPES) + DIRECTION_TYPES
 
 
 @router.get("/backends")
-def list_backends():
+def list_backends(request: Request):
+    from ..demo import is_admin
+    from ..config import get_settings
+    # Viewers on a hosted demo only see what can actually serve them: disabled
+    # templates (and the local test lane) stay out of their picture entirely.
+    viewer_only_enabled = get_settings().demo and not is_admin(request)
     with session_scope() as s:
         rows = s.execute(select(Backend).order_by(Backend.created_at)).scalars()
         out = []
         for b in rows:
+            if viewer_only_enabled and not b.enabled:
+                continue
             d = b.masked()
             cls = ADAPTER_TYPES.get(b.type)
             d["lanes"] = sorted(getattr(cls, "lanes", set())) if cls else \
