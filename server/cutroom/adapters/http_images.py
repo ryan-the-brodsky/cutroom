@@ -88,7 +88,9 @@ class OpenRouterImageAdapter(Adapter):
         # Style references first: the model reads the instruction, then sees
         # what the film looks like, then hears what this shot is. Content-last
         # is deliberate — the last text part is the one it renders.
-        refs = req.refs if self.opt("style_refs", default=True) is not False else []
+        # Reference frames pull the palette toward the references (measured: three night
+        # interiors darkened a daylight scene), so they are opt-in per backend.
+        refs = req.refs if self.opt("style_refs", default=False) is True else []
         for i, ref in enumerate(refs or []):
             if i == 0:
                 content.append({"type": "text",
