@@ -18,6 +18,11 @@ router = APIRouter()
 def delete_project(pid: str):
     """Remove a project: every row that points at it, then its media directory.
     Irreversible; running jobs for it are marked cancelled first."""
+    # Resolve the media root while the project still exists (store_for 404s afterwards).
+    try:
+        media_root = store_for(pid).root
+    except Exception:
+        media_root = None
     with session_scope() as s:
         proj = s.get(Project, pid)
         if not proj:
@@ -31,10 +36,8 @@ def delete_project(pid: str):
             res = s.execute(delete(model).where(model.project_id == pid))
             counts[model.__tablename__] = res.rowcount
         s.delete(proj)
-    try:
-        store = store_for(pid)
-        shutil.rmtree(store.root, ignore_errors=True)
-        removed_dir = True
-    except Exception:
-        removed_dir = False
+    removed_dir = False
+    if media_root is not None:
+        shutil.rmtree(media_root, ignore_errors=True)
+        removed_dir = not media_root.exists()
     return {"ok": True, "deleted": pid, "rows": counts, "media_removed": removed_dir}
