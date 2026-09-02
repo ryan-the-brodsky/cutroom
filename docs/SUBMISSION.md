@@ -119,7 +119,7 @@ One registry, three surfaces. `web/src/agent/registry.ts` holds an `ActionDef`
 per feature: name, description, JSON Schema, annotations, `where` it lives in
 the UI (route, query params, a `data-action` anchor), `howTo` a human performs
 it, and an `execute` that drives imperative handles the React pages publish on
-mount. The 39 WebMCP tools, the ⌘K palette and `show_me` are projections of
+mount. The 45 WebMCP tools, the ⌘K palette and `show_me` are projections of
 that one list.
 
 `web/src/agent/webmcp.ts` is the bridge. At app mount it reads

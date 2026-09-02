@@ -92,7 +92,7 @@ contract). 46 commits, `112 files changed, 18384 insertions(+), 217 deletions(-)
 
 **Why this counts as meaningfully extended:** the WebMCP layer is a new
 subsystem, not a wrapper. It adds an action registry that becomes the single
-source of truth for every feature in the app, 39 tools published on
+source of truth for every feature in the app, 45 tools published on
 `document.modelContext`, a natural-language shot resolver that did not exist,
 URL state and page handles that had to be built before any tool could drive the
 UI, and a cost guard that gates real spending. None of it existed in `cebcf93`.
