@@ -118,12 +118,20 @@ export const synthesizeVo: ActionDef<VoArgs> = {
     const take = s0?.takes?.[0]?.path ?? null;
     try { await page.refresh(); } catch { /* fine */ }
 
+    if (s0?.status === "error" || s0?.status === "failed") {
+      return err("vo_failed", {
+        shot: shot.sid, job, jobs: [job], backend: backendId,
+        hint: cut(s0.error, 160) || "The voice job failed — open Jobs for the log.",
+      });
+    }
+
     return ok(
       take ? `VO for ${shot.sid} is ready — ${cut(take.split("/").pop(), 40)}`
         : `VO queued for ${shot.sid}`,
       {
         shot: shot.sid,
         job,
+        jobs: [job],
         backend: backendId,
         cost_class: choice.cost_class,
         text: cut(text, 140),

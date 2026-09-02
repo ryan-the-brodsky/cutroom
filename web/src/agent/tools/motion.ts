@@ -109,11 +109,18 @@ export const freezeTail: ActionDef<FreezeArgs> = {
     const take = s0?.takes?.[0]?.path ?? null;
     try { await page.refresh(); } catch { /* fine */ }
 
+    if (s0?.status === "error" || s0?.status === "failed") {
+      return err("motion_edit_failed", {
+        shot: sid, job, jobs: [job],
+        hint: cut(s0.error, 160) || "The job failed — open Jobs for the log.",
+      });
+    }
+
     return ok(
       take ? `Froze ${sid} after ${live}s — ${cut(take.split("/").pop(), 40)}`
         : `Freeze queued for ${sid} (first ${live}s stay live)`,
       {
-        shot: sid, job, source: cut(clip, 60), live_seconds: live,
+        shot: sid, job, jobs: [job], source: cut(clip, 60), live_seconds: live,
         status: s0?.status ?? "queued",
         take: take ? cut(take, 64) : null,
         selected: safeState(page).selected ? cut(safeState(page).selected!, 60) : null,
@@ -186,11 +193,18 @@ export const trimClip: ActionDef<TrimArgs> = {
     const take = s0?.takes?.[0]?.path ?? null;
     try { await page.refresh(); } catch { /* fine */ }
 
+    if (s0?.status === "error" || s0?.status === "failed") {
+      return err("motion_edit_failed", {
+        shot: sid, job, jobs: [job],
+        hint: cut(s0.error, 160) || "The job failed — open Jobs for the log.",
+      });
+    }
+
     return ok(
       take ? `Trimmed ${sid} to ${end}s — ${cut(take.split("/").pop(), 40)}`
         : `Trim queued for ${sid} (keep the first ${end}s)`,
       {
-        shot: sid, job, source: cut(clip, 60), end_seconds: end,
+        shot: sid, job, jobs: [job], source: cut(clip, 60), end_seconds: end,
         status: s0?.status ?? "queued",
         take: take ? cut(take, 64) : null,
         ...(s0?.error ? { error_detail: cut(s0.error, 90) } : {}),

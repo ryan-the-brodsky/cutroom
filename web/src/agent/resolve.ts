@@ -244,6 +244,11 @@ export function parseQuery(query: string, cast: CastMember[]): QueryFacts {
     const v = Number(n);
     if (v >= 1 && v <= 9999) ordinals.push(v);
   };
+  // "the first shot", "second shot", "the last shot" → ordinals (last resolves later)
+  const WORDS: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
+    sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, opening: 1 };
+  rest = rest.replace(/\b(?:the\s+)?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|opening)\s+shot\b/g,
+    (_m, w) => (pushOrd(String(WORDS[w])), " "));
   rest = rest.replace(/#\s*(\d{1,4})\b/g, (_m, n) => (pushOrd(n), " "));
   rest = rest.replace(/\b(?:shot|number|no\.?)\s*#?\s*(\d{1,4})\b/g, (_m, n) => (pushOrd(n), " "));
   rest = rest.replace(/\bthe\s+(\d{1,4})(?:st|nd|rd|th)\b/g, (_m, n) => (pushOrd(n), " "));

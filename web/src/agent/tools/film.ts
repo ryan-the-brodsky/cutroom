@@ -85,7 +85,7 @@ export const cutFilm: ActionDef<CutArgs> = {
 
     if (s0?.status === "error" || s0?.status === "failed") {
       return err("cut_failed", {
-        job, hint: cut(s0.error, 200) || "The assemble job failed — open Jobs for the log.",
+        job, jobs: [job], hint: cut(s0.error, 200) || "The assemble job failed — open Jobs for the log.",
       });
     }
 
@@ -94,6 +94,7 @@ export const cutFilm: ActionDef<CutArgs> = {
         : `Cutting ${scopeLabel(scope)} at ${res}p…`,
       {
         job,
+        jobs: [job],
         scope,
         res,
         status: s0?.status ?? "queued",

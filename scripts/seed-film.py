@@ -60,4 +60,4 @@ for spec in a.lane:
     print(f"lane {lane} -> {backend}:{model or '-'}:", st, "" if st == 200 else r)
 
 st, film = call(f"/api/projects/{a.project}/film")
-print("film:", st, "shots" , len(film.get("shots", film) if isinstance(film, (list, dict)) else []))
+print("film:", st, "shots", len(film) if isinstance(film, list) else len(film.get("shots", [])))
