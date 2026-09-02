@@ -580,3 +580,14 @@ at low cost, with Ryan able to toggle providers without redeploying.
   `github.com/ryan-the-brodsky/cutroom` PUBLIC from the clean history (MIT detected). CI now
   publishes `ghcr.io/ryan-the-brodsky/cutroom-demo:latest` (fresh package). Demo data stays
   private on `cutroom-demo-data`; boot import needs `CUTROOM_DEMO_BUNDLE_TOKEN`.
+- **Production drive (Tue 18:50–19:05 PT)** — hosted demo live at
+  https://cutroom-production-0f3c.up.railway.app (image pinned by sha tag; source detached; two
+  Dockerfile bugs fixed by D: SPA dropped by setuptools, healthcheck port). Seeded a NEW film
+  over the API (`scripts/seed-film.py`): *Two Claudes*, 15 shots / 120 s, written from This
+  American Life #896 Act Two "Escape Claudes" (2026-08-28). Drove it through the **native**
+  `document.modelContext` from real Chrome (`web/scripts/agent-drive.mjs`): first still landed
+  via Gemini Flash Image in 10 s ($0.04), keeper set, UI visibly navigated. Bugs found and
+  fixed in the loop: VO lane had no voice (set River, ElevenLabs); `synthesize_vo` reported
+  ok on a failed job; single-job tools lacked `jobs[]` for `wait_for_jobs`; resolver ignored
+  ordinal words ("the first shot"); `POST /projects/{pid}/cast` added for API-created projects.
+  Full 120-step run launched at 19:05 PT.
