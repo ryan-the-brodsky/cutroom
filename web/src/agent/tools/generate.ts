@@ -51,6 +51,17 @@ const LANES: Record<Lane, { sub: GenSub; apiLane: string; noun: string }> = {
  */
 const RESTYLE_DENOISE = 0.85;
 
+
+/** A shot with no motion prompt still animates: small, continuous, locked-camera motion
+ *  drawn from the plate's own subject clause. Freeze/chain remain repair tools. */
+export function deriveMotionPrompt(imagePrompt?: string | null): string {
+  const ip = String(imagePrompt ?? "").trim();
+  if (!ip) return "";
+  const m = ip.match(/Subject:\s*([^.]{10,160})/i);
+  const subject = (m ? m[1] : ip.split(".")[0]).trim().slice(0, 160);
+  return `Subtle ambient motion true to the plate: ${subject}. Locked camera, small continuous movement, everything else holds.`;
+}
+
 export const generateTakes: ActionDef<GenArgs> = {
   name: "generate_takes",
   title: "Generate takes",
@@ -136,7 +147,7 @@ export const generateTakes: ActionDef<GenArgs> = {
     try { detail = await fetchShot(ctx, pid, shot.sid); }
     catch (e) { return asError(e, "shot_fetch_failed", "Could not read the shot"); }
 
-    const base = lane === "animate" ? (detail.motion_prompt || "")
+    const base = lane === "animate" ? (detail.motion_prompt || deriveMotionPrompt(detail.image_prompt))
       : lane === "restyle" ? (args?.prompt ? "" : detail.image_prompt || "")
         : (detail.image_prompt || "");
     const typed = String(args?.prompt ?? "").trim();
