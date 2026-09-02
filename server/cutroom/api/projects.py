@@ -94,6 +94,29 @@ def get_cast(pid: str):
         return {"cast": cast}
 
 
+@router.post("/projects/{pid}/cast",
+             dependencies=[Depends(require_admin("editing the cast"))])
+async def set_cast(pid: str, req: Request):
+    """Set the character index for a project created through the API (the game7
+    importer does this from prompts/characters.jsonl; fresh projects need a way in).
+    Body: {"characters": [{id, character, image_prompt?, negative?, seeds?}, …]}"""
+    body = await req.json()
+    rows = body.get("characters") or []
+    if not isinstance(rows, list):
+        raise HTTPException(400, "characters must be a list")
+    from ..importer.game7 import build_cast
+    cast = build_cast(rows)
+    with session_scope() as s:
+        proj = s.get(Project, pid)
+        if not proj:
+            raise HTTPException(404, "no such project")
+        settings = dict(proj.settings or {})
+        settings["characters"] = rows
+        settings["cast"] = cast
+        proj.settings = settings
+    return {"ok": True, "cast": cast}
+
+
 @router.get("/projects/{pid}/shots/{sid}")
 def get_shot(pid: str, sid: str):
     store = store_for(pid)

@@ -102,3 +102,18 @@ def test_cast_route_and_reimport(client, tmp_path):
 
 def test_cast_route_404s_for_unknown_project(client):
     assert client.get("/api/projects/nope/cast").status_code == 404
+
+
+def test_set_cast_endpoint(client_admin_factory=None):
+    """POST /projects/{pid}/cast stores characters + a built cast for API-created projects."""
+    from fastapi.testclient import TestClient
+    from cutroom.main import create_app
+    c = TestClient(create_app())
+    assert c.post("/api/projects", json={"id": "castproj"}).status_code == 200
+    rows = [{"id": "CHAR-a", "character": "Claude A — the first instance", "image_prompt": "x"}]
+    r = c.post("/api/projects/castproj/cast", json={"characters": rows})
+    assert r.status_code == 200, r.text
+    names = {e["name"] for e in r.json()["cast"]}
+    assert "Claude A" in names
+    g = c.get("/api/projects/castproj/cast").json()["cast"]
+    assert any("first instance" in a for e in g for a in e["aliases"]) or g
