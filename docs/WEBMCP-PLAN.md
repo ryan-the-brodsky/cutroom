@@ -693,3 +693,8 @@ at low cost, with Ryan able to toggle providers without redeploying.
   even-dim rounding, size-proof background frames, `CUTROOM_ENCODER_THREADS` (2 on the demo
   box; x264 child 310 → 251 MB), `render_comp` settles 45 s. Also: OpenRouter image lane now
   requests 16:9 (`image_config.aspect_ratio`, verified 1344×768). Retry run in flight.
+- **Video-on-video verified on the box + Railway upgraded (Tue 23:55 PT)** — retry run: cel over
+  a clip background generated (41 s), rendered and promoted (24 s), cut 7 done, zero failures.
+  Ryan subscribed to the paid Railway plan; service limits raised to **8 GB / 8 vCPU**
+  (`serviceInstanceLimitsUpdate` accepted); `CUTROOM_CPU_POOL_SIZE=2`, `CUTROOM_ENCODER_THREADS=4`.
+  Volume still 500 MB; growing it next.
