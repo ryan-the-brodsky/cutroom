@@ -52,9 +52,34 @@ def _apply_lane_model(backend: Backend, pid: str | None) -> Backend:
     return backend
 
 
+def _film_summary(s, store, pid: str, limit: int = 40) -> list[dict]:
+    """One compact row per shot so the advisor can talk about THIS film:
+    sid, length, register, what plays on the timeline, the line, the note.
+    Kept terse — the openai-chat provider trims context to a few KB."""
+    rows = []
+    by_shot = film.takes_by_shot(s, pid)
+    shots = s.execute(select(Shot).where(Shot.project_id == pid)
+                      .order_by(Shot.act, Shot.id)).scalars().all()
+    for sh in shots[:limit]:
+        e = film.film_entry(store, sh, by_shot.get(sh.sid, []))
+        src = e.get("active_source") or ""
+        line = (e.get("dialogue") or e.get("narration") or "")
+        row = {"sid": sh.sid, "s": round(float(e.get("seconds") or 0), 1),
+               "reg": (sh.register or sh.type or "")[:40],
+               "plays": src.rsplit("/", 1)[-1][:40] if src else "still only"}
+        if line:
+            row["line"] = str(line)[:70]
+        if sh.curation_note:
+            row["note"] = str(sh.curation_note)[:60]
+        rows.append(row)
+    return rows
+
+
 def _context(pid: str, shot_sid: str | None, asset: str | None) -> dict:
     store = get_storage().project(pid)
     ctx: dict = {"project": pid}
+    with session_scope() as s:
+        ctx["film"] = _film_summary(s, store, pid)
     if asset:
         ctx["asset"] = asset
     if shot_sid:

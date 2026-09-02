@@ -188,8 +188,12 @@ async def stream_openai(project: str, message: str, backend,
         return
     sys_prompt = ("You are a production advisor for an AI-anime film on the "
                   "Genga Studio platform (cel pipeline: still plates + region i2v "
-                  "+ freeze/chain edits). You cannot run tools; give concrete, "
-                  f"terse guidance. Context: {json.dumps(context)[:2000]}")
+                  "+ freeze/chain edits). You cannot run tools yourself; every "
+                  "studio action is also a WebMCP tool an agent in the browser can "
+                  "run, so phrase advice as concrete actions on named shots (sid). "
+                  "Give terse guidance. The CONTEXT lists this film's shots: use "
+                  f"their sids and never say you lack the shot list. Context: "
+                  f"{json.dumps(context)[:6000]}")
     body = {"model": (backend.options or {}).get("model") or "default",
             "messages": [{"role": "system", "content": sys_prompt},
                          {"role": "user", "content": message}],
