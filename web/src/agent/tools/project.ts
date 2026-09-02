@@ -13,10 +13,11 @@
 import type { ActionDef, ProjectsPageHandles, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { cut, filmUrl, maybeNum, shotUrl } from "./util";
+import { ROUTES, filmPath } from "../../routes";
 
-const PROJECTS_ROUTE = "/";
-const FILM_ROUTE = "/p/:pid";
-const SHOT_ROUTE = "/p/:pid/shot/:sid";
+const PROJECTS_ROUTE = ROUTES.projects;
+const FILM_ROUTE = ROUTES.film;
+const SHOT_ROUTE = ROUTES.shot;
 
 const MAX_SHOTS = 40;
 const MAX_SECONDS = 300;
@@ -431,7 +432,7 @@ export const listProjects: ActionDef<Record<string, never>> = {
       projects: rows.slice(0, 20).map((p) => ({
         id: p.id, title: cut(p.label || p.id, 40), shots: p.shots ?? 0,
         ...(p.paused ? { paused: true } : {}),
-        url: `/p/${p.id}`,
+        url: filmPath(p.id),
       })),
       hint: rows.length
         ? "Pass one of these ids as `project`, or open_shot to start work in it."

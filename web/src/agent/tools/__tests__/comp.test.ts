@@ -2,6 +2,7 @@
  * The cel workbench tools (workstream I) against the fake context: what they
  * navigate to, which page handles they call, and the envelopes they return.
  */
+import { APP_BASE } from "../../../routes";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ANCHORS } from "../../contract";
 import {
@@ -72,7 +73,7 @@ describe("add_cel_layer", () => {
     const r = asOk(await addCelLayer.execute(
       { shot: "B10-S2", region: [320, 96, 640, 352], prompt: "only the hand turns the dial" },
       f.ctx));
-    expect(f.rec.nav[0]).toBe("/p/next-year/shot/B10-S2?tab=compose&comp=B10-S2-1");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/shot/B10-S2?tab=compose&comp=B10-S2-1`);
     expect(f.rec.calls()).toEqual(expect.arrayContaining([
       "setNewRegion(320,96,640,352)",
       "setNewPrompt(only the hand turns the dial)",

@@ -17,6 +17,7 @@ import type {
 } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import * as screen from "../../screen/store";
+import { ROUTES, timelinePath } from "../../routes";
 import {
   chapterAt, chapterOf, fetchChapters, mmss, parseFrom, totalOf,
 } from "../../screen/edl";
@@ -25,7 +26,7 @@ import {
   openFilmPage, pickTake,
 } from "./util";
 
-const TIMELINE_ROUTE = "/p/:pid/timeline";
+const TIMELINE_ROUTE = ROUTES.timeline;
 
 const FROM_WORDS =
   "Where to start: seconds (65), \"1:05\", a shot sid (\"B03-S2\"), \"act2\", " +
@@ -365,7 +366,7 @@ export const previewTimeline: ActionDef<PreviewArgs> = {
     const pid = args?.project || ctx.project;
     if (!pid) return err("no_project", { hint: "Open a project first, then ask for the preview." });
 
-    const url = `/p/${pid}/timeline`;
+    const url = timelinePath(pid);
     let page;
     try {
       await ctx.nav(url);

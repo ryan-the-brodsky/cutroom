@@ -1,3 +1,4 @@
+import { APP_BASE } from "../../../routes";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ANCHORS, shotTabAnchor } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
@@ -181,7 +182,7 @@ describe("place_cue", () => {
     const r = asOk(await placeCue.execute(
       { take: "audio/music/theme.mp3", start: 90, gain: -12, fade_out: 2 }, f.ctx));
     expect(r.ok).toBe(true);
-    expect(f.rec.nav[0]).toBe("/p/next-year");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year`);
     expect(f.rec.anchors()).toContain(ANCHORS.filmCues);
     expect(f.cues.rows[0]).toMatchObject({
       kind: "music", start: 90, gain: -12, fade_out: 2,

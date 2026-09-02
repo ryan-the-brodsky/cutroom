@@ -1,0 +1,72 @@
+/**
+ * One design system, two surfaces.
+ *
+ * The public page at `/` and the studio at `/app` are the same product, so they draw from
+ * the same well: near-black stock, sodium-amber key light, one cold blue for the machine
+ * voice, Righteous for display and Raleway for text. The landing page mirrors these values
+ * into its own `--lp-*` names so it stays self-contained; the studio consumes them here.
+ *
+ * The studio keeps its legacy `--bg` / `--bg2` / `--accent` aliases (styles.css maps them
+ * onto these tokens), so nothing in the app had to change to be reskinned.
+ *
+ * Contrast: `--c-text` and `--c-dim` both clear AA on `--c-bg` and on `--c-surface`.
+ * `--c-faint` is decoration and small mono labels only, never body copy.
+ */
+:root {
+  /* ---- type */
+  --font-sans: "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Righteous", "Raleway", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* ---- ground and surfaces */
+  --c-bg: #0b0b0f;
+  --c-bg-lift: #101016;
+  --c-surface: #15151c;
+  --c-surface-2: #1c1c25;
+  --c-surface-3: #23232e;
+  --c-line: #262631;
+  --c-line-soft: #1e1e27;
+
+  /* ---- ink */
+  --c-text: #edecf2;
+  --c-dim: #9a9aab;
+  --c-faint: #6d6d7d;
+
+  /* ---- light */
+  --c-amber: #e8b34b;
+  --c-amber-bright: #f3c669;
+  --c-amber-deep: #a8791f;
+  --c-amber-wash: rgba(232, 179, 75, 0.1);
+  --c-amber-line: rgba(232, 179, 75, 0.28);
+  --c-on-amber: #191307;
+  --c-blue: #7aa2f7;
+  --c-good: #6fce8f;
+  --c-bad: #e06c75;
+  --c-violet: #b48ead;
+
+  /* ---- geometry */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+
+  /* ---- depth */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --sh-2: 0 10px 30px -12px rgba(0, 0, 0, 0.8);
+  --sh-3: 0 24px 60px -18px rgba(0, 0, 0, 0.85);
+  --ring: 0 0 0 3px rgba(232, 179, 75, 0.28);
+
+  /* ---- rhythm */
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 24px;
+
+  /* ---- motion: short, functional, never ambient */
+  --t-fast: 0.12s ease;
+  --t: 0.16s ease;
+}

@@ -1,3 +1,4 @@
+import { APP_BASE } from "../../../routes";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ANCHORS, TOOL_NAMES, genFieldAnchor, genSubAnchor, shotTabAnchor } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
@@ -61,7 +62,7 @@ describe("describe_shot", () => {
 
 describe("get_context", () => {
   it("reports the current page, project and running jobs", async () => {
-    await f.ctx.nav("/p/next-year/shot/B10-S2?tab=generate");
+    await f.ctx.nav(`${APP_BASE}/p/next-year/shot/B10-S2?tab=generate`);
     const r = asOk(await getContext.execute({} as never, f.ctx));
     expect((r.page as { kind: string; shot: string }).kind).toBe("shot");
     expect((r.page as { shot: string }).shot).toBe("B10-S2");
@@ -96,7 +97,7 @@ describe("list_features", () => {
 describe("open_shot", () => {
   it("navigates with tab and sub in the query, then sets both", async () => {
     const r = asOk(await openShot.execute({ shot: "B10-S2", sub: "animate" }, f.ctx));
-    expect(f.rec.nav[0]).toBe("/p/next-year/shot/B10-S2?tab=generate&sub=animate");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/shot/B10-S2?tab=generate&sub=animate`);
     expect(f.rec.calls()).toEqual(expect.arrayContaining(["setTab(generate)", "setSub(animate)"]));
     expect(f.rec.anchors()).toContain(genSubAnchor("animate"));
     expect(r.shot).toBe("B10-S2");
@@ -110,10 +111,10 @@ describe("open_shot", () => {
 
 describe("show_me", () => {
   it("navigates to the feature's route and pulses its anchor", async () => {
-    await f.ctx.nav("/p/next-year/shot/B10-S2");
+    await f.ctx.nav(`${APP_BASE}/p/next-year/shot/B10-S2`);
     const r = asOk(await showMe.execute({ feature: "freeze tail" }, f.ctx));
     expect(r.feature).toBe("freeze_tail");
-    expect(f.rec.nav[f.rec.nav.length - 1]).toBe("/p/next-year/shot/B10-S2?tab=motion");
+    expect(f.rec.nav[f.rec.nav.length - 1]).toBe(`${APP_BASE}/p/next-year/shot/B10-S2?tab=motion`);
     expect(f.rec.anchors()).toContain(ANCHORS.motionFreeze);
     expect(r.how_to).toMatch(/Motion edits/);
   });
@@ -135,7 +136,7 @@ describe("generate_takes", () => {
   it("drives Generate → Still and submits once per take with distinct seeds", async () => {
     const r = asOk(await generateTakes.execute(
       { shot: "the David Ross close-up", lane: "still", count: 3 }, f.ctx));
-    expect(f.rec.nav[0]).toBe("/p/next-year/shot/B10-S2?tab=generate&sub=still");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/shot/B10-S2?tab=generate&sub=still`);
     const calls = f.rec.calls();
     expect(calls.filter((c) => c === "submitGenerate(still)")).toHaveLength(3);
     expect(calls.indexOf("setTab(generate)")).toBeLessThan(calls.indexOf("submitGenerate(still)"));
@@ -263,7 +264,7 @@ describe("freeze_tail", () => {
   it("opens Motion edits on the newest clip, sets live and submits", async () => {
     const r = asOk(await freezeTail.execute({ shot: "B10-S2", live_seconds: 1 }, f.ctx));
     expect(f.rec.nav[0]).toBe(
-      "/p/next-year/shot/B10-S2?tab=motion&take=renders%2FB10-S2%2Fmotion%2Fa.mp4");
+      `${APP_BASE}/p/next-year/shot/B10-S2?tab=motion&take=renders%2FB10-S2%2Fmotion%2Fa.mp4`);
     const calls = f.rec.calls();
     expect(calls).toEqual(expect.arrayContaining(["setTab(motion)", "setLive(1)", "submitFreeze()"]));
     expect(calls.indexOf("setLive(1)")).toBeLessThan(calls.indexOf("submitFreeze()"));
@@ -369,7 +370,7 @@ describe("set_shot_timing", () => {
   it("edits the Film Editor quick panel", async () => {
     const r = asOk(await setShotTiming.execute(
       { shot: "B10-S2", seconds: 5, vo_offset: -0.3, mute_vo: true }, f.ctx));
-    expect(f.rec.nav[0]).toBe("/p/next-year?sel=B10-S2");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year?sel=B10-S2`);
     expect(f.rec.calls()).toContain("selectShot(B10-S2)");
     expect(f.rec.calls()).toContain(
       'setOverride(B10-S2,{"seconds":5,"vo_offset":-0.3,"mute_vo":true})');
@@ -395,7 +396,7 @@ describe("set_shot_timing", () => {
 describe("synthesize_vo", () => {
   it("fills the Audio tab from the scripted line and submits", async () => {
     const r = asOk(await synthesizeVo.execute({ shot: "B11-S4", futz: true }, f.ctx));
-    expect(f.rec.nav[0]).toBe("/p/next-year/shot/B11-S4?tab=audio");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/shot/B11-S4?tab=audio`);
     expect(f.shotPage.vo.text).toBe(FIXTURE_DETAIL["B11-S4"].radio);
     expect(f.shotPage.vo.futz).toBe(true);
     expect(f.rec.calls()).toContain("submitVo()");
@@ -459,7 +460,7 @@ describe("direct_shot / apply_plan", () => {
 describe("cut_film", () => {
   it("sets scope and res on the Film Editor and presses cut", async () => {
     const r = asOk(await cutFilm.execute({ scope: "act1", res: "720" }, f.ctx));
-    expect(f.rec.nav[0]).toBe("/p/next-year?scope=act1&res=720");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year?scope=act1&res=720`);
     expect(f.rec.calls()).toEqual(["setScope(act1)", "setRes(720)", "cutFilm()", "refresh()"]);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.filmScope, ANCHORS.filmRes, ANCHORS.filmCut]));

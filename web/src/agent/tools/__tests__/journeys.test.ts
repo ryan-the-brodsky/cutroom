@@ -3,6 +3,7 @@
  * evals the video demonstrates. Each test asserts the tool sequence, what the
  * UI was driven to do, and what the human ends up looking at.
  */
+import { APP_BASE } from "../../../routes";
 import { describe, expect, it } from "vitest";
 import { ANCHORS, genSubAnchor, shotTabAnchor } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
@@ -27,7 +28,7 @@ describe("J1 — “Make a few more generative cuts of the David Ross close-up.�
       { shot: "B10-S2", lane: "still", count: "a few" as never }, f.ctx));
 
     // Navigation the human sees.
-    expect(f.rec.nav).toEqual(["/p/next-year/shot/B10-S2?tab=generate&sub=still"]);
+    expect(f.rec.nav).toEqual([`${APP_BASE}/p/next-year/shot/B10-S2?tab=generate&sub=still`]);
 
     // Page handles, in order.
     const calls = f.rec.calls();
@@ -112,7 +113,7 @@ describe("J4 — “Cut act 1 at 720.”", () => {
     });
 
     const cut = asOk(await cutFilm.execute({ scope: "act1", res: "720" }, f.ctx));
-    expect(f.rec.nav).toEqual(["/p/next-year?scope=act1&res=720"]);
+    expect(f.rec.nav).toEqual([`${APP_BASE}/p/next-year?scope=act1&res=720`]);
     expect(f.rec.calls()).toEqual(["setScope(act1)", "setRes(720)", "cutFilm()", "refresh()"]);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.filmScope, ANCHORS.filmRes, ANCHORS.filmCut]));

@@ -27,6 +27,13 @@ cutroom/
 ./dev.sh server      # http://127.0.0.1:8770
 ```
 
+`/` is the public landing page (what Cutroom is, the demo film, how the WebMCP
+layer works). The studio itself lives at **`/app`**, and old deep links
+(`/p/…`, `/jobs`, `/settings`) redirect there. The landing page registers the
+same WebMCP tools, so a visitor who lands on `/` can ask the page what it does.
+
+![The landing page](web/public/landing/poster.jpg)
+
 Then in the UI: **Projects → Import** with the path to a **studio folder** (a
 directory holding `prompts/shots.jsonl`, `renders/`, `audio/`; the layout is
 documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)). Shots, keepers,
@@ -102,9 +109,9 @@ you learn the app by watching the agent drive it. Reads are the only silent
 calls, an Agent trail logs every step, and paid backends refuse to spend
 without an explicit `confirm_cost`.
 
-Open the [live demo](https://cutroom-production-0f3c.up.railway.app) in ChatGPT
-Desktop's browser (Settings › Browser › Enable site tools) or Chrome 149+ with
-`chrome://flags/#enable-webmcp-testing`, then ask:
+Open the [live demo](https://cutroom-production-0f3c.up.railway.app/app) in
+ChatGPT Desktop's browser (Settings › Browser › Enable site tools) or Chrome
+149+ with `chrome://flags/#enable-webmcp-testing`, then ask:
 
 > "Make a few more generative cuts of the two chairs shot."
 > "Keep the first second of the letter flood and freeze the rest."

@@ -13,14 +13,15 @@
  */
 import type { ActionContext, ActionDef, ToolResult, Where } from "./contract";
 import { ANCHORS, err, genFieldAnchor, genSubAnchor, ok, shotTabAnchor } from "./contract";
+import { ROUTES } from "../routes";
 
-const FILM = "/p/:pid";
-const SHOT = "/p/:pid/shot/:sid";
-const TIMELINE = "/p/:pid/timeline";
-const CHAT = "/p/:pid/chat";
-const JOBS = "/jobs";
-const SETTINGS = "/settings";
-const PROJECTS = "/";
+const FILM = ROUTES.film;
+const SHOT = ROUTES.shot;
+const TIMELINE = ROUTES.timeline;
+const CHAT = ROUTES.chat;
+const JOBS = ROUTES.jobs;
+const SETTINGS = ROUTES.settings;
+const PROJECTS = ROUTES.projects;
 
 /** The shot the human is looking at, so `:sid` routes can resolve themselves. */
 function currentSid(ctx: ActionContext): string | null {

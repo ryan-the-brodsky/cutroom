@@ -15,7 +15,8 @@
 | | |
 |---|---|
 | Live URL | <https://cutroom-production-0f3c.up.railway.app> |
-| Judge link | `<LIVE_URL>/?token=<JUDGE_TOKEN>` (token in Railway vars and your local env file, never in this repo) |
+| Judge link | `<LIVE_URL>/app?token=<JUDGE_TOKEN>` (token in Railway vars and your local env file, never in this repo) |
+| Landing page | `<LIVE_URL>/` — the public page; "Open the studio" goes to `/app` |
 | Admin | `CUTROOM_ADMIN_TOKEN`, needed for lane edits, seeding and reset |
 | Tools | 43 |
 
@@ -103,7 +104,7 @@ recreates shots, cast and lane pins; it does not touch media:
 
 ```bash
 python3 scripts/seed-film.py \
-  --url https://cutroom-production-0f3c.up.railway.app \
+  --url https://cutroom-production-0f3c.up.railway.app/app \
   --token "$CUTROOM_ADMIN_TOKEN" --project two-claudes \
   --shots docs/demo-films/two-claudes/shots.jsonl \
   --cast  docs/demo-films/two-claudes/characters.jsonl \
@@ -351,7 +352,7 @@ one JSON result per call:
 ```bash
 python3 scripts/make-run-steps.py docs/demo-films/two-claudes/shots.jsonl > /tmp/run.json
 cd web && node scripts/agent-drive.mjs \
-  --url https://cutroom-production-0f3c.up.railway.app/ \
+  --url https://cutroom-production-0f3c.up.railway.app/app \
   --token "$CUTROOM_ADMIN_TOKEN" --steps /tmp/run.json --out /tmp/cutroom-drive/full --headed
 ```
 

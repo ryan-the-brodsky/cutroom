@@ -6,6 +6,7 @@ import Palette from "./agent/Palette";
 import { AgentChip, AgentTrail } from "./agent/presence";
 import ScreeningRoom from "./components/ScreeningRoom";
 import { usePoll, useToast } from "./hooks";
+import { ROUTES, chatPath, filmPath, timelinePath } from "./routes";
 
 /**
  * Addendum A: a judge's link is one click — `?token=<t>` is stored and stripped from the URL
@@ -61,18 +62,18 @@ export default function App() {
   return (
     <div className="app">
       <nav className="sidebar">
-        <div className="brand">CUTROOM</div>
-        <NavLink to="/" end data-action={ANCHORS.navProjects}>Projects</NavLink>
+        <Link className="brand" to="/">CUTROOM</Link>
+        <NavLink to={ROUTES.projects} end data-action={ANCHORS.navProjects}>Projects</NavLink>
         {projectPid && <>
-          <NavLink to={`/p/${projectPid}`} end
+          <NavLink to={filmPath(projectPid)} end
                    data-action={ANCHORS.navFilm}>Film Editor</NavLink>
-          <NavLink to={`/p/${projectPid}/timeline`}
+          <NavLink to={timelinePath(projectPid)}
                    data-action={ANCHORS.navTimeline}>Timeline</NavLink>
-          <NavLink to={`/p/${projectPid}/chat`}
+          <NavLink to={chatPath(projectPid)}
                    data-action={ANCHORS.navChat}>Director chat</NavLink>
         </>}
-        <NavLink to="/jobs" data-action={ANCHORS.navJobs}>Jobs</NavLink>
-        <NavLink to="/settings" data-action={ANCHORS.navSettings}>Settings</NavLink>
+        <NavLink to={ROUTES.jobs} data-action={ANCHORS.navJobs}>Jobs</NavLink>
+        <NavLink to={ROUTES.settings} data-action={ANCHORS.navSettings}>Settings</NavLink>
         <div className="spacer" />
         <div className="muted small" style={{ padding: 8 }}>
           {pid ? <>project: <b>{pid}</b></> : "no project selected"}
@@ -95,7 +96,7 @@ export default function App() {
       {toast && (
         <div className="toast">
           {toast.text}{" "}
-          {toast.job && <Link to="/jobs">view job →</Link>}
+          {toast.job && <Link to={ROUTES.jobs}>view job →</Link>}
         </div>
       )}
       <AgentTrail />

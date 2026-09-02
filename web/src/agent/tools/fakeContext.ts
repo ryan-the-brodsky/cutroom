@@ -6,6 +6,7 @@
  * Not shipped to users, but it lives in src/ so `tsc -p .` type-checks it
  * against the frozen contract — which is the whole point.
  */
+import { APP_BASE } from "../../routes";
 import type {
   ActionContext, AnyPageHandles, BgField, Candidate, CompLayerLite,
   CompPageHandles, Confidence, CueField, CueKind,
@@ -711,17 +712,18 @@ export function makeFakeContext(opts: FakeOptions = {}): FakeContext {
     project,
     async nav(to: string) {
       rec.nav.push(to);
-      // Mimic the router: landing on a shot route mounts the shot page.
-      if (/^\/p\/[^/]+\/timeline(\?|$)/.test(to)) { current = timelinePage; return; }
-      const m = /^\/p\/([^/]+)\/shot\/([^/?]+)/.exec(to);
+      // Mimic the router: routes are relative to the app base, so strip it first.
+      const at = to.startsWith(APP_BASE) ? to.slice(APP_BASE.length) : to;
+      if (/^\/p\/[^/]+\/timeline(\?|$)/.test(at)) { current = timelinePage; return; }
+      const m = /^\/p\/([^/]+)\/shot\/([^/?]+)/.exec(at);
       if (m) {
         shotPage.sid = m[2];
-        const take = new URLSearchParams(to.split("?")[1] || "").get("take");
+        const take = new URLSearchParams(at.split("?")[1] || "").get("take");
         if (take) shotPage.selected = take;
         current = shotPage;
-      } else if (/^\/p\/[^/]+(\?|$)/.test(to)) {
+      } else if (/^\/p\/[^/]+(\?|$)/.test(at)) {
         current = filmPage;
-      } else if (to === "/" || to === "") {
+      } else if (at === "/" || at === "") {
         current = projectsPage;
       }
     },

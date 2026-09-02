@@ -8,12 +8,13 @@ import type {
 } from "../contract";
 import { err } from "../contract";
 import type { BackendChoice } from "./deps";
+import { ROUTES, filmPath, shotPath } from "../../routes";
 
 // ---------------------------------------------------------------- routes
 
-export const SHOT_ROUTE = "/p/:pid/shot/:sid";
-export const FILM_ROUTE = "/p/:pid";
-export const JOBS_ROUTE = "/jobs";
+export const SHOT_ROUTE = ROUTES.shot;
+export const FILM_ROUTE = ROUTES.film;
+export const JOBS_ROUTE = ROUTES.jobs;
 
 const qs = (query?: Record<string, string | undefined>): string => {
   const p = new URLSearchParams();
@@ -23,10 +24,10 @@ const qs = (query?: Record<string, string | undefined>): string => {
 };
 
 export const shotUrl = (pid: string, sid: string, query?: Record<string, string | undefined>) =>
-  `/p/${pid}/shot/${sid}${qs(query)}`;
+  `${shotPath(pid, sid)}${qs(query)}`;
 
 export const filmUrl = (pid: string, query?: Record<string, string | undefined>) =>
-  `/p/${pid}${qs(query)}`;
+  `${filmPath(pid)}${qs(query)}`;
 
 // ---------------------------------------------------------------- text
 

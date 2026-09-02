@@ -139,5 +139,5 @@ for lane in "${LANES[@]}"; do
   post "/api/projects/$PID/lanes" "{\"lane\":\"$lane\",\"backend\":\"mock\",\"params\":{}}" >/dev/null
 done
 
-say "ready — $BASE/p/$PID (mock everywhere, $(shot_count) shots)"
+say "ready — $BASE/app/p/$PID (landing page at $BASE/, mock everywhere, $(shot_count) shots)"
 wait "$SERVER_PID"

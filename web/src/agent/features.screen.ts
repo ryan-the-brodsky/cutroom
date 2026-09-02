@@ -11,10 +11,11 @@
  */
 import type { ActionContext, ActionDef, ToolResult } from "./contract";
 import { ANCHORS, err, ok } from "./contract";
+import { ROUTES, filmPath } from "../routes";
 import * as screen from "../screen/store";
 import { chapterAt, fetchChapters, mmss, stepChapter, totalOf } from "../screen/edl";
 
-const FILM = "/p/:pid";
+const FILM = ROUTES.film;
 
 interface ScreenFeature {
   name: string;
@@ -65,7 +66,7 @@ export const SCREEN_FEATURES: ActionDef[] = [
       if (!row) {
         return err("no_cuts", { hint: "Nothing has been assembled yet. Press 🎞 cut the film first." });
       }
-      await ctx.nav(`/p/${pid}`);
+      await ctx.nav(filmPath(pid));
       const { chapters, total } = await fetchChapters(ctx.api, pid, row.path);
       screen.open(row.path, {
         pid, chapters, seconds: total ?? row.meta?.total ?? null,

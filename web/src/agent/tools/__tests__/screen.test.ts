@@ -1,3 +1,4 @@
+import { APP_BASE } from "../../../routes";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ANCHORS } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
@@ -52,7 +53,7 @@ describe("play_cut", () => {
     expect(p.playing).toBe(true);
 
     // Visible execution: the Film Editor first, then the cut card, then the room.
-    expect(f.rec.nav).toContain("/p/next-year");
+    expect(f.rec.nav).toContain(`${APP_BASE}/p/next-year`);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       `${ANCHORS.filmCutPlay}[data-path="assembly/animatic-full-720p-2.mp4"]`,
       ANCHORS.screenRoot,
@@ -207,7 +208,7 @@ describe("stop_playback", () => {
 describe("preview_timeline", () => {
   it("opens the Timeline, seeks and presses play", async () => {
     const r = asOk(await previewTimeline.execute({ from: "B11-S4" }, f.ctx));
-    expect(f.rec.nav).toContain("/p/next-year/timeline");
+    expect(f.rec.nav).toContain(`${APP_BASE}/p/next-year/timeline`);
     expect(r.from).toBe(4);
     expect(r.now_playing_shot).toBe("B11-S4");
     expect(r.clips).toBe(2);

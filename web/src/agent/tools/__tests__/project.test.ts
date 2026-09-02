@@ -2,6 +2,7 @@
  * Starting a film from nothing (workstream K): create_project, write_script,
  * set_project_cast, list_projects.
  */
+import { APP_BASE } from "../../../routes";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ANCHORS } from "../../contract";
 import {
@@ -42,10 +43,10 @@ describe("create_project", () => {
   it("types the slug on the Projects page, creates, then opens the film", async () => {
     const r = asOk(await createProject.execute(
       { title: "The Bread Riot" }, f.ctx));
-    expect(f.rec.nav).toEqual(["/", "/p/the-bread-riot"]);
+    expect(f.rec.nav).toEqual([APP_BASE, `${APP_BASE}/p/the-bread-riot`]);
     expect(f.rec.calls("createProject")[0]).toContain("createProject(the-bread-riot");
     expect(r.project).toBe("the-bread-riot");
-    expect(r.url).toBe("/p/the-bread-riot");
+    expect(r.url).toBe(`${APP_BASE}/p/the-bread-riot`);
     expect(f.rec.anchors()).toContain(ANCHORS.projectsCreate);
     expect(r.next).toContain("write_script");
   });
@@ -111,8 +112,8 @@ describe("write_script", () => {
     expect(batch, "one POST for the whole script").toBeTruthy();
     expect(f.rec.api.filter((c) => c.path.endsWith("/shots/batch")).length).toBe(1);
     expect((batch.body as { shots: unknown[] }).shots.length).toBe(2);
-    expect(f.rec.nav[0]).toBe("/p/next-year");
-    expect(f.rec.nav[f.rec.nav.length - 1]).toBe("/p/next-year/shot/B01-S1?tab=script");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year`);
+    expect(f.rec.nav[f.rec.nav.length - 1]).toBe(`${APP_BASE}/p/next-year/shot/B01-S1?tab=script`);
     expect(f.rec.anchors()).toContain(ANCHORS.filmShot);
     expect(f.rec.anchors()).toContain(ANCHORS.scriptPanel);
     expect(r.count).toBe(2);
@@ -242,7 +243,7 @@ describe("list_projects", () => {
     expect(f.rec.nav).toEqual([]);
     expect(r.open).toBe("next-year");
     expect(r.projects).toEqual([
-      { id: "next-year", title: "Next Year", shots: 2, url: "/p/next-year" },
+      { id: "next-year", title: "Next Year", shots: 2, url: `${APP_BASE}/p/next-year` },
     ]);
   });
 

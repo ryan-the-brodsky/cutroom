@@ -13,6 +13,7 @@ import type {
 } from "./contract";
 import { pageHandles, waitForHandles } from "./pageHandles";
 import { getSpeed, trail } from "./presence";
+import { pidFromPath } from "../routes";
 
 export interface RouterLike { navigate(to: string, opts?: { replace?: boolean }): unknown }
 
@@ -26,8 +27,8 @@ const LAST_PID = "cutroom_last_pid";
 /** The :pid in the URL, else the last project the human opened. */
 export function currentProject(): string | null {
   try {
-    const m = window.location.pathname.match(/^\/p\/([^/]+)/);
-    if (m) return decodeURIComponent(m[1]);
+    const fromPath = pidFromPath(window.location.pathname);
+    if (fromPath) return fromPath;
     return localStorage.getItem(LAST_PID) || null;
   } catch { return null; }
 }

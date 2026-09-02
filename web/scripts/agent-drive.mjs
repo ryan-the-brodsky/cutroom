@@ -20,7 +20,12 @@ const argv = process.argv.slice(2);
 const opt = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const has = (k) => argv.includes(k);
 
-const url = opt("--url", "http://localhost:8770/");
+// The studio lives at /app; `/` is the public landing page. A bare host gets /app so
+// the tools have a page to drive, but an explicit --url is used exactly as given.
+const rawUrl = opt("--url", "http://localhost:8770/app");
+const url = /^https?:\/\/[^/]+\/?$/.test(rawUrl)
+  ? `${rawUrl.replace(/\/$/, "")}/app`
+  : rawUrl;
 const token = opt("--token", process.env.CUTROOM_TOKEN ?? "");
 const profile = resolve(opt("--profile", "/tmp/cutroom-agent-drive-profile"));
 const out = resolve(opt("--out", "/tmp/cutroom-agent-drive"));

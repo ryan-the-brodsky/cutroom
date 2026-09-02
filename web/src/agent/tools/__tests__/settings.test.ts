@@ -1,6 +1,7 @@
 /**
  * Lanes, backends, export and the engine render (workstream I).
  */
+import { APP_BASE } from "../../../routes";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ANCHORS } from "../../contract";
 import { exportTimeline, listBackends, renderTimeline, setLaneDefault } from "../settings";
@@ -57,7 +58,7 @@ describe("list_backends", () => {
 describe("set_lane_default", () => {
   it("opens Settings, writes the lane and pulses the row", async () => {
     const r = asOk(await setLaneDefault.execute({ lane: "motion", backend: "fal" }, f.ctx));
-    expect(f.rec.nav).toEqual(["/settings"]);
+    expect(f.rec.nav).toEqual([`${APP_BASE}/settings`]);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.settingsLane, ANCHORS.settingsLaneSave,
     ]));
@@ -134,7 +135,7 @@ describe("export_timeline", () => {
 describe("render_timeline", () => {
   it("opens the Timeline, submits and returns the job", async () => {
     const r = asOk(await renderTimeline.execute({ scope_sec: 12 }, f.ctx));
-    expect(f.rec.nav).toEqual(["/p/next-year/timeline"]);
+    expect(f.rec.nav).toEqual([`${APP_BASE}/p/next-year/timeline`]);
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.timelineScope, ANCHORS.timelineRender,
     ]));

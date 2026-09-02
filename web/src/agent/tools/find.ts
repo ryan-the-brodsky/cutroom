@@ -9,6 +9,7 @@ import { motionProfile, readSpend } from "./plan";
 import {
   FILM_ROUTE, SHOT_ROUTE, compactCandidate, cut, fetchShot, lookupShot,
 } from "./util";
+import { APP_BASE } from "../../routes";
 
 // ---------------------------------------------------------------- find_shots
 
@@ -264,6 +265,13 @@ export const getContext: ActionDef<ContextArgs> = {
       }
     } catch { /* no page handles yet */ }
 
+    // Nothing mounted and we are outside the app base: this is the public landing page.
+    if (page.kind === null && loc && !loc.pathname.startsWith(APP_BASE)) {
+      page = { kind: "landing",
+               hint: `The public landing page. The studio is at ${APP_BASE}: navigate there ` +
+                     "(open_project, or any tool that drives the UI) and everything listed here works." };
+    }
+
     let jobs: { job: string; type?: string; status?: string; title?: string }[] = [];
     try {
       const rows = await ctx.api<RunningJob[]>("/api/jobs?status=running&limit=10");
@@ -284,7 +292,8 @@ export const getContext: ActionDef<ContextArgs> = {
     return ok(
       page.kind === "shot" ? `Shot Editor — ${page.shot} · ${page.tab}`
         : page.kind === "film" ? `Film Editor — ${page.shots} shots`
-          : `On ${route ?? "an unknown route"}`,
+          : page.kind === "landing" ? `Cutroom landing page — the studio is at ${APP_BASE}`
+            : `On ${route ?? "an unknown route"}`,
       {
         route, project: ctx.project, page,
         running_jobs: jobs,

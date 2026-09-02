@@ -18,6 +18,7 @@
  */
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+import { appPath } from "../src/routes";
 
 export type AgentMode = "testing" | "native" | "debug" | "none";
 
@@ -36,8 +37,21 @@ export type ToolResult = { ok: boolean; [k: string]: unknown };
 /** Query string every e2e page load carries: debug hook on, trail unpaced. */
 export const AGENT_QS = "agent_debug=1&agent_speed=fast";
 
-/** Build an app URL with the agent query params merged in, preserving existing ones. */
+/**
+ * Build an app URL with the agent query params merged in, preserving existing ones.
+ * Paths are relative to the app base, so `appUrl("/p/x")` is `/app/p/x` and specs that
+ * were written before the studio moved keep working unchanged.
+ */
 export function appUrl(path: string): string {
+  const [p, q = ""] = path.split("?");
+  const params = new URLSearchParams(q);
+  params.set("agent_debug", "1");
+  params.set("agent_speed", "fast");
+  return `${appPath(p)}?${params.toString()}`;
+}
+
+/** Build a URL outside the app base — the landing page and old deep links. */
+export function siteUrl(path: string): string {
   const [p, q = ""] = path.split("?");
   const params = new URLSearchParams(q);
   params.set("agent_debug", "1");

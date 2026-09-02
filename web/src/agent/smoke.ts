@@ -12,6 +12,7 @@ import {
 import { all, get, register, whereOf } from "./registry";
 import { pulse } from "./presence";
 import { fillRoute, withQuery } from "./urlState";
+import { ROUTES, shotPath } from "../routes";
 
 const TABS: ShotTab[] = ["compose", "generate", "motion", "audio", "script"];
 const SUBS: GenSub[] = ["still", "restyle", "animate", "chain"];
@@ -40,7 +41,7 @@ const openShot: ActionDef<OpenShotArgs> = {
   howTo: "In the Film Editor, click a shot in the strip and press “open Shot Editor →”, " +
     "or double-click its card. Then pick a tab on the right.",
   where: (a) => ({
-    route: "/p/:pid/shot/:sid",
+    route: ROUTES.shot,
     query: { ...(a.tab ? { tab: a.tab } : {}), ...(a.sub ? { sub: a.sub } : {}) },
     anchor: a.tab ? shotTabAnchor(a.tab) : undefined,
     label: `Shot Editor${a.tab ? ` → ${a.tab}` : ""}${a.sub ? ` → ${a.sub}` : ""}`,
@@ -62,7 +63,7 @@ const openShot: ActionDef<OpenShotArgs> = {
       });
     }
     const sid = r.best.sid;
-    const to = withQuery(`/p/${pid}/shot/${sid}`, {
+    const to = withQuery(shotPath(pid, sid), {
       tab: args.tab || null, sub: args.sub || null, take: args.take || null,
     });
     await ctx.trail.step({ tool: "open_shot", title: `Open ${sid}`, detail: r.candidates[0]?.why });

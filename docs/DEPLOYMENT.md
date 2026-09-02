@@ -1,5 +1,27 @@
 # Deploying Cutroom
 
+## Routes
+
+The server is one origin with three kinds of path:
+
+| Path | What it is |
+|---|---|
+| `/` | the public landing page (static-feeling; the SPA renders it) |
+| `/app`, `/app/p/:pid/...` | the studio (Projects, Film Editor, Shot Editor, Jobs, Settings) |
+| `/api/*` | the API; never touched by the SPA history fallback |
+
+`web/src/routes.ts` holds the single `APP_BASE` constant every route builder uses.
+Deep links minted before the move (`/p/…`, `/jobs`, `/settings`) redirect to their
+`/app/...` equivalent with the query string intact, so a pasted `?token=` link still
+works. The judge link is `<LIVE_URL>/app?token=<JUDGE_TOKEN>`, which skips the landing
+page and opens the studio.
+
+The landing page's stills live in `web/public/landing/` and are served as real files by
+the static mount. "Watch the film" plays the newest assembled cut the instance actually
+holds (it reads `/api/projects` then that project's newest `animatic` take), so nothing
+video is committed to the repo. `?demo=<url>` overrides it, and a file dropped at
+`web/public/landing/two-claudes.mp4` is used when the API path finds nothing.
+
 ## Topology
 
 ```
@@ -105,7 +127,7 @@ The judge-facing instance for the WebMCP Challenge.
 | Public URL | <https://cutroom-production-0f3c.up.railway.app> |
 | Volume | `cutroom-data` mounted at `/data` |
 | Source | the GHCR image `ghcr.io/ryan-the-brodsky/cutroom-demo`, pinned to a `sha-<short>` tag |
-| Status | live — `/` serves the SPA, `/api/health` 200, demo mode on |
+| Status | live — `/` serves the landing page, `/app` the studio, `/api/health` 200, demo mode on |
 
 ### Why the image, not a source build
 

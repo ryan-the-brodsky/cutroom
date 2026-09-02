@@ -6,6 +6,7 @@
  * `data-action` in the app, or `show_me` and ⌘K navigate somewhere and pulse
  * nothing. That failure is invisible in the browser and obvious here.
  */
+import { APP_BASE } from "../../routes";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -136,7 +137,7 @@ describe("walkTo", () => {
     const res = await def.execute({}, f.ctx);
     f.restore();
     expect(res.ok).toBe(true);
-    expect(f.rec.nav).toEqual(["/settings"]);
+    expect(f.rec.nav).toEqual([`${APP_BASE}/settings`]);
     expect(f.rec.anchors()).toContain(ANCHORS.navSettings);
   });
 
@@ -147,7 +148,7 @@ describe("walkTo", () => {
     const res = await def.execute({}, f.ctx);
     f.restore();
     expect(res.ok).toBe(true);
-    expect(f.rec.nav[0]).toBe("/p/next-year/shot/B10-S2?tab=compose");
+    expect(f.rec.nav[0]).toBe(`${APP_BASE}/p/next-year/shot/B10-S2?tab=compose`);
     expect(f.rec.anchors()).toContain(ANCHORS.compLayerOpacity);
   });
 

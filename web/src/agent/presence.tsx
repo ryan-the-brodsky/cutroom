@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import type { Anchor, Speed, Trail, TrailStep } from "./contract";
 import { subscribeAgentStatus, type AgentStatus } from "./webmcp";
+import { ROUTES } from "../routes";
 
 // ------------------------------------------------------------------ speed
 
@@ -183,7 +184,7 @@ export function AgentTrail() {
               {s.detail && <span className="muted small"> — {s.detail}</span>}
             </span>
             <span className="agent-step-tool muted small">{s.tool}</span>
-            {s.job && <a className="small" href="/jobs"
+            {s.job && <a className="small" href={ROUTES.jobs}
                          onClick={(e) => e.stopPropagation()}>job →</a>}
           </div>
         ))}

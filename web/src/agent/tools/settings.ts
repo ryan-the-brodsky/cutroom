@@ -11,10 +11,11 @@ import type { ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { getToken } from "../../api";
 import { cut, maybeNum } from "./util";
+import { ROUTES, timelinePath } from "../../routes";
 
 const LANES = ["still", "i2i", "motion", "vo", "music", "sfx", "direction"] as const;
-const SETTINGS_ROUTE = "/settings";
-const TIMELINE_ROUTE = "/p/:pid/timeline";
+const SETTINGS_ROUTE = ROUTES.settings;
+const TIMELINE_ROUTE = ROUTES.timeline;
 
 const statusOf = (e: unknown): number =>
   Number((e as { status?: number })?.status) || 0;
@@ -151,7 +152,7 @@ export const setLaneDefault: ActionDef<LaneArgs> = {
       });
     }
 
-    try { await ctx.nav("/settings"); } catch { /* the write still stands */ }
+    try { await ctx.nav(SETTINGS_ROUTE); } catch { /* the write still stands */ }
     await ctx.trail.step({
       tool: "set_lane_default", title: `Settings → lane defaults → ${lane}`,
       anchor: ANCHORS.settingsLane,
@@ -294,7 +295,7 @@ export const renderTimeline: ActionDef<RenderArgs> = {
     if (!pid) return err("no_project", { hint: "Open a project first." });
 
     const scope = maybeNum(args?.scope_sec);
-    try { await ctx.nav(`/p/${pid}/timeline`); } catch { /* the submit still stands */ }
+    try { await ctx.nav(timelinePath(pid)); } catch { /* the submit still stands */ }
     await ctx.trail.step({
       tool: "render_timeline",
       title: scope ? `Render scope — first ${scope}s` : "Render scope — whole film",

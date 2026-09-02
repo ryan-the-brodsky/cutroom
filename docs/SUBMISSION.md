@@ -158,22 +158,26 @@ Paste this into the Devpost testing-instructions field with the real token
 substituted. That field is not public, so the token is safe there.
 
 ```
-Live URL (token included, one click, no signup):
-  https://cutroom-production-0f3c.up.railway.app/?token=<JUDGE_TOKEN>
+Live URL (token included, one click, no signup) — this opens the studio directly:
+  https://cutroom-production-0f3c.up.railway.app/app?token=<JUDGE_TOKEN>
+
+  The bare URL (no /app) is the public landing page, which explains the project
+  and links into the studio. Both register the WebMCP tools, so you can ask the
+  page what it can do from either one.
 
 Open it in one of these two environments:
 
 ChatGPT Desktop (the fastest path)
   1. Settings > Browser > turn on "Enable site tools".
   2. Open the URL above in the in-app browser.
-  3. Wait for the topbar chip to read "tools: 39 · native".
+  3. Wait for the topbar chip to read the tool count and "native".
   4. Ask for one of the prompts below.
 
 Google Chrome 149 or later
   1. chrome://flags/#enable-webmcp-testing   -> Enabled
   2. chrome://flags/#devtools-webmcp-support -> Enabled
   3. Restart Chrome, then open the URL above.
-  4. DevTools > Application > WebMCP lists all 39 tools and runs them by
+  4. DevTools > Application > WebMCP lists every tool and runs them by
      hand if you would rather not use an agent client. Try
      find_shots {"query": "the two chairs shot"} and then generate_takes.
   5. If your build does not list those flags, launching Chrome with
@@ -222,7 +226,8 @@ bed and a key press on the typing shot."* That runs `generate_music`,
 
 | Field | Value |
 |---|---|
-| Live URL | `https://cutroom-production-0f3c.up.railway.app/?token=<JUDGE_TOKEN>` |
+| Live URL (studio) | `https://cutroom-production-0f3c.up.railway.app/app?token=<JUDGE_TOKEN>` |
+| Landing page | <https://cutroom-production-0f3c.up.railway.app/> |
 | Public repo | <https://github.com/ryan-the-brodsky/cutroom> (MIT, detected in About) |
 | Demo video | `<YOUTUBE_URL>` (public, under 3:00, audio) |
 | Implementation plan | <https://github.com/ryan-the-brodsky/cutroom/blob/main/docs/WEBMCP-PLAN.md> |
@@ -275,8 +280,12 @@ for (const def of agentDefs()) {
 
 ## Pre-submit checklist
 
-- [ ] Live URL opens logged out in a fresh profile and the tools chip reads
-      `tools: 39 · native`.
+- [ ] `<LIVE_URL>/app?token=…` opens logged out in a fresh profile and the tools
+      chip reads the catalogue count plus `native`.
+- [ ] `<LIVE_URL>/` renders the landing page and its "Open the studio" button
+      lands on `/app`.
+- [ ] Old deep links still work: `<LIVE_URL>/p/two-claudes` redirects to
+      `<LIVE_URL>/app/p/two-claudes`.
 - [ ] All three prompts run clean against the hosted URL, recorded in
       `docs/TESTING-WEBMCP.md`.
 - [ ] The Two Claudes cut is in the Cuts gallery on the hosted instance and
