@@ -74,7 +74,7 @@ describe("get_context", () => {
 describe("list_features", () => {
   it("lists every tool, with a count per screen", async () => {
     const all = asOk(await listFeatures.execute({}, f.ctx));
-    expect((all.tools as unknown[]).length).toBe(TOOL_NAMES.length);
+    expect((all.features as unknown[]).length).toBe(TOOL_NAMES.length);
     // The palette-only feature registry is counted by screen, not listed.
     const screens = all.screens as Record<string, number>;
     expect(Object.keys(screens).length).toBeGreaterThan(4);
