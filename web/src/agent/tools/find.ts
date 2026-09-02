@@ -319,6 +319,8 @@ export const listFeatures: ActionDef<FeaturesArgs> = {
       }
       return ok(`${tools.length} tools · ${all.length} features in all`, {
         tools: rows,
+        features: rows,            // same rows under the key every client and spec reads
+        total: all.length,
         screens: groups,
         hint: "Pass `query` (a word, or a screen name like \"Cel workbench\") for the other features and their how-to.",
       });
