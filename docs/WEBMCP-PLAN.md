@@ -921,3 +921,15 @@ evidence in this plan still describe the shipped build exactly.
 - B05-S1 now animates from the dark GOODBYE still; the model smears the lettering after
   ~3 s of scrolling, so the shot holds its last legible frame (freeze as a surgical repair,
   per the motion doctrine).
+- **Wed 17:01 PT — audio drag, public front door, advisor context.** Timeline audio clips
+  drag with snapping and persist through the compile's inverse (VO → `vo_offset`, cues →
+  `POST /cues/{id}/move`); `move_audio` is tool 51. The landing page is public: the newest
+  Two Claudes cut plays for anyone via `GET /api/public/film.mp4` (only the configured demo
+  project can ever be published), "Request access" and "Watch the demo" render once
+  `CUTROOM_ACCESS_FORM_URL` / `CUTROOM_DEMO_VIDEO_URL` are set on Railway (runtime, no
+  rebuild), and the invite-only gate points to both. Director chat (GLM 5.3 Flash via
+  OpenRouter) now receives the film's shot list instead of answering blind. Favicon: the
+  cel stack. Ryan's ruling: Two Claudes stays as it is — mildly imperfect on purpose so
+  judges have obvious things to regenerate and improve. Note for the record: commit
+  34b4972 dropped `server/cutroom/config.py` from the index by mistake; 89a7111 restores it,
+  so never pin 34b4972.
