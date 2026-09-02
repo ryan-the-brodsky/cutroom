@@ -619,3 +619,9 @@ at low cost, with Ryan able to toggle providers without redeploying.
   15 ElevenLabs lines), no slates, entirely through native WebMCP tool calls from real Chrome
   against the hosted demo. Last fix: `set_timeline_source` captured the monitor selection
   before navigating. Total production spend ≈ $1.3.
+- **Music & SFX (Tue 20:25 PT, workstream H)** — cue sheet API (`/cues`), assembler mixes
+  music/SFX cues with dB gain, fades, loop and shot anchoring (RMS-verified test), four new
+  tools (`generate_music`, `generate_sfx`, `place_cue`, `list_cues`; 23 total), "Music & SFX"
+  section on the Audio tab and a cue strip under the Cuts gallery. ElevenLabs live: 10 s music
+  in 4 s, 3 s SFX in 2.4 s. Restricted keys now pass the health probe. Score run on the hosted
+  *Two Claudes* in flight (120 s bed + 3 SFX + cut 4).
