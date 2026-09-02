@@ -607,3 +607,8 @@ at low cost, with Ryan able to toggle providers without redeploying.
   shots re-generated (5 stills + 5 VO, zero failures). Found + fixed: `set_timeline_source` /
   `set_keeper` ignored the monitor selection; run steps double-froze. Finishing run + re-cut
   in flight. New workstream H: ElevenLabs music + SFX as film cues and WebMCP tools (Ryan).
+- **Cut 3 (Tue 19:58 PT) — the loop closes.** *Two Claudes* assembled with every shot
+  generated (15 stills, 3 fal motion bursts with doctrine freezes playing as timeline sources,
+  15 ElevenLabs lines), no slates, entirely through native WebMCP tool calls from real Chrome
+  against the hosted demo. Last fix: `set_timeline_source` captured the monitor selection
+  before navigating. Total production spend ≈ $1.3.
