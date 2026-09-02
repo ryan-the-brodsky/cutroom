@@ -591,3 +591,11 @@ at low cost, with Ryan able to toggle providers without redeploying.
   ok on a failed job; single-job tools lacked `jobs[]` for `wait_for_jobs`; resolver ignored
   ordinal words ("the first shot"); `POST /projects/{pid}/cast` added for API-created projects.
   Full 120-step run launched at 19:05 PT.
+- **First full production cut (Tue 19:10 PT)** — 120 tool calls through native WebMCP produced
+  `assembly/animatic-full-720p.mp4` (124 s, 15 shots, 11 VO tracks) for *Two Claudes* on the
+  hosted demo: Gemini stills ≈10 s each, ElevenLabs lines ≈6 s, spend $0.76. Five shots were
+  slates and both fal motion clips died: the container (**1 GB memory limit**) hit the limit
+  and restarted, orphaning in-flight jobs ("worker task lost"). Also found: admin token was
+  rate-limited like a judge; page handles hid the server's 429 text; "newest motion" matched a
+  crop intermediate; `wait_for_jobs` rejected job objects. All four fixed (1ec04b0); memory
+  limit raise + cpu pool 1 delegated to D; retry runs staged for the 5 slates + 3 motion shots.
