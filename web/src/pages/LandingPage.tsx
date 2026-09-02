@@ -225,13 +225,13 @@ export default function LandingPage() {
           <div className="lp-stats">
             <span><b>15</b> shots</span>
             <span><b>257</b> tool calls</span>
-            <span><b>$1.50</b> of API spend</span>
+            <span><b>$2.80</b> of API spend</span>
             <span><b>0</b> lines of pipeline script</span>
           </div>
 
           <figure className="lp-hero-visual">
-            <img src="/landing/poster.jpg" width={1200} height={675}
-                 alt="Two identical glowing terminal windows facing each other down a server room aisle."
+            <img src="/landing/light-table.jpg" width={1264} height={848}
+                 alt="An animator's light table at night: a stack of cels pegged over a pencil key drawing of a boy, an exposure sheet and a brush beside it, under a desk lamp."
                  fetchPriority="high" />
             {cut && (
               <button type="button" className="lp-hero-play" onClick={() => setPlaying(true)}
@@ -241,8 +241,8 @@ export default function LandingPage() {
             )}
           </figure>
           <p className="lp-hero-caption">
-            Two Claudes · frame at 0:12 · generated, voiced and assembled through the tools
-            on this page
+            The light table · key art drawn by the studio's own image lane · the film plays
+            here
           </p>
         </div>
       </header>
@@ -255,9 +255,11 @@ export default function LandingPage() {
           <p className="lp-section-sub">
             A student starts a four-line program that hands each chatbot's answer to the
             other, then walks away. An agent produced the whole short on the hosted demo
-            through Genga Studio's own tools: 15 shots, three frozen motion bursts, 15 voice
-            lines, a piano bed, four assembler passes. Every frame below is from the
-            finished cut.
+            through Genga Studio's own tools: 15 shots, each animated for its full length
+            from its keeper frame, 15 voice lines, a piano bed, and a cut re-assembled after
+            every motion pass. The takes on screen cost $2.80 in API calls; the whole ledger,
+            re-rolls and model bake-offs included, came to about ten dollars. Every frame
+            below is from the finished cut.
           </p>
         </div>
         <div className="lp-strip">

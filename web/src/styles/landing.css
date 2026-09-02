@@ -280,7 +280,7 @@
   overflow: hidden;
   box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.9);
 }
-.lp-hero-visual img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.lp-hero-visual img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
 .lp-hero-play {
   position: absolute;
   inset: 0;
