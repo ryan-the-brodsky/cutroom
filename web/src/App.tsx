@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link, NavLink, Outlet, useParams } from "react-router-dom";
 import { api, setToken } from "./api";
+import AccessGate from "./components/AccessGate";
 import { ANCHORS } from "./agent/contract";
 import Palette from "./agent/Palette";
 import { AgentChip, AgentTrail } from "./agent/presence";
@@ -92,7 +93,7 @@ export default function App() {
           <SystemChips />
         </div>
         <div className="content">
-          <Outlet />
+          <AccessGate><Outlet /></AccessGate>
         </div>
       </div>
       {toast && (
