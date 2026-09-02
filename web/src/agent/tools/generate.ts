@@ -269,7 +269,16 @@ export const generateTakes: ActionDef<GenArgs> = {
         ? args!.region! : null;
       page.setGenField(sub, "fullFrame", !region);
       if (region) page.setGenField(sub, "region", region);
-      seconds = clampSeconds(profile, maybeNum(args?.seconds)
+      // Clamp against the model that will actually run, not the backend's default:
+      // Seedance makes 12 s clips while the fal default (Wan) stops at 5.
+      const wantKey = String(args?.model ?? "").trim().toLowerCase();
+      const pickedModel = wantKey
+        ? models.find((m) => m.key === wantKey || m.id.toLowerCase() === wantKey)
+        : undefined;
+      const effProfile = pickedModel && pickedModel.seconds_max
+        ? { ...profile, seconds_max: pickedModel.seconds_max, seconds_options: undefined }
+        : profile;
+      seconds = clampSeconds(effProfile, maybeNum(args?.seconds)
         ?? profile.seconds_default ?? 2);
       const typedFrames = maybeNum(args?.frames);
       const frames = typedFrames ?? framesForSeconds(profile, seconds);
