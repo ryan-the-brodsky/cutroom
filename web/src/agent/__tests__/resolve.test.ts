@@ -14,14 +14,15 @@ import { describe, expect, it, beforeEach } from "vitest";
 import castFixture from "./fixtures/next-year.cast.json";
 import sanitizedFilm from "./fixtures/next-year.film.json";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve as resolvePath } from "node:path";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // The committed fixture is SANITIZED (prompts shortened, dialogue text removed) so the
 // film's script never lands in the public repo. The full recording lives in the private
 // game7 repo (prompts/fixtures/next-year.film.json) or at $CUTROOM_FILM_FIXTURE; the
 // real-data pins below run only when it is present.
 const FULL_PATH = process.env.CUTROOM_FILM_FIXTURE
-  ?? resolvePath(__dirname, "../../../../../prompts/fixtures/next-year.film.json");
+  ?? resolvePath(dirname(fileURLToPath(import.meta.url)), "../../../../../prompts/fixtures/next-year.film.json");
 const HAS_FULL = existsSync(FULL_PATH);
 const filmFixture: typeof sanitizedFilm = HAS_FULL
   ? JSON.parse(readFileSync(FULL_PATH, "utf8"))
