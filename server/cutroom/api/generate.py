@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from ..adapters import build_adapter
+from ..adapters import motion_models
 from ..adapters import motion_profiles as mprof
 from ..adapters.registry import ADAPTER_TYPES, pool_for
 from ..db import session_scope
@@ -40,7 +41,10 @@ def apply_motion_profile(pid: str, lane: str, body: dict) -> dict:
     if lane not in MOTION_LANES:
         return body
     bid = budget.resolve_backend_id(pid, "motion", body.get("backend"))
-    prof = mprof.backend_profile(bid)
+    # a per-shot model (plan_motion picks one) owns the clip length and price
+    if body.get("model"):
+        body["model"] = motion_models.resolve_id(body["model"]) or body["model"]
+    prof = mprof.backend_profile(bid, body.get("model"))
     seconds = body.get("seconds")
     if seconds is None and body.get("frames") is None:
         seconds = mprof.seconds_default(prof)

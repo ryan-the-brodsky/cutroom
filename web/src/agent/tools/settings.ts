@@ -11,6 +11,7 @@ import type { ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { getToken } from "../../api";
 import { cut, maybeNum } from "./util";
+import { modelCost, motionModels } from "./plan";
 import { ROUTES, timelinePath } from "../../routes";
 
 const LANES = ["still", "i2i", "motion", "vo", "music", "sfx", "direction"] as const;
@@ -57,7 +58,8 @@ export const listBackends: ActionDef<Record<string, never>> = {
     "direction), whether it is enabled, whether a key is stored, and whether it " +
     "costs money per job. Nothing is probed, so it is instant and never bills. " +
     "Call it before naming a backend in generate_takes or set_lane_default, or " +
-    "to answer \"what can this machine actually run?\".",
+    "to answer \"what can this machine actually run?\". Also lists the motion " +
+    "models with their price and what each is good at.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
   where: { route: SETTINGS_ROUTE, anchor: ANCHORS.settingsBackend,
@@ -78,6 +80,8 @@ export const listBackends: ActionDef<Record<string, never>> = {
       } catch { /* lane defaults are a nicety here */ }
     }
     const enabled = rows.filter((b) => b.enabled !== false);
+    const models = rows.some((b) => b.type === "fal" && b.enabled !== false)
+      ? await motionModels(ctx) : [];
     return ok(`${rows.length} backend${rows.length === 1 ? "" : "s"}, ${enabled.length} enabled`, {
       backends: rows.slice(0, 12).map((b) => ({
         id: b.id,
@@ -91,7 +95,17 @@ export const listBackends: ActionDef<Record<string, never>> = {
       lane_defaults: Object.fromEntries(
         Object.entries(defaults).filter(([, v]) => v?.backend)
           .map(([k, v]) => [k, v.model ? `${v.backend}:${cut(v.model, 24)}` : v.backend!])),
-      hint: "set_lane_default points a lane at one of these; generate_takes takes an explicit backend.",
+      // A fal row serves any registry model, and they differ in price and in
+      // what they are good at — so the choice belongs next to the backends.
+      ...(models.length
+        ? { motion_models: models.map((m) => ({
+              key: m.key, usd: modelCost(m, 5),
+              good_at: (m.registers || []).join("/"),
+              note: cut(m.note, 40), fallback: m.fallback,
+            })) }
+        : {}),
+      hint: "set_lane_default points a lane at one of these; generate_takes takes " +
+        "an explicit backend, and model:\"seedance\"/\"wan\" for motion.",
     });
   },
 };

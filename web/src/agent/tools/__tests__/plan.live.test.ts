@@ -71,7 +71,16 @@ run("live: plan_motion -> apply_motion_plan on mock lanes", () => {
     expect(res.total_usd as number).toBeLessThanOrEqual(0.06);
     for (const i of items) expect(i.why).not.toMatch(/freez/i);
     expect(res).toHaveProperty("spent_so_far_usd");
-    expect(res).toHaveProperty("model_hint");
+    // the switch-model-and-rerun sentence rides on every plan
+    expect(String(res.doctrine)).toContain("registry's fallback");
+  });
+
+  it("serves the motion model registry", async () => {
+    const d = await liveApi("/api/motion-models") as
+      { models: { key: string; rank: number; fallback: string }[]; default: string };
+    expect(d.models.map((m) => m.key)).toEqual(["seedance", "wan"]);
+    expect(d.default).toBe("wan");
+    expect(d.models[0].fallback).toBe("wan");
   });
 
   it("runs the plan and reports jobs, then /spend moves", async () => {

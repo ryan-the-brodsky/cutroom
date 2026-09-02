@@ -27,6 +27,9 @@ Doctrine that binds your plans:
   whole clip. They are not defaults. The historical FIRST-SECOND LAW (2026-07)
   applied to the local LTX lane only.
 - Holds are TRUE freezes. Never propose zooms, Ken Burns, or ambient wobble.
+- Faithfulness problems are usually the MODEL, not the prompt: if a
+  clip ignores or replaces its plate, switch to the registry's fallback
+  model and rerun before rewriting the sentence.
 - Cel discipline: animate regions (gen_motion with region), never regenerate
   the whole plate for a local change.
 - INK-FIRST: elements entering frame must exist in the start image

@@ -78,29 +78,6 @@ HOSTED_PROFILES: dict[str, dict] = {
         "note": "token-priced; ~$0.108 for 5s at 720p. camera_fixed locks the "
                 "frame so only the character moves.",
     },
-    "fal-ai/pixverse/v6/image-to-video": {
-        "seconds_default": 5.0,
-        "seconds_max": 15.0,
-        "live_seconds_default": 5.0,
-        "live_seconds_max": 15.0,
-        "fps": 24,
-        "resolutions": ["360p", "540p", "720p", "1080p"],
-        "cost_per_second_usd": 0.035,
-        "note": "billed per second at 540p, so a 3s clip really costs 3s. "
-                "style=anime is a first-class parameter.",
-    },
-    "fal-ai/pixverse/v4.5/image-to-video": {
-        "seconds_default": 5.0,
-        "seconds_max": 8.0,
-        "seconds_options": [5.0, 8.0],
-        "live_seconds_default": 5.0,
-        "live_seconds_max": 8.0,
-        "fps": 24,
-        "resolutions": ["360p", "540p", "720p", "1080p"],
-        "cost_per_clip_usd": 0.15,
-        "note": "flat $0.15 per 5s at 540p ($0.20 at 720p). The only endpoint "
-                "with a named camera-move enum; style=anime.",
-    },
     "fal-ai/wan": {
         "seconds_default": 5.0,
         "seconds_max": 5.0,
@@ -132,7 +109,9 @@ GENERIC_PROFILE: dict = dict(LTX_PROFILE, note="unknown motion model; "
 def _by_model(model: str | None) -> dict | None:
     if not model:
         return None
-    m = model.strip()
+    # "seedance" and "wan" are registry keys; resolve before prefix-matching
+    from . import motion_models
+    m = (motion_models.resolve_id(model) or model).strip()
     best: tuple[int, dict] | None = None
     for prefix, prof in HOSTED_PROFILES.items():
         if m.startswith(prefix) and (best is None or len(prefix) > best[0]):
@@ -301,8 +280,12 @@ def describe(profile: dict) -> str:
             f"at {fps_of(profile)} fps, holds ~{live_default(profile):g}s")
 
 
-def backend_profile(backend_id: str | None) -> dict:
-    """Read a backend row and return its effective motion profile."""
+def backend_profile(backend_id: str | None, model: str | None = None) -> dict:
+    """Read a backend row and return its effective motion profile.
+
+    `model` is the per-request override (a registry key is fine): a fal row
+    serves any model in the registry, and they do not share a clip length or
+    a price, so the profile has to follow the model actually chosen."""
     if not backend_id:
         return dict(GENERIC_PROFILE)
     from ..db import session_scope
@@ -312,7 +295,11 @@ def backend_profile(backend_id: str | None) -> dict:
             row = s.get(Backend, backend_id)
             if row is None:
                 return dict(GENERIC_PROFILE)
-            return profile_for(row.options or {}, row.type,
-                               (row.options or {}).get("model"))
+            opts = row.options or {}
+            if model:
+                # the row's stored profile describes its OWN model; a request
+                # for another one must not inherit it
+                opts = {k: v for k, v in opts.items() if k != "motion_profile"}
+            return profile_for(opts, row.type, model or opts.get("model"))
     except Exception:
         return dict(GENERIC_PROFILE)

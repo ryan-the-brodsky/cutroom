@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
 from ..adapters import build_adapter
+from ..adapters import motion_models as mm
 from ..adapters.motion_profiles import describe, profile_for
 from ..adapters.registry import ADAPTER_TYPES
 from ..db import session_scope
@@ -39,10 +40,27 @@ def list_backends(request: Request):
                 # The live window is a backend property, not a global law.
                 prof = profile_for(b.options or {}, b.type,
                                    (b.options or {}).get("model"))
+                if b.type == "fal":
+                    # A fal row can serve any registry model, so the choice
+                    # travels with the profile — an agent picking a model per
+                    # shot needs the price and the use cases in one place.
+                    prof = dict(prof, models=[mm.public(m)
+                                              for m in mm.all_models()],
+                                model=(b.options or {}).get("model"))
                 d["motion_profile"] = prof
                 d["motion_profile_summary"] = describe(prof)
             out.append(d)
         return out
+
+
+@router.get("/motion-models")
+def motion_models():
+    """The registry an agent picks from: price, ceiling, what each model is
+    good at, what it does when it fails, and what to rerun on instead."""
+    return {"models": [mm.public(m) for m in mm.all_models()],
+            "registers": list(mm.REGISTERS),
+            "default": mm.DEFAULT_MODEL_KEY,
+            "doctrine": mm.UNFAITHFUL_DOCTRINE}
 
 
 @router.get("/backends/types")

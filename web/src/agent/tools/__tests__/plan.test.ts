@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_PROFILE, clampSeconds, clipCost, fitBudget, framesForSeconds,
-  rankShots, type MotionProfile, type PlanShot,
+  DEFAULT_PROFILE, FALLBACK_REGISTRY, clampSeconds, clipCost, fitBudget,
+  findModel, framesForSeconds, modelCost, pickModel, rankShots, registerOf,
+  unfaithfulHint, type MotionProfile, type PlanShot,
 } from "../plan";
 
 const WAN: MotionProfile = {
@@ -9,7 +10,8 @@ const WAN: MotionProfile = {
   live_seconds_default: 5, fps: 16, frames_options: [81],
   cost_per_clip_usd: 0.05,
 };
-const PIXVERSE: MotionProfile = {
+/** A per-second profile, to prove billing follows the length asked for. */
+const PER_SECOND: MotionProfile = {
   seconds_default: 5, seconds_max: 15, fps: 24, cost_per_second_usd: 0.035,
 };
 
@@ -39,8 +41,8 @@ describe("motion profile maths", () => {
   it("prices per clip or per second, whichever the model bills", () => {
     expect(clipCost(WAN, 5)).toBe(0.05);
     expect(clipCost(WAN, 3)).toBe(0.05);               // flat: no saving
-    expect(clipCost(PIXVERSE, 5)).toBeCloseTo(0.175, 4);
-    expect(clipCost(PIXVERSE, 3)).toBeCloseTo(0.105, 4);
+    expect(clipCost(PER_SECOND, 5)).toBeCloseTo(0.175, 4);
+    expect(clipCost(PER_SECOND, 3)).toBeCloseTo(0.105, 4);
   });
 });
 
@@ -96,9 +98,9 @@ describe("rankShots", () => {
   });
 
   it("honours an explicit seconds_per_clip, clamped", () => {
-    const r = rankShots(film, { profile: PIXVERSE, seconds: 3 });
+    const r = rankShots(film, { profile: PER_SECOND, seconds: 3 });
     expect(r[0].seconds).toBe(3);
-    expect(rankShots(film, { profile: PIXVERSE, seconds: 99 })[0].seconds).toBe(15);
+    expect(rankShots(film, { profile: PER_SECOND, seconds: 99 })[0].seconds).toBe(15);
   });
 });
 
@@ -134,8 +136,8 @@ describe("fitBudget", () => {
   it("prices a per-second model at the requested clip length", () => {
     const short = rankShots(
       [shot({ sid: "A", type: "HERO" }), shot({ sid: "B", type: "HERO" })],
-      { profile: PIXVERSE, seconds: 3 });
-    const p = fitBudget(short, { budget_usd: 0.25, profile: PIXVERSE });
+      { profile: PER_SECOND, seconds: 3 });
+    const p = fitBudget(short, { budget_usd: 0.25, profile: PER_SECOND });
     expect(p.items).toHaveLength(2);              // 2 x $0.105
     expect(p.total_usd).toBeCloseTo(0.21, 4);
   });
@@ -155,5 +157,129 @@ describe("fitBudget", () => {
                         { budget_usd: 0.3, profile: bare, unit_usd: 0.2 });
     expect(p.items).toHaveLength(1);
     expect(p.total_usd).toBeCloseTo(0.2, 4);
+  });
+});
+
+
+// -------------------------------------------------------------- the registry
+
+const REG = FALLBACK_REGISTRY;
+
+describe("motion model registry", () => {
+  it("holds exactly seedance then wan, in rank order", () => {
+    expect(REG.map((m) => m.key)).toEqual(["seedance", "wan"]);
+    expect(REG.map((m) => m.rank)).toEqual([1, 2]);
+    expect(JSON.stringify(REG)).not.toMatch(/pixverse/i);
+  });
+
+  it("prices per second or per clip, whichever the model bills", () => {
+    const [seed, wan] = REG;
+    expect(modelCost(seed, 5)).toBeCloseTo(0.108, 4);
+    expect(modelCost(seed, 3)).toBeCloseTo(0.0648, 4);
+    expect(modelCost(wan, 5)).toBe(0.05);
+    expect(modelCost(wan, 3)).toBe(0.05);
+  });
+
+  it("finds a model by short key or full endpoint id", () => {
+    expect(findModel(REG, "wan")?.key).toBe("wan");
+    expect(findModel(REG, REG[0].id)?.key).toBe("seedance");
+    expect(findModel(REG, "nope")).toBeNull();
+  });
+});
+
+describe("pickModel", () => {
+  it("buys the rank-one model when the budget is comfortable", () => {
+    expect(pickModel(REG, 2, 5).model?.key).toBe("seedance");
+  });
+
+  it("degrades to wan on a thin budget rather than dropping the shot", () => {
+    const p = pickModel(REG, 0.06, 5);
+    expect(p.model?.key).toBe("wan");
+    expect(p.why).toContain("$0.06 left");
+  });
+
+  it("refuses honestly below the cheapest clip", () => {
+    const p = pickModel(REG, 0.01, 5);
+    expect(p.model).toBeNull();
+    expect(p.why).toContain("cheapest is $0.050");
+  });
+
+  it("lets a register a model won beat rank", () => {
+    expect(pickModel(REG, 2, 5, "dialogue_closeup").model?.key).toBe("wan");
+    expect(pickModel(REG, 2, 5, "legible_text").model?.key).toBe("seedance");
+    // ...but a thin budget still overrides the preference
+    expect(pickModel(REG, 0.06, 5, "legible_text").model?.key).toBe("wan");
+  });
+});
+
+describe("registerOf", () => {
+  const s = (over: Partial<PlanShot>): PlanShot => ({ sid: "X", ...over });
+  it("reads screens and text as legible_text", () => {
+    expect(registerOf(s({ motion_prompt: "glyphs scroll up both monitors" })))
+      .toBe("legible_text");
+  });
+  it("reads a short HERO as a dialogue close-up", () => {
+    expect(registerOf(s({ type: "HERO", seconds: 4 }))).toBe("dialogue_closeup");
+  });
+  it("falls back to a wide tableau", () => {
+    expect(registerOf(s({ type: "STILL", seconds: 9 }))).toBe("wide_tableau");
+  });
+});
+
+describe("unfaithfulHint", () => {
+  it("names the other model, with the symptom to look for", () => {
+    const h = unfaithfulHint(REG, "seedance");
+    expect(h).toContain('model:"wan"');
+    expect(h).toContain("brighter room");
+    expect(h).toMatch(/best plate fidelity/);
+  });
+
+  it("points wan back at seedance", () => {
+    const h = unfaithfulHint(REG, "wan");
+    expect(h).toContain('model:"seedance"');
+    expect(h).toContain("fine text");
+  });
+
+  it("names the register when one is given", () => {
+    expect(unfaithfulHint(REG, "seedance", "dialogue_closeup"))
+      .toContain("for dialogue closeup");
+  });
+
+  it("says nothing about a model the registry does not know", () => {
+    expect(unfaithfulHint(REG, "some/other-model")).toBeUndefined();
+    expect(unfaithfulHint([], "wan")).toBeUndefined();
+  });
+});
+
+describe("fitBudget with a registry", () => {
+  const film = (n: number): PlanShot[] =>
+    Array.from({ length: n }, (_, i) => ({
+      sid: `B${String(i + 1).padStart(2, "0")}-S1`, type: "STILL",
+      seconds: 9, act: 1, keeper: "renders/stills/a.png",
+    }));
+
+  it("spends down from seedance to wan, dropping nothing", () => {
+    const ranked = rankShots(film(4), { profile: WAN, seconds: 5 });
+    const p = fitBudget(ranked, { budget_usd: 0.30, profile: WAN, models: REG });
+    expect(p.items.map((i) => i.model)).toEqual(["seedance", "seedance", "wan"]);
+    expect(p.total_usd).toBeCloseTo(0.266, 3);
+    expect(p.items[0].model_why).toContain("best when budget allows");
+  });
+
+  it("gives every item a register and never overspends", () => {
+    const ranked = rankShots(film(6), { profile: WAN, seconds: 5 });
+    const p = fitBudget(ranked, { budget_usd: 0.20, profile: WAN, models: REG });
+    expect(p.total_usd).toBeLessThanOrEqual(0.20);
+    for (const i of p.items) {
+      expect(i.model).toBeTruthy();
+      expect(i.register).toBeTruthy();
+    }
+  });
+
+  it("still works with no registry, on the lane's flat price", () => {
+    const ranked = rankShots(film(4), { profile: WAN, seconds: 5 });
+    const p = fitBudget(ranked, { budget_usd: 0.15, profile: WAN });
+    expect(p.items).toHaveLength(3);
+    expect(p.items[0].model).toBeUndefined();
   });
 });

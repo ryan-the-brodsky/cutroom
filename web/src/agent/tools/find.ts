@@ -5,7 +5,7 @@
 import type { ActionContext, ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok, shotTabAnchor } from "../contract";
 import { deps } from "./deps";
-import { motionProfile, readSpend } from "./plan";
+import { findModel, motionModels, motionProfile, readSpend, unfaithfulHint } from "./plan";
 import {
   FILM_ROUTE, SHOT_ROUTE, compactCandidate, cut, fetchShot, lookupShot,
 } from "./util";
@@ -175,6 +175,19 @@ export const describeShot: ActionDef<DescribeArgs> = {
     // The live window is a backend property: report what an animate would make.
     const prof = await motionProfile(ctx, motionBackend);
     const spend = await readSpend(ctx, pid);
+    // Which model made the clip that already exists, and what to rerun on if
+    // it did not respect the plate.
+    const models = await motionModels(ctx);
+    let madeBy: string | undefined;
+    if (d.motion?.length || d.fx?.length) {
+      try {
+        const takes = await ctx.api<{ kind: string; model?: string | null }[]>(
+          `/api/projects/${pid}/takes?shot=${shot.sid}&limit=40`);
+        const clip = (takes || []).find(
+          (k) => (k.kind === "motion" || k.kind === "chain") && k.model);
+        madeBy = findModel(models, clip?.model)?.key ?? clip?.model ?? undefined;
+      } catch { /* the take list is a nicety here */ }
+    }
 
     const audio = await audioSummary(ctx, pid, shot.sid);
 
@@ -202,6 +215,8 @@ export const describeShot: ActionDef<DescribeArgs> = {
       lanes,
       motion_profile: {
         backend: motionBackend,
+        ...(madeBy ? { made_by: cut(madeBy, 40) } : {}),
+        options: models.map((m) => m.key),
         seconds: prof.seconds_default,
         seconds_max: prof.seconds_max,
         fps: prof.fps,
@@ -212,6 +227,8 @@ export const describeShot: ActionDef<DescribeArgs> = {
             : undefined),
       },
       ...(spend ? { project_spend_usd: spend.total_usd } : {}),
+      ...(madeBy && unfaithfulHint(models, madeBy)
+        ? { next_if_unfaithful: unfaithfulHint(models, madeBy) } : {}),
     });
   },
 };

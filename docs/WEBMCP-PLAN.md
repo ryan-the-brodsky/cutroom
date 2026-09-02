@@ -783,8 +783,9 @@ at low cost, with the owner able to toggle providers without redeploying.
   nothing), L (per-shot audio plan + Web Audio mix in the monitor; stills play as held frames),
   M (screening room with chapters and deep links; `play_cut`, `play_take`, `stop_playback`,
   `preview_timeline`), N (motion profiles per backend, no default freeze, `plan_motion` /
-  `apply_motion_plan` / `/spend`, fal bake-off: Wan turbo stays default; Seedance for legible
-  text, Pixverse v6 for effects bursts). 45 tools. Suites: 582 web, 210 server. Landing page
+  `apply_motion_plan` / `/spend`, fal bake-off + a two-model motion registry the agent picks
+  from per shot: Seedance when the budget allows, Wan as the cheap floor and for dark
+  close-ups). 45 tools. Suites: 607 web, 223 server. Landing page
   + `/app` move (O) in progress.
 - **Wed 11:55 PT — the mock lane is gone from the hosted demo.** ChatGPT, starting a film from
   nothing, reasoned its way to the free instant test backend and built 13 mock stills. Ryan:

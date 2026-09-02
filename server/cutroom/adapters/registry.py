@@ -17,6 +17,7 @@ from .comfyui import ComfyUIAdapter
 from .elevenlabs import ElevenLabsAdapter
 from .http_images import OpenAIImagesAdapter, OpenRouterImageAdapter
 from .mock import MockAdapter
+from . import motion_models
 from .motion_profiles import LTX_PROFILE
 from .queue_apis import FalAdapter, ReplicateAdapter
 
@@ -73,10 +74,8 @@ def default_backends() -> list[dict]:
         {"id": "fal", "type": "fal", "label": "fal.ai", "enabled": False,
          "options": {"model": "fal-ai/ltx-video",
                      "models": ["fal-ai/ltx-video",
-                                "fal-ai/wan/v2.2-a14b/image-to-video/turbo",
-                                "fal-ai/bytedance/seedance/v1/pro/fast/image-to-video",
-                                "fal-ai/pixverse/v6/image-to-video",
-                                "fal-ai/pixverse/v4.5/image-to-video"]}},
+                                *[m["id"] for m in
+                                  motion_models.all_models()]]}},
         {"id": "replicate", "type": "replicate", "label": "Replicate",
          "enabled": False, "options": {}},
         {"id": "mock", "type": "mock",

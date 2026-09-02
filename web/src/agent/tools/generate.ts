@@ -5,7 +5,10 @@
 import type { ActionDef, GenSub, ToolResult } from "../contract";
 import { ANCHORS, err, genFieldAnchor, genSubAnchor, ok } from "../contract";
 import { deps, type BackendChoice } from "./deps";
-import { clampSeconds, framesForSeconds, motionProfile, type MotionProfile } from "./plan";
+import {
+  clampSeconds, framesForSeconds, motionModels, motionProfile, unfaithfulHint,
+  type MotionModel, type MotionProfile,
+} from "./plan";
 import {
   SHOT_ROUTE, asError, costGate, cut, fetchShot, freshSeeds, lookupShot, maybeNum,
   normalizeCount, openShotPage, pickTake, plateOf, safeState,
@@ -55,10 +58,10 @@ export const generateTakes: ActionDef<GenArgs> = {
     "Generate new takes for a shot in Cutroom — stills, restyles of an existing " +
     "take, or animated cel clips. Opens the shot's Generate console on screen, " +
     "fills it, and submits one job per take with a fresh seed. Returns job ids " +
-    "and, when the backend is fast, the finished takes. Count is 1–4 (default 3). " +
-    "Prompt defaults to the shot's own prompt; prompt_mode \"append\" adds yours. " +
-    "Animate clips play in full at the backend's clip length (seconds overrides " +
-    "it). Paid backends require confirm_cost.",
+    "and the takes. Count 1–4 (default 3). Prompt defaults to the shot's own. " +
+    "Animate clips play in full at the backend's clip length. Paid backends " +
+    "need confirm_cost. Faithfulness problems are usually the model, not the " +
+    "prompt: switch to the registry's fallback and rerun.",
   inputSchema: {
     type: "object",
     properties: {
@@ -75,7 +78,7 @@ export const generateTakes: ActionDef<GenArgs> = {
       live_seconds: { type: "number", description: "For animate: freeze after this many seconds. Only for a model that drifts after N seconds — clips play in full otherwise." },
       seeds: { type: "array", items: { type: "integer" }, description: "Exact seeds to use, one per take. Omit for fresh random seeds (the usual case)." },
       backend: { type: "string", description: "Force a specific backend id instead of the project's lane default (e.g. \"mock\", \"comfyui\", \"fal\")." },
-      model: { type: "string", description: "Force a specific model on that backend." },
+      model: { type: "string", description: "Force a model: a registry key (\"seedance\", \"wan\") or a full endpoint id. list_backends shows the options with cost." },
       confirm_cost: { type: "boolean", description: "Set true to approve a paid backend. Required whenever the lane resolves to a backend that bills money." },
     },
     required: ["shot"],
@@ -119,8 +122,14 @@ export const generateTakes: ActionDef<GenArgs> = {
     const backendId = choice.backend || "the lane default";
     // The live window is a backend property, so read it before filling frames.
     let profile: MotionProfile = {};
+    let models: MotionModel[] = [];
     let seconds = 0;
-    if (lane === "animate") profile = await motionProfile(ctx, choice.backend);
+    if (lane === "animate") {
+      profile = await motionProfile(ctx, choice.backend);
+      if (choice.type === "fal" || choice.backend === "fal") {
+        models = await motionModels(ctx);
+      }
+    }
 
     // ---- 3. read the shot so the prompt builds on what the director wrote
     let detail;
@@ -286,6 +295,9 @@ export const generateTakes: ActionDef<GenArgs> = {
                 fps: profile.fps,
                 holds_seconds: profile.live_seconds_default,
               } }
+          : {}),
+        ...(lane === "animate" && unfaithfulHint(models, args?.model)
+          ? { next_if_unfaithful: unfaithfulHint(models, args?.model) }
           : {}),
         seeds,
         takes,

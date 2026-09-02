@@ -187,26 +187,50 @@ Seeding and overrides:
 * An admin editing `options.motion_profile` in Settings sets a *partial*
   override: keys given win, the rest of the model table survives.
 * Per-project overrides use the existing `CUTROOM_LANE_MOTION=fal:<model>`
-  (for example `CUTROOM_LANE_MOTION=fal:fal-ai/pixverse/v6/image-to-video`),
-  which pins the project's motion lane to that backend and model. The global
-  default stays `CUTROOM_FAL_MOTION_MODEL`.
+  (for example `CUTROOM_LANE_MOTION=fal:seedance` — a registry key or a full
+  endpoint id both work), which pins the project's motion lane to that backend
+  and model. The global default stays `CUTROOM_FAL_MOTION_MODEL`.
 
-### fal endpoints with a payload map
+## Motion models  (the registry an agent picks from)
 
-`FAL_PAYLOAD_MAPS` in `cutroom/adapters/queue_apis.py` holds the per-endpoint
-request shape, so adding a model is a table row rather than a code change.
-Verified against each endpoint's OpenAPI schema on 2026-09-02; prices are what
-the model page publishes. See `docs/research/motion-bakeoff/RESULTS.md`.
+A `motion_profile` says how long a clip is and what it costs. The **motion
+model registry** (`cutroom/adapters/motion_models.py`, served at
+`GET /api/motion-models` and merged into the fal row's `motion_profile` on
+`GET /api/backends`) answers the question above it: *which model should this
+shot use*. Two models are seeded, both proven on the plates in
+[`research/motion-bakeoff/RESULTS.md`](research/motion-bakeoff/RESULTS.md).
 
-| endpoint | 5 s price | duration field | anime control |
-|---|---|---|---|
-| `fal-ai/wan/v2.2-a14b/image-to-video/turbo` (default) | $0.05 @480p, $0.075 @580p, $0.10 @720p | **none** — fixed ~5 s / 81 f | none; the look comes from the plate |
-| `fal-ai/bytedance/seedance/v1/pro/fast/image-to-video` | ~$0.108 @720p (token priced) | `duration`, string, 2–12 | `camera_fixed: true` locks the frame |
-| `fal-ai/pixverse/v6/image-to-video` | $0.175 @540p ($0.035/s) | `duration`, **integer**, 1–15 | `style: "anime"` |
-| `fal-ai/pixverse/v4.5/image-to-video` | $0.15 @540p flat | `duration`, string, "5" or "8" | `style: "anime"` + a named `camera_movement` enum |
+| rank | key | endpoint | 5 s price | seconds | good at | fails by | fallback |
+|---|---|---|---|---|---|---|---|
+| 1 | `seedance` | `fal-ai/bytedance/seedance/v1/pro/fast/image-to-video` | ~$0.108 @720p ($0.0216/s) | `duration`, string, 2–12 | legible text, effects bursts, wide tableaux. `camera_fixed` holds screen text for a full 5 s | may replace dark close-ups with a brighter room; grade drifts warm on wides | `wan` |
+| 2 | `wan` | `fal-ai/wan/v2.2-a14b/image-to-video/turbo` | $0.05 @480p ($0.075 @580p, $0.10 @720p) | **none** — fixed ~5 s / 81 f | dark close-ups, wide tableaux. Never invents a camera move; cheapest and fastest | small motion amplitude; drops fine text after ~2 s | `seedance` |
 
-Wan turbo also has no `negative_prompt`; the adapter logs and drops one rather
-than sending a field the endpoint rejects.
+**Seedance when the budget allows, Wan when it is thin** — and Wan for a dark
+close-up either way, because that is the register it was measured to win.
+`plan_motion` makes that choice per shot as the budget drains and reports the
+model with a one-line reason; `apply_motion_plan` passes it through;
+`generate_takes` accepts `model: "seedance" | "wan"` as well as a full endpoint
+id. The `payload_map` on each record is what the adapter sends: seedance takes
+`duration` as a string and locks the frame with `camera_fixed`, Wan turbo has
+no duration field and rejects a `negative_prompt` (the adapter logs and drops
+one rather than sending a field the endpoint refuses).
+
+**The demo's motion lane stays `wan`.** It is the cheap floor: a judge who
+never opens the planner still gets a five-cent clip from the model with the
+best plate fidelity. `DEFAULT_MODEL_KEY` in the registry, and
+`CUTROOM_FAL_MOTION_MODEL` on the deployment, both say so.
+
+**If a clip is unfaithful to the plate, switch models and rerun.** Faithfulness
+is a model property, not a prompt problem — a plate that got replaced is not a
+sentence that was worded badly. Every record carries `failure_modes` and a
+`fallback`, and `generate_takes`, `apply_motion_plan`, `reroll_layer` and
+`describe_shot` all return a `next_if_unfaithful` line naming the model to
+rerun on. Narrow the registry with `CUTROOM_MOTION_MODELS=wan`.
+
+PixVerse v4.5 and v6 were measured in the same bake-off and **rejected** —
+v4.5's `style: "anime"` overrode the plate outright, v6 invented camera moves
+and broke a shot's stated rule. They are deliberately absent from the code;
+the evidence stays in RESULTS.md.
 
 ## Direction providers  (lane: direction)
 

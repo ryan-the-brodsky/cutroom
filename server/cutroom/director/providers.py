@@ -38,6 +38,9 @@ Doctrine (binding):
   them instead of rerolling. They are not defaults. The historical
   FIRST-SECOND LAW (2026-07) applied to the local LTX lane only.
 - Holds are TRUE freezes — never zooms, never Ken Burns, never wobble.
+- Faithfulness problems are usually the MODEL, not the prompt: if a
+  clip ignores or replaces its plate, switch to the registry's fallback
+  model and rerun before rewriting the sentence.
 - Cel discipline: animate regions, not whole plates, for local motion.
 - INK-FIRST: entering elements must exist in the start frame.
 - Never overwrite takes; every op creates new outputs.

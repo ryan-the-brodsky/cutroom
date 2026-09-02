@@ -15,6 +15,7 @@
 import type { ActionDef, CompLayerLite, CompPageHandles, ToolErr, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { deps } from "./deps";
+import { motionModels, unfaithfulHint } from "./plan";
 import {
   IS_CLIP, SHOT_ROUTE, asError, costGate, cut, fetchShot, listTakes, lookupShot,
   maybeNum, pickTake, plateOf, shotUrl, type ShotDetail,
@@ -314,7 +315,8 @@ export const rerollLayer: ActionDef<RerollArgs> = {
     "other layer untouched — the comparison take. Same prompt and a fresh seed " +
     "by default; pass prompt, seed, backend or model to direct it. Every take a " +
     "layer has ever had stays in its variants strip, so nothing is overwritten. " +
-    "Opens the workbench, selects the layer and presses reroll. Paid backends need confirm_cost.",
+    "Opens the workbench, selects the layer and presses reroll. Paid backends " +
+    "need confirm_cost. If a cel ignores its plate, switch model and rerun.",
   inputSchema: {
     type: "object",
     properties: {
@@ -368,6 +370,10 @@ export const rerollLayer: ActionDef<RerollArgs> = {
     });
 
     const directed = Boolean(args?.prompt || args?.seed || args?.backend || args?.model);
+    // A cel layer is animated by the same motion models, so a layer that comes
+    // back off-plate has the same answer: switch model, rerun.
+    const models = (choice.type === "fal" || choice.backend === "fal")
+      ? await motionModels(ctx) : [];
     let job: { job: string };
     try {
       job = await page.rerollLayer(L.id, {
@@ -394,6 +400,8 @@ export const rerollLayer: ActionDef<RerollArgs> = {
       prompt: cut(args?.prompt ?? L.prompt, 70),
       backend: choice.backend, cost_class: choice.cost_class,
       jobs: [job.job], status: settled[0]?.status ?? "running",
+      ...(unfaithfulHint(models, args?.model)
+        ? { next_if_unfaithful: unfaithfulHint(models, args?.model) } : {}),
       hint: "The old cel stays as a variant — nothing is overwritten.",
     });
   },

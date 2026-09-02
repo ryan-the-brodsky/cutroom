@@ -84,13 +84,21 @@ explicit `confirm_cost` and say the number first.
 We made a film with it. **"Two Claudes"** is a 130-second limited-animation
 short about two chatbots wired to each other, and an agent produced it end to
 end on the live demo through these WebMCP tools: 15 shots generated, three
-motion bursts frozen under the first-second rule, 15 voice lines, a piano bed,
-SFX cues placed, four assembler passes. About $1.50 of API spend. Every step
-went through the same buttons a human clicks, on the hosted URL judges can
-open right now.
+motion bursts, 15 voice lines, a piano bed, SFX cues placed, four assembler
+passes. About $1.50 of API spend. Every step went through the same buttons a
+human clicks, on the hosted URL judges can open right now.
 
 I did not write a pipeline script for that. I wrote a page that publishes its
 own tools, and an agent used them the way a person would.
+
+Money is part of the craft, so the tools carry it. `plan_motion` takes a dollar
+figure, ranks every shot by how much movement would buy it, and **the agent
+picks the model per shot from a registry of cost and use cases** — the better
+model while the budget holds, the cheap one when it runs thin, and the one
+measured best for dark close-ups whenever the shot is one. `apply_motion_plan`
+spends it and stops at the number. When a clip comes back unfaithful to its
+plate, every result names the model to rerun on: that is a model property, not
+a prompt someone worded badly.
 
 Then a judge in ChatGPT's browser asked the site to build a new comical short
 about the French Revolution, and hit the wall: every tool assumed a film
