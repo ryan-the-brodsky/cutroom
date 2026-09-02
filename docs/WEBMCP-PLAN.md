@@ -778,3 +778,11 @@ at low cost, with the owner able to toggle providers without redeploying.
   satirical French Revolution script (38 s) → cast → mock still → mock VO →
   `assembly/animatic-full-720p.mp4`. Seven calls, zero failures. The project cap
   answered the fourth create with its own 429 text.
+- **Wed 11:20 PT — four workstreams landed and pinned (`sha-1d6a5f7`)**: K (`create_project`
+  capped per judge token, `write_script` batch upsert, cast, list; viewer can start a film from
+  nothing), L (per-shot audio plan + Web Audio mix in the monitor; stills play as held frames),
+  M (screening room with chapters and deep links; `play_cut`, `play_take`, `stop_playback`,
+  `preview_timeline`), N (motion profiles per backend, no default freeze, `plan_motion` /
+  `apply_motion_plan` / `/spend`, fal bake-off: Wan turbo stays default; Seedance for legible
+  text, Pixverse v6 for effects bursts). 45 tools. Suites: 582 web, 210 server. Landing page
+  + `/app` move (O) in progress.
