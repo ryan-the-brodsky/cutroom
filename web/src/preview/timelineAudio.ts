@@ -19,9 +19,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dbToGain } from "../audio/shotMix";
+import { type AudioRole, roleOf } from "../timeline/audioMoves";
 import { type Clip, type Timeline, framesToSeconds } from "../timeline/model";
 
-export type AudioRole = "vo" | "music" | "sfx";
+// `roleOf` lives with the move arithmetic (the Timeline's drag needs it too) and is
+// re-exported here because the mix is where a role is heard.
+export { roleOf };
+export type { AudioRole };
 
 /** One audio clip, in TIMELINE seconds, ready to play. */
 export interface AudioCue {
@@ -62,16 +66,6 @@ export function parseGainDb(raw: unknown): number | null {
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
-/** `cutroom.role` if the compiler set one, else the track it sits on. */
-export function roleOf(clip: Clip, trackName?: string): AudioRole {
-  const r = String(clip.cutroom?.role ?? "").toLowerCase();
-  if (r === "vo" || r === "music" || r === "sfx") return r;
-  const t = (trackName || "").toUpperCase();
-  if (t.startsWith("MUSIC")) return "music";
-  if (t.startsWith("SFX")) return "sfx";
-  return "vo";
-}
 
 /** An explicit gain on the clip wins; otherwise the role's preview level. */
 export function volumeOf(clip: Clip, role: AudioRole): number {

@@ -1,9 +1,18 @@
 /**
- * set_shot_timing — the Film Editor's quick panel: duration, VO offset, mute.
+ * When things happen: `set_shot_timing` (the Film Editor's quick panel — duration,
+ * VO offset, mute) and `move_audio` (the Timeline's drag, asked for in words).
  */
-import type { ActionDef, ToolResult } from "../contract";
+import type { ActionDef, AudioMoveResult, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
+import { ROUTES } from "../../routes";
 import { FILM_ROUTE, asError, cut, lookupShot, maybeNum, openFilmPage } from "./util";
+
+const TIMELINE_ROUTE = ROUTES.timeline;
+
+const clock = (s: number | null | undefined): string => {
+  if (s == null || !Number.isFinite(s)) return "—";
+  return `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, "0")}`;
+};
 
 interface TimingArgs {
   shot: string;
@@ -112,5 +121,127 @@ export const setShotTiming: ActionDef<TimingArgs> = {
       applied,
       hint: "Run cut_film to hear and see it in a rendered cut.",
     });
+  },
+};
+
+// ---------------------------------------------------------------- move_audio
+
+interface MoveAudioArgs {
+  project?: string;
+  target: string;
+  at?: number;
+  delta?: number;
+  snap?: boolean;
+}
+
+export const moveAudio: ActionDef<MoveAudioArgs> = {
+  name: "move_audio",
+  title: "Move audio on the timeline",
+  description:
+    "Slide one piece of audio along the film — a shot's voice-over, or a music " +
+    "or SFX cue — the way dragging it on the Timeline does. `at` puts it that " +
+    "many seconds into the film; `delta` slides it from where it sits (negative " +
+    "pulls it earlier). Use it to lift a cue off a line it is stepping on: the " +
+    "result says where it landed and what it still overlaps. A shot's lines " +
+    "share one offset, so they travel together.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      target: { type: "string", description: "What to move: a shot id for its VO, a cue id from list_cues, or part of the file name." },
+      at: { type: "number", description: "Put it this many seconds into the film. Wins over delta." },
+      delta: { type: "number", description: "Slide it this many seconds from where it is now; negative pulls it earlier." },
+      snap: { type: "boolean", description: "Let it land on a cut or the playhead when it is close (default true)." },
+      project: { type: "string", description: "Project id. Defaults to the film that is open." },
+    },
+    required: ["target"],
+    additionalProperties: false,
+  },
+  annotations: { consequentialHint: true },
+  where: {
+    route: TIMELINE_ROUTE, anchor: ANCHORS.timelineAudioDrag,
+    label: "Timeline → the A1 / MUSIC / SFX lanes",
+  },
+  keywords: ["move", "slide", "drag", "audio", "vo", "cue", "sfx", "music",
+             "overlap", "later", "earlier", "timing", "sync"],
+  howTo:
+    "Drag the clip along its A1 / MUSIC / SFX lane on the Timeline — it snaps to " +
+    "cuts and to the playhead, shows the new time as you go, and Esc cancels.",
+  summarize: (a) => {
+    const where = maybeNum(a?.at) !== undefined ? `to ${a!.at}s`
+      : maybeNum(a?.delta) !== undefined ? `by ${a!.delta}s` : "";
+    return `Move ${cut(a?.target, 24)} ${where}`.trim();
+  },
+  async execute(args, ctx): Promise<ToolResult> {
+    const pid = args?.project || ctx.project;
+    if (!pid) return err("no_project", { hint: "Open a film first, or call get_context." });
+    const target = String(args?.target ?? "").trim();
+    if (!target) {
+      return err("needs_target", {
+        hint: "Say what to move: a shot id for its VO, or a cue id from list_cues.",
+      });
+    }
+    const at = maybeNum(args?.at);
+    const delta = maybeNum(args?.delta);
+    if (at === undefined && delta === undefined) {
+      return err("needs_place", {
+        hint: "Pass `at` (film seconds) or `delta` (seconds to slide it).",
+      });
+    }
+
+    const url = ROUTES.timeline.replace(":pid", pid);
+    let page;
+    try {
+      await ctx.nav(url);
+      page = await ctx.page.waitFor("timeline");
+    } catch (e) {
+      return err("page_did_not_mount", {
+        hint: `Could not open the Timeline: ${cut((e as Error)?.message, 90)}.`,
+      });
+    }
+
+    let res: AudioMoveResult;
+    try {
+      res = await page.moveAudio({
+        target, ...(at !== undefined ? { at } : {}),
+        ...(delta !== undefined ? { delta } : {}),
+        ...(args?.snap === false ? { snap: false } : {}),
+      });
+    } catch (e) {
+      return asError(e, "move_failed", "The move was refused");
+    }
+    if (!res?.ok) {
+      return err(res?.error || "move_failed", {
+        hint: res?.hint || "Nothing moved.",
+        ...(res?.candidates?.length ? { candidates: res.candidates.slice(0, 8) } : {}),
+      });
+    }
+    await ctx.trail.step({
+      tool: "move_audio",
+      title: `${res.clip} → ${clock(res.to)}`,
+      anchor: ANCHORS.timelineAudioDrag,
+      detail: res.snapped_to ? `snapped to ${res.snapped_to}` : undefined,
+    });
+
+    const overlaps = (res.overlaps || []).slice(0, 4);
+    return ok(
+      `${res.clip} now starts at ${clock(res.to)}` +
+      (overlaps.length ? `, still under ${overlaps[0].clip}` : ", clear of the other audio"),
+      {
+        moved: res.clip,
+        track: res.track,
+        from: res.from,
+        to: res.to,
+        ...(res.snapped_to ? { snapped_to: res.snapped_to } : {}),
+        ...(res.shot ? { shot: res.shot, vo_offset: res.vo_offset } : {}),
+        ...(res.lines && res.lines > 1 ? { lines_moved: res.lines } : {}),
+        ...(res.cue ? { cue: res.cue } : {}),
+        overlaps: overlaps.length
+          ? overlaps.map((o) => `${cut(o.clip, 24)} ${clock(o.start)}–${clock(o.end)}`)
+          : "none",
+        hint: res.shot
+          ? "A line moved late can stretch its shot when the film is cut (audio-fit). cut_film to hear it."
+          : "cut_film to hear it; preview_timeline plays it without a render.",
+      },
+    );
   },
 };

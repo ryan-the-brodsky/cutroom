@@ -9,7 +9,9 @@ import pytest
 from conftest import make_image, make_wav
 
 from cutroom import cues as C
+from cutroom.db import session_scope
 from cutroom.engine import assemble
+from cutroom.models import Project
 
 
 # ---------------------------------------------------------------- helpers
@@ -101,6 +103,82 @@ def test_cue_crud_round_trip(client, film_project):
     assert client.get(f"/api/projects/{pid}/cues").json()["music"] == []
     assert client.post(f"/api/projects/{pid}/cues/{cue_id}/delete"
                        ).status_code == 404
+
+
+def test_moving_a_shot_anchored_cue_keeps_its_anchor(client, film_project):
+    """The move rewrites `offset`, not the anchor: the cue still travels with
+    its shot when the cut re-times, which is what the assembler honors."""
+    pid = film_project
+    cue_id = client.post(f"/api/projects/{pid}/cues", json={
+        "kind": "sfx", "path": "audio/sfx/door.mp3", "shot": "B01-S2",
+        "offset": 0.25}).json()["cue"]["id"]
+
+    r = client.post(f"/api/projects/{pid}/cues/{cue_id}/move", json={"at": 4.5})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["at"] == pytest.approx(4.5)
+    assert body["previous_at"] == pytest.approx(3.25)
+    assert body["cue"]["shot"] == "B01-S2"       # anchor kept
+    assert body["cue"]["offset"] == pytest.approx(1.5)   # shot 2 starts at 3.0s
+    assert "start" not in body["cue"]
+
+    # …and `delta` slides it from wherever it now sits.
+    r = client.post(f"/api/projects/{pid}/cues/{cue_id}/move", json={"delta": -1})
+    assert r.json()["at"] == pytest.approx(3.5)
+    sheet = client.get(f"/api/projects/{pid}/cues").json()
+    assert sheet["sfx"][0]["at"] == pytest.approx(3.5)
+    assert sheet["sfx"][0]["gain"] == -8.0       # nothing else was touched
+
+
+def test_moving_an_absolute_cue_rewrites_its_start(client, film_project):
+    pid = film_project
+    cue_id = client.post(f"/api/projects/{pid}/cues", json={
+        "kind": "music", "path": "audio/music/theme.mp3", "start": 2,
+        "offset": 0.5, "gain": -12}).json()["cue"]["id"]
+
+    body = client.post(f"/api/projects/{pid}/cues/{cue_id}/move",
+                       json={"at": 10}).json()
+    assert body["cue"]["start"] == pytest.approx(9.5)    # start + offset == 10
+    assert body["cue"]["offset"] == pytest.approx(0.5)   # the record's shape survives
+    assert body["cue"]["gain"] == -12
+    assert body["at"] == pytest.approx(10)
+
+    # A move can never place a cue before the film starts.
+    assert client.post(f"/api/projects/{pid}/cues/{cue_id}/move",
+                       json={"at": -30}).json()["at"] == 0.0
+
+
+def test_move_needs_a_place_and_a_real_cue(client, film_project):
+    pid = film_project
+    cue_id = client.post(f"/api/projects/{pid}/cues", json={
+        "kind": "music", "path": "audio/music/theme.mp3", "start": 1},
+    ).json()["cue"]["id"]
+    assert client.post(f"/api/projects/{pid}/cues/{cue_id}/move",
+                       json={}).status_code == 400
+    assert client.post(f"/api/projects/{pid}/cues/nope/move",
+                       json={"at": 1}).status_code == 404
+
+
+def test_imported_cues_get_ids_so_they_can_be_moved(client, film_project):
+    """The folder importer drops raw JSONL rows into settings — no ids. Reading
+    the sheet (or the timeline) backfills them, and the same id comes back
+    twice, which is what makes a cue addressable at all."""
+    pid = film_project
+    with session_scope() as s:
+        proj = s.get(Project, pid)
+        proj.settings = {**(proj.settings or {}), "sfx_cues": [
+            {"shot": "B01-S2", "sfx-file": "audio/sfx/B01-S2-sfx.mp3",
+             "gain-hint": "-8dB accent"}]}
+
+    first = client.get(f"/api/projects/{pid}/cues").json()["sfx"][0]["id"]
+    again = client.get(f"/api/projects/{pid}/cues").json()["sfx"][0]["id"]
+    assert first == again and first.startswith("cue_")
+
+    moved = client.post(f"/api/projects/{pid}/cues/{first}/move",
+                        json={"at": 5}).json()
+    assert moved["at"] == pytest.approx(5)
+    assert moved["cue"]["offset"] == pytest.approx(2.0)   # B01-S2 starts at 3.0s
+    assert moved["cue"]["gain-hint"] == "-8dB accent"     # the raw row survives
 
 
 def test_cue_kind_is_inferred_from_the_path(client, film_project):

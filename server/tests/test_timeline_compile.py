@@ -163,6 +163,30 @@ def test_music_and_sfx_cues_become_tracks(data_dir):
     assert [i["type"] for i in fc["items"]].count("audio") == 3   # 1 VO + music + sfx
 
 
+def test_a_cue_clip_carries_the_id_the_timeline_drags_it_by(data_dir):
+    """A compiled cue clip names its cue, so moving the block on the Timeline
+    can address the record it came from. Imported rows have no id and simply
+    do not offer one (the cues API backfills before the timeline is read)."""
+    store = _setup("tl_cue_ids")
+    make_wav(store.resolve("audio/sfx/hit.wav"), seconds=0.5)
+    with session_scope() as s:
+        proj = s.get(Project, "tl_cue_ids")
+        proj.settings = {"sfx_cues": [
+            {"id": "cue_abc123", "shot": "B01-S1", "path": "audio/sfx/hit.wav"},
+            {"shot": "B01-S1", "path": "audio/sfx/hit.wav", "offset": 1.0},
+        ]}
+    with session_scope() as s:
+        tl = tc.compile_film(store, s, "tl_cue_ids")
+
+    st = next(t for t in tl.tracks if t.name == "SFX")
+    clips = tl.clips_on(st.id)
+    assert clips[0].cutroom["cue"] == "cue_abc123"
+    assert "cue" not in clips[1].cutroom
+
+    # the head pad rides on the timeline so a client can invert VO placement
+    assert tl.cutroom["head_pad"] == tc.HEAD_PAD
+
+
 def test_scope_act_filter_rebases_to_zero(data_dir):
     """scope='actN' compiles only that act's shots, re-based to frame 0."""
     pid = "tl_scope"

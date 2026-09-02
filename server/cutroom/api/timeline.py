@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from .. import cues as C
 from ..db import session_scope
 from ..engine_render import engine_available
 from ..jobs.queue import submit_job
@@ -18,6 +19,9 @@ def get_timeline(pid: str, fps: int = 24):
     """The Cutroom timeline model: the film as real clips (source in/out,
     handles, lineage) rather than shot slots."""
     store = store_for(pid)
+    # An imported cue sheet has no ids; the compiled clips need one to be
+    # draggable, so the read that produces them backfills first (idempotent).
+    C.ensure_ids(pid)
     with session_scope() as s:
         tl = compile_film_cached(store, s, pid, fps=fps)
     return tl.to_dict()

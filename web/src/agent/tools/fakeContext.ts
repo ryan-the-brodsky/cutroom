@@ -13,6 +13,7 @@ import type {
   CuePlacement, CueRecord, FilmPageHandles,
   FilmShotLite, GenField, GenSub, KindFilter, ProjectLite, ProjectsPageHandles,
   ResolvedShot, Resolution, ShotReference,
+  AudioMoveRequest, AudioMoveResult,
   ShotPageHandles, ShotTab, TakeLite, TimelineClipLite, TimelinePageHandles,
   TrailStep, VoField,
 } from "../contract";
@@ -473,6 +474,21 @@ export class FakeTimelinePage implements TimelinePageHandles {
   ];
   /** Make play() refuse, the way a browser refuses autoplay. */
   refusePlay = false;
+  /**
+   * The audio lanes, in seconds. `target` is what a caller names it by: a shot
+   * (its VO) or a cue id, exactly as the real page resolves it.
+   */
+  audio: {
+    target: string; role: "vo" | "music" | "sfx"; track: string;
+    label: string; start: number; seconds: number;
+  }[] = [
+    { target: "B10-S2", role: "vo", track: "A1", label: "B10-S2 vo",
+      start: 0.3, seconds: 2 },
+    { target: "cue_door77", role: "sfx", track: "SFX", label: "sfx:door.mp3",
+      start: 1.5, seconds: 0.5 },
+  ];
+  /** Set to a message to make the write fail the way the server can. */
+  moveFails: string | null = null;
 
   constructor(public pid: string, private rec: string[]) {}
   private log(s: string) { this.rec.push(s); }
@@ -495,6 +511,44 @@ export class FakeTimelinePage implements TimelinePageHandles {
   setScope(seconds: number | null) {
     this.scope = seconds;
     this.log(`timeline.setScope(${seconds})`);
+  }
+
+  async moveAudio(req: AudioMoveRequest): Promise<AudioMoveResult> {
+    const where = req.at !== undefined ? `at=${req.at}` : `delta=${req.delta}`;
+    this.log(`timeline.moveAudio(${req.target},${where})`);
+    const want = String(req.target || "").toLowerCase();
+    const hit = this.audio.find((a) => a.target.toLowerCase() === want)
+      ?? this.audio.find((a) => a.label.toLowerCase().includes(want));
+    if (!hit) {
+      return { ok: false, error: "no_such_audio",
+               candidates: this.audio.map((a) => a.label),
+               hint: "Nothing on A1/MUSIC/SFX matches that." };
+    }
+    if (req.at === undefined && req.delta === undefined) {
+      return { ok: false, error: "needs_place", clip: hit.label,
+               hint: "Pass `at` or `delta`." };
+    }
+    if (this.moveFails) {
+      return { ok: false, error: "move_failed", clip: hit.label,
+               hint: this.moveFails };
+    }
+    const from = hit.start;
+    const to = Math.max(0, req.at !== undefined ? req.at : from + (req.delta ?? 0));
+    hit.start = to;
+    this.selected = hit.target;
+    const overlaps = this.audio
+      .filter((a) => a !== hit && a.start < to + hit.seconds
+        && to < a.start + a.seconds)
+      .map((a) => ({ clip: a.label, track: a.track, start: a.start,
+                     end: Math.round((a.start + a.seconds) * 1000) / 1000 }));
+    return {
+      ok: true, clip: hit.label, role: hit.role, track: hit.track,
+      from, to, snapped_to: null, overlaps,
+      ...(hit.role === "vo"
+        ? { shot: hit.target, vo_offset: Math.round((to - 0.3) * 1000) / 1000,
+            lines: 1 }
+        : { cue: hit.target }),
+    };
   }
 }
 

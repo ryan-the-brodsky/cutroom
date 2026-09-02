@@ -199,6 +199,84 @@ def add(project_id: str, kind: str, body: dict) -> dict:
     return cue
 
 
+def ensure_ids(project_id: str) -> int:
+    """Give every stored cue an id, and return how many were missing.
+
+    An imported cue sheet (`audio/*-cues.jsonl` straight into settings) has no
+    ids, which makes its cues unaddressable: they cannot be deleted and they
+    cannot be moved. Idempotent, and it writes only when something is missing,
+    so it is safe to call on a read path.
+    """
+    everything = read_all(project_id)
+    fixed = 0
+    for kind in KINDS:
+        rows = everything[kind]
+        missing = [r for r in rows if not r.get("id")]
+        if not missing:
+            continue
+        for r in missing:
+            r["id"] = new_id()
+        fixed += len(missing)
+        _write(project_id, kind, rows)
+    return fixed
+
+
+def find(project_id: str, cue_id: str) -> tuple[str, dict] | None:
+    """(kind, cue) for an id, or None."""
+    everything = read_all(project_id)
+    for kind in KINDS:
+        hit = next((r for r in everything[kind]
+                    if str(r.get("id")) == str(cue_id)), None)
+        if hit is not None:
+            return kind, hit
+    return None
+
+
+def move(project_id: str, cue_id: str, *, at: float | None = None,
+         delta: float | None = None, scope: str = "full") -> dict | None:
+    """Slide one cue along the film. Returns None when there is no such cue.
+
+    `at` is absolute film seconds; `delta` adds to where the cue sits now. The
+    record's own anchoring is preserved, because that is what the assembler
+    honors: a SHOT-anchored cue keeps its shot and moves by changing `offset`,
+    so re-timing that shot still carries the cue with it, while an absolutely
+    placed cue moves its `start`. (`film_start` prefers `start` when a record
+    carries both, so the branch below follows the same precedence.)
+    """
+    if at is None and delta is None:
+        raise CueError("move needs `at` (film seconds) or `delta`")
+    everything = read_all(project_id)
+    starts = shot_starts(project_id, scope)
+    for kind in KINDS:
+        rows = everything[kind]
+        hit = next((r for r in rows if str(r.get("id")) == str(cue_id)), None)
+        if hit is None:
+            continue
+        was = film_start(hit, starts)
+        if at is None:
+            if was is None:
+                raise CueError(
+                    f"cue {cue_id} is anchored to {cue_anchor(hit)}, which is not in "
+                    f"this scope — pass `at` instead of `delta`")
+            at = was + _num(delta, 0.0)
+        at = max(0.0, _num(at, 0.0))
+        row = dict(hit)
+        offset = round(_num(row.get("offset"), 0.0), 3)
+        if row.get("start") is not None:
+            row["start"] = round(at - offset, 3)
+        else:
+            anchor = cue_anchor(row)
+            base = starts.get(anchor) if anchor is not None else 0.0
+            if base is None:
+                raise CueError(
+                    f"cue {cue_id} hangs off {anchor}, which is not in this scope — "
+                    f"nothing to measure the move against")
+            row["offset"] = round(at - base, 3)
+        _write(project_id, kind, [row if r is hit else r for r in rows])
+        return {"kind": kind, "cue": row, "at": round(at, 3), "previous_at": was}
+    return None
+
+
 def delete(project_id: str, cue_id: str) -> dict | None:
     """Remove by id from whichever list holds it. Returns the removed cue."""
     everything = read_all(project_id)

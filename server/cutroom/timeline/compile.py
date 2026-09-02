@@ -112,6 +112,8 @@ def _compile_cues(cues, role: str, track: m.Track, store: ProjectStore,
         if not dur:
             continue
         lineage: dict = {"role": role}
+        if cue.get("id"):
+            lineage["cue"] = str(cue["id"])   # what the Timeline drags by
         gain = _cue_get(cue, _CUE_GAIN_KEYS)
         if gain is not None:
             lineage["gain"] = gain
@@ -210,7 +212,10 @@ def compile_film(store: ProjectStore, session, project_id: str, *,
 
     v = m.Track(kind="video", name="V1", order=0)
     a = m.Track(kind="audio", name="A1", order=1)
-    cr = {"project": project_id, "source": "film-compile"}
+    # `head_pad` rides along so a client can invert the VO placement below
+    # (line start = shot start + head_pad + vo_offset) without a constant of
+    # its own that could drift from this one.
+    cr = {"project": project_id, "source": "film-compile", "head_pad": head_pad}
     if scope:
         cr["scope"] = scope
     tl = m.Timeline(fps=fps, width=width, height=height, tracks=[v, a], cutroom=cr)

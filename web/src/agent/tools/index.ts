@@ -33,7 +33,7 @@ import {
 import { attachReference, listReferences, removeReference } from "./references";
 import { setStyle } from "./style";
 import { playCut, playTake, previewTimeline, stopPlayback } from "./screen";
-import { setShotTiming } from "./timing";
+import { moveAudio, setShotTiming } from "./timing";
 import { FEATURES } from "../features";
 import { SCREEN_FEATURES } from "../features.screen";
 
@@ -101,6 +101,8 @@ export const TOOLS: AnyActionDef[] = [
   attachReference,
   removeReference,
   listReferences,
+  // the Timeline's audio, dragged or asked for
+  moveAudio,
 ];
 
 /**
@@ -141,7 +143,7 @@ export { openShot, showMe } from "./navigate";
 export { generateTakes } from "./generate";
 export { freezeTail, trimClip } from "./motion";
 export { selectTake, setKeeper, setTimelineSource } from "./picks";
-export { setShotTiming } from "./timing";
+export { moveAudio, setShotTiming } from "./timing";
 export { synthesizeVo } from "./audio";
 export { directShot, applyPlan } from "./direct";
 export { cutFilm } from "./film";

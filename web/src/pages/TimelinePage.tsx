@@ -1,13 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ANCHORS, type TimelineClipLite } from "../agent/contract";
+import {
+  ANCHORS, type AudioMoveRequest, type AudioMoveResult, type TimelineClipLite,
+} from "../agent/contract";
 import { usePageHandles } from "../agent/pageHandles";
 import CutFilm, { type CutScope, useCutFilm } from "../components/CutFilm";
-import { mediaUrl, thumbUrl } from "../api";
-import { usePoll } from "../hooks";
+import { api, mediaUrl, thumbUrl } from "../api";
+import { pushToast, usePoll } from "../hooks";
 import { PreviewStage } from "../preview/PreviewStage";
 import { mixSummary, useTimelineAudio } from "../preview/timelineAudio";
 import type { PlayerRef } from "../runtime/player";
+import {
+  DRAG_THRESHOLD_PX,
+  SNAP_WITHIN_PX,
+  audioOverlaps,
+  clipLabel,
+  describeOverlaps,
+  isAudio,
+  isDrag,
+  planMove,
+  roleOf,
+  type SnapKind,
+  snapStart,
+  snapTargets,
+  startFrameFor,
+  trackNameOf,
+  voLines,
+} from "../timeline/audioMoves";
 import {
   type Clip,
   type Timeline,
@@ -19,12 +38,28 @@ import {
   tailHandle,
 } from "../timeline/model";
 
+/** A drag in flight: where it started, where it would land, what it snapped to. */
+interface DragState {
+  id: string;
+  startX: number;
+  origin: number;      // the clip's start frame when the drag began
+  frames: number;      // where it would land now
+  to: SnapKind;
+  label: string | null;
+  moved: boolean;      // past the click/drag threshold
+}
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+const cutText = (t: string, n: number) =>
+  t.length > n ? `${t.slice(0, n - 1)}…` : t;
+
 /** TIMELINE — the film as a real clip model (source in/out + media handles),
  * compiled from shots by the server. This is the foundation the engine lift
  * hangs on: a shot is a unit of production; a clip is a unit of time. */
 export default function TimelinePage() {
   const { pid } = useParams() as { pid: string };
-  const { data: tl, error } = usePoll<Timeline>(`/api/projects/${pid}/timeline`, 0);
+  const { data: tl, error, refresh } = usePoll<Timeline>(
+    `/api/projects/${pid}/timeline`, 0);
   const fps = tl?.fps || 24;
   const [ppf, setPpf] = useState(0.7); // pixels per frame (zoom)
   const [sel, setSel] = useState<Clip | null>(null);
@@ -105,6 +140,11 @@ export default function TimelinePage() {
     const s = secs(f);
     return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
   };
+  /** Same clock, to the hundredth — a drag is judged in fractions of a second. */
+  const tcode = (f: number) => {
+    const s = secs(f);
+    return `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, "0")}`;
+  };
 
   /* ------------------------------------------------------- the transport, as handles
    * The Timeline had a real transport and no way to ask for it, so an agent told
@@ -127,6 +167,181 @@ export default function TimelinePage() {
     playerRef.current?.seekTo(clamped);
     setFrame(clamped);
   }, [fps, tl?.total_frames]);
+
+  /* ----------------------------------------------------- moving the audio
+   * A clip's place on the Timeline is COMPILED, never stored, so a drag cannot
+   * write a frame number: it inverts the compile and writes the field the
+   * compile reads (timeline/audioMoves.ts) — VO becomes the shot's `vo_offset`,
+   * a cue becomes its placement — then re-reads the timeline, so what you see
+   * is what the assembler will cut. */
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const [moving, setMoving] = useState(false);
+  /** Set on a pointerup that was a drag, so the click behind it does not seek. */
+  const draggedRef = useRef(false);
+  const snapMarks = useMemo(
+    () => (tl ? snapTargets(tl, frame) : []), [tl, frame]);
+
+  const commitMove = useCallback(async (
+    clip: Clip, startFrames: number, snappedTo: string | null,
+  ): Promise<AudioMoveResult> => {
+    if (!tl) return { ok: false, error: "timeline_not_ready" };
+    const f = tl.fps || 24;
+    const plan = planMove(tl, clip, startFrames);
+    const base = {
+      clip: clipLabel(clip), role: roleOf(clip, trackNameOf(tl, clip)),
+      track: trackNameOf(tl, clip),
+      from: round3(framesToSeconds(clip.start, f)),
+      to: round3(framesToSeconds(startFrames, f)),
+      snapped_to: snappedTo,
+    };
+    if (plan.target === "blocked") {
+      return { ok: false, error: "cannot_move", hint: plan.why, ...base };
+    }
+    // The lines that travel WITH this one are not overlaps — they keep their
+    // spacing, because a shot has one vo_offset for all of them.
+    const ignore = plan.target === "vo"
+      ? voLines(tl, plan.sid).map((c) => c.id) : [clip.id];
+    const overlaps = describeOverlaps(
+      tl, audioOverlaps(tl, clip, startFrames, ignore));
+
+    setMoving(true);
+    try {
+      if (plan.target === "vo") {
+        await api(`/api/projects/${pid}/shots/${plan.sid}/override`,
+                  { vo_offset: plan.voOffset });
+      } else {
+        await api(`/api/projects/${pid}/cues/${plan.cue}/move`, { at: plan.at });
+      }
+    } catch (e) {
+      const why = (e as Error)?.message || "the server refused the move";
+      pushToast({ text: `✗ ${base.clip} did not move — ${cutText(why, 60)}` });
+      return { ok: false, error: "move_failed", hint: why, ...base };
+    } finally {
+      setMoving(false);
+    }
+    refresh();                       // re-compile: the picture of record
+    return {
+      ok: true, ...base, to: plan.at, overlaps,
+      ...(plan.target === "vo"
+        ? { shot: plan.sid, vo_offset: plan.voOffset, lines: plan.lines }
+        : { cue: plan.cue }),
+    };
+  }, [tl, pid, refresh]);
+
+  // ---- the pointer: a small move seeks, a real one drags -------------------
+  const beginDrag = (e: React.PointerEvent, c: Clip) => {
+    if (!isAudio(c) || moving || e.button !== 0) return;
+    // Captured, not prevented: cancelling pointerdown would take the click —
+    // and a click on an audio clip still has to seek.
+    try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }
+    catch { /* older engines: the window-level events still arrive */ }
+    setDrag({ id: c.id, startX: e.clientX, origin: c.start, frames: c.start,
+              to: "grid", label: null, moved: false });
+  };
+
+  const onDragMove = (e: React.PointerEvent, c: Clip) => {
+    if (!tl || !drag || drag.id !== c.id) return;
+    const dx = e.clientX - drag.startX;
+    if (!drag.moved && !isDrag(dx)) return;          // still a click
+    const snapped = snapStart(drag.origin + dx / ppf, {
+      targets: snapMarks, within: SNAP_WITHIN_PX / ppf, fps,
+      max: Math.max(0, tl.total_frames - 1),
+    });
+    setDrag({ ...drag, moved: true, frames: snapped.start,
+              to: snapped.to, label: snapped.label });
+  };
+
+  const endDrag = async (e: React.PointerEvent, c: Clip) => {
+    const d = drag;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId); }
+    catch { /* the pointer was never captured */ }
+    setDrag(null);
+    if (!d || d.id !== c.id || !d.moved) return;     // Escape, or never moved
+    draggedRef.current = true;                       // swallow the click behind it
+    if (d.frames === d.origin) return;
+    const res = await commitMove(c, d.frames, d.label ?? d.to);
+    if (res.ok) {
+      pushToast({ text: `${res.clip} → ${mmss(d.frames)}` +
+        (res.lines && res.lines > 1 ? ` (${res.lines} lines)` : "") +
+        (res.overlaps?.length ? ` · still under ${res.overlaps[0].clip}` : "") });
+    }
+  };
+
+  // Escape abandons a drag: the clip snaps back and nothing is written.
+  useEffect(() => {
+    if (!drag) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== "Escape") return;
+      draggedRef.current = drag.moved;
+      setDrag(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drag]);
+
+  /** The same move, asked for rather than dragged (WebMCP `move_audio`). */
+  const moveAudio = useCallback(async (
+    req: AudioMoveRequest,
+  ): Promise<AudioMoveResult> => {
+    if (!tl) {
+      return { ok: false, error: "timeline_not_ready",
+               hint: "The timeline is still compiling — try again in a moment." };
+    }
+    const f = tl.fps || 24;
+    const audio = tl.clips.filter(isAudio);
+    const roster = audio.map((c) => clipLabel(c));
+    const want = String(req?.target ?? "").trim().toLowerCase();
+    if (!want) {
+      return { ok: false, error: "needs_target", candidates: roster.slice(0, 12),
+               hint: "Name the shot whose VO to move, or a cue id from list_cues." };
+    }
+    const sid = want.replace(/\s+(vo|voice[- ]?over|line)$/, "").trim();
+    let hits = audio.filter((c) => String(c.cutroom?.cue || "") === req.target
+      || c.id === req.target);
+    if (!hits.length) {
+      hits = audio.filter((c) => String(c.cutroom?.shot || "").toLowerCase() === sid);
+    }
+    if (!hits.length) {
+      hits = audio.filter((c) => clipLabel(c).toLowerCase().includes(want)
+        || String(c.source || "").toLowerCase().includes(want));
+    }
+    if (!hits.length) {
+      return { ok: false, error: "no_such_audio", candidates: roster.slice(0, 12),
+               hint: `Nothing on A1/MUSIC/SFX matches "${cutText(req.target, 40)}".` };
+    }
+    // Every VO line of one shot shares an offset, so they are one target.
+    const sameShotVo = hits.every((c) =>
+      roleOf(c, trackNameOf(tl, c)) === "vo"
+      && String(c.cutroom?.shot || "") === String(hits[0].cutroom?.shot || ""));
+    if (hits.length > 1 && !sameShotVo) {
+      return { ok: false, error: "ambiguous_target",
+               candidates: hits.map((c) => clipLabel(c)).slice(0, 8),
+               hint: "Several clips match — pass a cue id, or a fuller name." };
+    }
+    const clip = hits.sort((a, b) => a.start - b.start)[0];
+
+    const at = typeof req.at === "number" && Number.isFinite(req.at) ? req.at : null;
+    const delta = typeof req.delta === "number" && Number.isFinite(req.delta)
+      ? req.delta : null;
+    if (at === null && delta === null) {
+      return { ok: false, error: "needs_place", clip: clipLabel(clip),
+               hint: "Pass `at` (film seconds) or `delta` (seconds to slide it)." };
+    }
+    const raw = at !== null ? startFrameFor(at, f)
+      : clip.start + Math.round((delta as number) * f);
+    const snapped = req.snap === false
+      ? { start: Math.max(0, Math.min(Math.round(raw), tl.total_frames - 1)),
+          to: "grid" as const, label: null }
+      // A tool's window is time, not pixels: land on a cut it was aiming for,
+      // never yank it to one it wasn't.
+      : snapStart(raw, { targets: snapMarks, within: Math.round(f * 0.12), fps: f,
+                         max: Math.max(0, tl.total_frames - 1) });
+
+    setSel(clip);
+    const res = await commitMove(clip, snapped.start, snapped.label ?? snapped.to);
+    if (res.ok) seek(snapped.start);
+    return res;
+  }, [tl, snapMarks, commitMove]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   usePageHandles({
     kind: "timeline", pid,
@@ -155,7 +370,17 @@ export default function TimelinePage() {
     },
     clips: () => clipsLite,
     setScope: (sec: number | null) => setScopeSec(sec),
+    moveAudio,
   });
+
+  // A re-compile mints new clip ids, so the selected clip has to be found again
+  // by what it IS (same kind, same label, same media) rather than by id.
+  useEffect(() => {
+    if (!sel || !tl) return;
+    if (tl.clips.some((c) => c.id === sel.id)) return;
+    setSel(tl.clips.find((c) => c.kind === sel.kind && c.label === sel.label
+      && c.source === sel.source) ?? null);
+  }, [tl, sel]);
 
   const ruler = useMemo(() => {
     if (!tl) return [];
@@ -201,6 +426,11 @@ export default function TimelinePage() {
         {" "}<span data-testid="kinds">
           {kinds.image || 0} stills · {kinds.video || 0} motion · {kinds.audio || 0} audio
         </span>
+        {(kinds.audio || 0) > 0 && <>
+          {" "}Drag an audio clip along its lane to move it — it snaps to cuts and
+          the playhead, Esc cancels, and the drop is written back to the film
+          (VO offset, or the cue) so the next cut hears it there.
+        </>}
       </div>
 
       {/* ---------------------------------------------------- cut the film */}
@@ -316,8 +546,11 @@ export default function TimelinePage() {
               <div style={{ position: "absolute", left: 4, top: 2, fontSize: 10,
                             color: "#889", zIndex: 2 }}>{track.name}</div>
               {clipsOnTrack(tl, track.id).map((c) => {
-                const left = c.start * ppf;
-                const w = Math.max(3, c.duration * ppf);
+                const audible = isAudio(c);
+                const held = drag?.id === c.id && drag.moved;
+                const left = (held ? drag.frames : c.start) * ppf;
+                // A one-frame SFX hit still has to be grabbable.
+                const w = Math.max(audible ? 7 : 3, c.duration * ppf);
                 const trimmed =
                   c.kind === "video" &&
                   (headHandle(c) > 0 || (tailHandle(c) ?? 0) > 0);
@@ -325,18 +558,34 @@ export default function TimelinePage() {
                   <div
                     key={c.id}
                     data-testid="clip"
-                    data-action={ANCHORS.timelineClip}
+                    data-action={audible ? ANCHORS.timelineAudioDrag
+                                         : ANCHORS.timelineClip}
                     data-id={c.id}
                     data-sid={c.cutroom?.shot || c.label || c.id}
                     data-kind={c.kind}
-                    onClick={() => { setSel(c); seek(c.start); }}
-                    title={`${c.label} · ${c.kind} · ${c.duration}f`}
+                    data-cue={String(c.cutroom?.cue || "") || undefined}
+                    onPointerDown={audible ? (e) => beginDrag(e, c) : undefined}
+                    onPointerMove={audible ? (e) => onDragMove(e, c) : undefined}
+                    onPointerUp={audible ? (e) => { void endDrag(e, c); } : undefined}
+                    onPointerCancel={audible ? () => setDrag(null) : undefined}
+                    onClick={() => {
+                      if (draggedRef.current) { draggedRef.current = false; return; }
+                      setSel(c); seek(c.start);
+                    }}
+                    title={audible
+                      ? `${clipLabel(c)} · drag to move it (Esc cancels) · ${c.duration}f`
+                      : `${c.label} · ${c.kind} · ${c.duration}f`}
                     style={{
                       position: "absolute", left, width: w, top: 16, height: 40,
                       background: clipColor(c),
                       border: sel?.id === c.id ? "2px solid #fff" : "1px solid #0006",
-                      borderRadius: 3, overflow: "hidden", cursor: "pointer",
-                      color: "#fff", fontSize: 10,
+                      borderRadius: 3, overflow: "hidden", color: "#fff", fontSize: 10,
+                      cursor: audible ? (held ? "grabbing" : "grab") : "pointer",
+                      touchAction: audible ? "none" : undefined,
+                      userSelect: audible ? "none" : undefined,
+                      opacity: moving && held ? 0.6 : 1,
+                      boxShadow: held ? "0 0 0 2px #fbbf24" : undefined,
+                      zIndex: held ? 4 : undefined,
                     }}
                   >
                     {(c.kind === "video" || c.kind === "image") && c.source && w > 24 && (
@@ -354,6 +603,22 @@ export default function TimelinePage() {
                   </div>
                 );
               })}
+              {drag?.moved && clipsOnTrack(tl, track.id)
+                .some((c) => c.id === drag.id) && (
+                <div style={{
+                  position: "absolute", left: drag.frames * ppf, top: -2,
+                  transform: "translateX(2px)", zIndex: 6, pointerEvents: "none",
+                  background: "#fbbf24", color: "#111", fontSize: 10,
+                  padding: "1px 4px", borderRadius: 3, whiteSpace: "nowrap",
+                  fontWeight: 600,
+                }}>
+                  {tcode(drag.frames)}
+                  {drag.frames !== drag.origin &&
+                    ` · ${drag.frames > drag.origin ? "+" : "−"}${
+                      Math.abs(secs(drag.frames - drag.origin)).toFixed(2)}s`}
+                  {drag.label ? ` · ${cutText(drag.label, 18)}` : ""}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -312,6 +312,39 @@ export interface TimelineClipLite {
   sid: string; start: number; seconds: number; kind: string;
 }
 
+/** Ask the Timeline to slide one audio clip. Seconds, like everything here. */
+export interface AudioMoveRequest {
+  /** A shot sid (its VO), a cue id, or part of a file name / label. */
+  target: string;
+  /** Absolute film seconds. */
+  at?: number;
+  /** Seconds to add to where it sits now. Ignored when `at` is given. */
+  delta?: number;
+  /** Snap to the playhead / a cut / the quarter-second grid (default true). */
+  snap?: boolean;
+}
+
+/** What moved, where it landed, and what it still sits under. */
+export interface AudioMoveResult {
+  ok: boolean;
+  error?: string;
+  hint?: string;
+  /** The clips the target could have meant, when it matched none or many. */
+  candidates?: string[];
+  clip?: string;
+  role?: "vo" | "music" | "sfx";
+  track?: string;
+  from?: number;
+  to?: number;
+  snapped_to?: string | null;
+  /** VO only: the shot's new `vo_offset`, and how many lines moved with it. */
+  vo_offset?: number;
+  lines?: number;
+  shot?: string;
+  cue?: string;
+  overlaps?: { clip: string; track: string; start: number; end: number }[];
+}
+
 /**
  * The Timeline page's transport. Seconds in, seconds out: the page converts
  * to frames itself, so a caller never has to know the fps.
@@ -328,6 +361,11 @@ export interface TimelinePageHandles {
   selectClip(sid: string): void;
   clips(): TimelineClipLite[];
   setScope(seconds: number | null): void;
+  /**
+   * Slide an audio clip and write it through: VO becomes the shot's `vo_offset`,
+   * a cue becomes its placement. Picture is refused — its order is the film's.
+   */
+  moveAudio(req: AudioMoveRequest): Promise<AudioMoveResult>;
 }
 
 export type AnyPageHandles =
@@ -428,6 +466,8 @@ export const TOOL_NAMES = [
   "set_style",
   // workstream S: per-shot reference images the model actually receives
   "attach_reference", "remove_reference", "list_references",
+  // the Timeline's audio, dragged or asked for
+  "move_audio",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -507,6 +547,7 @@ export const ANCHORS = {
   timelineScrub: "timeline.scrub", timelineRuler: "timeline.ruler",
   timelineMute: "timeline.mute",
   timelineClip: "timeline.clip",                // + data-id
+  timelineAudioDrag: "timeline.audio.drag",     // audio clips: draggable, + data-id
   timelineOtio: "timeline.export.otio", timelineEdl: "timeline.export.edl",
   // settings
   settingsBackend: "settings.backend",         // + data-id, then ".enable|.health|.save|.delete"

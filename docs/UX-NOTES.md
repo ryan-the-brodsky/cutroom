@@ -10,7 +10,11 @@ Two rooms, two mindsets:
 
 - **Timeline** (`/app/p/<id>/timeline`) — where a film opens. The project root
   `/app/p/<id>` redirects here: the film as real clips, with a live preview that
-  plays picture *and* sound (VO on A1, the music bed, SFX).
+  plays picture *and* sound (VO on A1, the music bed, SFX). Audio clips DRAG
+  along their lanes (snapping to cuts, the playhead and the quarter-second;
+  Esc cancels): a VO drag writes the shot's `vo_offset`, a cue drag moves the
+  cue, so the fix survives into the cut. Picture does not drag — a shot's place
+  comes from the film.
 - **Film Editor** (`/app/p/<id>/film`) — the arrangement room. Strip + board of what
   exists; select a shot for a *quick* panel (seconds, VO offset/mute, "what
   plays" take picker); cut the film; double-click into focused work. ✅ built
