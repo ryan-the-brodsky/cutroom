@@ -36,6 +36,11 @@ from .images import cover, to_pixels
 Resolver = Callable[[str], Path]
 
 
+def _even(n: int) -> int:
+    """h264 + yuv420p cannot encode an odd dimension."""
+    return max(2, int(n) - (int(n) % 2))
+
+
 def window_alpha(rw: int, rh: int, l: int, t: int, r: int, b: int,
                  pw: int, ph: int, feather: int) -> np.ndarray:
     """Feather interior seams only; plate-edge-coincident edges stay hard
@@ -149,7 +154,8 @@ def render_comp(comp: dict, resolve: Resolver, out: str | Path, fps: int = 24,
             n = max(1, ffmpeg.probe_frame_count(clip_path))
             win = window_alpha(rw, rh, l, t, r, b, pw, ph, int(L.get("feather", 24)))
             figure = L.get("matte") == "figure"
-            live.append(dict(reader=ffmpeg.RawFrameReader(clip_path, rw, rh),
+            live.append(dict(id=L.get("id", "?"),
+                             reader=ffmpeg.RawFrameReader(clip_path, rw, rh),
                              n=n, box=(l, t, r, b), win=win, figure=figure,
                              warned=False, media=L.get("media", {}),
                              opacity=float(L.get("opacity", 1.0))))
@@ -161,8 +167,15 @@ def render_comp(comp: dict, resolve: Resolver, out: str | Path, fps: int = 24,
             dur = longest / fps
         n_out = max(1, round(dur * fps))
 
-        W = int(comp.get("width") or pw)
-        H = int(comp.get("height") or ph)
+        want_w = int(comp.get("width") or pw)
+        want_h = int(comp.get("height") or ph)
+        W, H = _even(want_w), _even(want_h)
+        if (W, H) != (want_w, want_h):
+            log(f"[warn] output rounded to {W}x{H}: h264 cannot encode an odd "
+                f"dimension (asked for {want_w}x{want_h})")
+        if (W, H) != (pw, ph):
+            log(f"background is {pw}x{ph}, output is {W}x{H} — every frame is "
+                "scaled to cover")
 
         enc = ffmpeg.RawFrameEncoder(out, W, H, fps)
         for f in range(n_out):
@@ -175,6 +188,10 @@ def render_comp(comp: dict, resolve: Resolver, out: str | Path, fps: int = 24,
                 l, t, r, b = d["box"]
                 vi = media_index(f, d["n"], d["media"])
                 cel = d["reader"].get(vi)
+                if cel.shape[:2] != (b - t, r - l):
+                    raise ffmpeg.FFmpegError(
+                        f"layer {d['id']} decoded {cel.shape[1]}x{cel.shape[0]} "
+                        f"but its region is {r - l}x{b - t}")
                 a = d["win"]
                 if d["figure"]:
                     mattes = try_figure_mattes([Image.fromarray(cel)])
@@ -188,9 +205,13 @@ def render_comp(comp: dict, resolve: Resolver, out: str | Path, fps: int = 24,
                 reg = frame[t:b, l:r]
                 frame[t:b, l:r] = reg * (1 - a[..., None]) + \
                     cel.astype(np.float32) * a[..., None]
-            img = cover(Image.fromarray(np.clip(frame, 0, 255).astype(np.uint8)),
-                        (W, H))
-            enc.write(np.asarray(img))
+            rgb = np.clip(frame, 0, 255).astype(np.uint8)
+            # Only pay for a resize when the background is not already the
+            # output size — which is the common case once a comp is stamped
+            # with its background's true dimensions.
+            if rgb.shape[:2] != (H, W):
+                rgb = np.asarray(cover(Image.fromarray(rgb), (W, H)))
+            enc.write(rgb)
         enc.close(webm_sibling=webm_sibling)
     finally:
         for d in live:

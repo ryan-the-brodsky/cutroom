@@ -120,6 +120,61 @@ def test_raw_frame_reader_streams_and_rewinds(tmp_path):
         assert r.get(10_000).shape == (24, 32, 3)
 
 
+def test_render_comp_when_the_background_is_not_the_comp_size(tmp_path):
+    """Production shape: a comp stamped 1024x1024 whose background clip is a
+    different size, with a video layer on a fractional region. Every frame is
+    scaled to cover; the encoder must never see a mismatched buffer."""
+    from pathlib import Path as P
+    bg = make_clip(tmp_path / "bg.mp4", seconds=1.5, size="640x360")
+    region = [0.3, 0.18, 0.7, 0.82]
+    # the layer's region, measured on the BACKGROUND's own pixels
+    l, t, r, b = images.to_pixels(region, 640, 360)
+    cel = make_clip(tmp_path / "cel.webm", seconds=0.5, size=f"{r - l}x{b - t}")
+    out = tmp_path / "comp.mp4"
+    comp = {"background": str(bg), "width": 1024, "height": 1024, "duration": 1.0,
+            "layers": [{"id": "L1", "clip": str(cel), "region": region,
+                        "feather": 24, "matte": "window",
+                        "media": {"loop": "hold"}, "opacity": 1.0, "z": 1}]}
+    info = cels.render_comp(comp, lambda rel: P(rel), out, webm_sibling=False)
+    assert out.exists() and info["layers"] == 1
+    assert ffmpeg.probe_dims(out) == (1024, 1024)
+
+
+def test_render_comp_rounds_odd_output_dimensions(tmp_path):
+    """h264 + yuv420p cannot encode an odd dimension; a comp that asks for one
+    is rounded down rather than killing the encoder with a broken pipe."""
+    from pathlib import Path as P
+    plate = make_image(tmp_path / "p.png", 641, 361)
+    out = tmp_path / "odd.mp4"
+    info = cels.render_comp({"background": str(plate), "duration": 0.5,
+                             "layers": []},
+                            lambda rel: P(rel), out, webm_sibling=False)
+    assert info["frames"] == 12
+    assert ffmpeg.probe_dims(out) == (640, 360)
+
+
+def test_raw_frame_encoder_reports_ffmpeg_instead_of_a_broken_pipe(tmp_path):
+    """The encoder's own stderr is what tells you why a render died; a bare
+    BrokenPipeError from the write is useless in a job log."""
+    enc = ffmpeg.RawFrameEncoder(tmp_path / "x.mp4", 64, 48, 24)
+    enc.proc.kill()                      # stand in for the OOM killer
+    enc.proc.wait()
+    with pytest.raises(ffmpeg.FFmpegError) as e:
+        for _ in range(200):             # fill the pipe buffer, then fail
+            enc.write(np.zeros((48, 64, 3), np.uint8))
+    assert "encoder exited" in str(e.value)
+    assert "64x48" in str(e.value)
+
+    # and a frame of the wrong shape is caught before it corrupts the stream
+    enc2 = ffmpeg.RawFrameEncoder(tmp_path / "y.mp4", 64, 48, 24)
+    with pytest.raises(ffmpeg.FFmpegError, match="opened for"):
+        enc2.write(np.zeros((48, 65, 3), np.uint8))
+    enc2.proc.kill()
+
+    with pytest.raises(ffmpeg.FFmpegError, match="even dimensions"):
+        ffmpeg.RawFrameEncoder(tmp_path / "z.mp4", 65, 48, 24)
+
+
 def test_chain_assembler(tmp_path):
     plate = make_image(tmp_path / "anchor.png", 320, 224)
     seg = make_clip(tmp_path / "seg.mp4", seconds=1.5, size="320x224")

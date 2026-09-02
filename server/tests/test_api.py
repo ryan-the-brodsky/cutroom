@@ -134,6 +134,17 @@ def test_comp_on_a_video_background(client):
     assert bad.status_code == 400
     assert "clip" in bad.json()["detail"]
 
+    # a clip background with no declared size inherits the CLIP's geometry, not
+    # the 1080p default — otherwise every frame is upscaled for nothing
+    from conftest import make_clip
+    from cutroom.storage import get_storage
+    store = get_storage().project("p6v")
+    make_clip(store.resolve("renders/motion/real.mp4"), seconds=0.5, size="640x360")
+    r = client.post("/api/projects/p6v/comps",
+                    json={"shot": "B04-S3", "cid": "sized",
+                          "background": "renders/motion/real.mp4"})
+    assert (r.json()["width"], r.json()["height"]) == (640, 360)
+
     # switching backgrounds keeps every earlier one toggleable, clips included
     r = client.post("/api/projects/p6v/comps/moving",
                     json={"background": "renders/stills/plate.png"})

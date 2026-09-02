@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -126,28 +128,86 @@ def make_thumb(src: str | Path, out: str | Path, t: float = 0.3, width: int = 32
     return out
 
 
+#: x264 holds a frame buffer per thread plus its lookahead, which is the
+#: largest single allocation in a comp render. Capping threads keeps a 1 GB
+#: container alive; override with CUTROOM_ENCODER_THREADS=0 for "all cores".
+ENCODER_THREADS = int(os.environ.get("CUTROOM_ENCODER_THREADS", "4"))
+
+
 class RawFrameEncoder:
-    """Stream raw rgb24 frames to ffmpeg; h264 out (+optional vp9 sibling)."""
+    """Stream raw rgb24 frames to ffmpeg; h264 out (+optional vp9 sibling).
+
+    Captures the encoder's stderr, so when it dies mid-stream you get its own
+    last words instead of a bare `BrokenPipeError` from the write. A process
+    killed by a signal (SIGKILL on a memory-capped box) is reported as such.
+    """
 
     def __init__(self, out: str | Path, width: int, height: int, fps: int = 24):
         self.out = Path(out)
         self.out.parent.mkdir(parents=True, exist_ok=True)
+        if width % 2 or height % 2 or width < 2 or height < 2:
+            raise FFmpegError(
+                f"h264/yuv420p needs even dimensions of at least 2px; "
+                f"got {width}x{height} for {self.out}")
         self.size = (width, height)
-        self.proc = subprocess.Popen(
-            [FFMPEG, "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
-             "-s", f"{width}x{height}", "-r", str(fps), "-i", "-",
-             *H264_ARGS, str(self.out)],
-            stdin=subprocess.PIPE)
+        self.frames_written = 0
+        self._err: list[str] = []
+        threads = ["-threads", str(ENCODER_THREADS)] if ENCODER_THREADS else []
+        self.cmd = [FFMPEG, "-v", "error", "-y", "-f", "rawvideo",
+                    "-pix_fmt", "rgb24", "-s", f"{width}x{height}",
+                    "-r", str(fps), "-i", "-", *threads, *H264_ARGS, str(self.out)]
+        self.proc = subprocess.Popen(self.cmd, stdin=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+        self._drain = threading.Thread(target=self._read_stderr, daemon=True)
+        self._drain.start()
+
+    def _read_stderr(self) -> None:
+        stream = self.proc.stderr
+        if stream is None:
+            return
+        for line in stream:
+            text = line.decode(errors="replace").rstrip()
+            if text:
+                self._err.append(text)
+            del self._err[:-40]          # only the tail is ever useful
+
+    def _die(self, why: str) -> "FFmpegError":
+        self.proc.wait()
+        self._drain.join(timeout=2)
+        rc = self.proc.returncode
+        note = ""
+        if rc is not None and rc < 0:
+            note = (f" — killed by signal {-rc}; on a memory-capped box that is "
+                    "usually the OOM killer, so lower the comp's width/height or "
+                    "CUTROOM_ENCODER_THREADS")
+        tail = "\n".join(self._err[-12:]) or "(ffmpeg wrote nothing to stderr)"
+        return FFmpegError(
+            f"{why} after {self.frames_written} frame(s) at "
+            f"{self.size[0]}x{self.size[1]} -> {self.out}: exit {rc}{note}\n{tail}")
 
     def write(self, frame: np.ndarray) -> None:
         assert self.proc.stdin is not None
-        self.proc.stdin.write(np.ascontiguousarray(frame, np.uint8).tobytes())
+        arr = np.ascontiguousarray(frame, np.uint8)
+        want = (self.size[1], self.size[0], 3)
+        if arr.shape != want:
+            raise FFmpegError(
+                f"frame {self.frames_written} is {arr.shape}, but the encoder was "
+                f"opened for {want} ({self.out}). Resize before writing.")
+        try:
+            self.proc.stdin.write(arr.tobytes())
+        except (BrokenPipeError, OSError) as e:
+            raise self._die(f"the encoder exited mid-stream ({type(e).__name__})") from None
+        self.frames_written += 1
 
     def close(self, webm_sibling: bool = False) -> Path:
         assert self.proc.stdin is not None
-        self.proc.stdin.close()
+        try:
+            self.proc.stdin.close()
+        except (BrokenPipeError, OSError):
+            raise self._die("the encoder exited before the stream was closed") from None
         if self.proc.wait() != 0:
-            raise FFmpegError(f"raw encode failed for {self.out}")
+            raise self._die("raw encode failed")
+        self._drain.join(timeout=2)
         if webm_sibling:
             run([FFMPEG, "-v", "error", "-y", "-i", str(self.out), *VP9_ARGS,
                  str(self.out.with_suffix(".webm"))])
@@ -169,7 +229,11 @@ class RawFrameReader:
         sw, sh = probe_dims(src)
         self.width = int(width or sw)
         self.height = int(height or sh)
-        self._scale = (self.width, self.height) != (sw, sh)
+        # An explicit size always scales: rotation metadata, a non-square SAR or
+        # a container that lies about its coded size would otherwise hand back
+        # frames of a different geometry than the caller sized its buffers for.
+        self._scale = (width is not None or height is not None
+                       or (self.width, self.height) != (sw, sh))
         self._frame_bytes = self.width * self.height * 3
         self.proc: subprocess.Popen | None = None
         self._next = 0          # index the pipe will hand back next

@@ -65,6 +65,7 @@ Data lives in `~/.cutroom` (override with `CUTROOM_DATA`). The server binds
 | `CUTROOM_HOST` / `CUTROOM_PORT` | `127.0.0.1` / `8770` | bind |
 | `CUTROOM_RUN_WORKERS` | `1` | in-process pool workers (0 = API-only node) |
 | `CUTROOM_CPU_POOL_SIZE` | `2` | parallel CPU jobs (comps/freezes/assembly) |
+| `CUTROOM_ENCODER_THREADS` | `4` | x264 threads for streaming renders (comps). Each thread holds a frame buffer, so this is the dial that keeps a memory-capped container alive; `0` means all cores |
 | `CUTROOM_ALLOW_CLAUDE_CLI` | `0` | enable the `claude -p` direction provider |
 | `ANTHROPIC_API_KEY` | — | seeds the hosted-director backend at first boot |
 | `ELEVEN_LABS_API_KEY` | — | seeds the voice backend at first boot |

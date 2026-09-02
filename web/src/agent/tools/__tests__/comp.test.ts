@@ -292,6 +292,20 @@ describe("render_comp", () => {
     expect(r.plays).toBeTruthy();
   });
 
+  it("reports a failed render as a failure, with the engine's own message", async () => {
+    const broken = makeFakeContext({
+      settle: (ids) => ids.map((job) => ({
+        job, status: "error",
+        error: "the encoder exited mid-stream (BrokenPipeError) after 0 frame(s) at 1024x1024",
+      })),
+    });
+    const r = asErr(await renderComp.execute({ shot: "B10-S2", promote: true }, broken.ctx));
+    expect(r.error).toBe("render_failed");
+    expect(r.hint).toContain("1024x1024");
+    expect(broken.rec.calls().some((c) => c.startsWith("promote("))).toBe(false);
+    broken.restore();
+  });
+
   it("does not promote a render that has not finished", async () => {
     const slow = makeFakeContext({
       settle: (ids) => ids.map((job) => ({ job, status: "running" })),
@@ -299,7 +313,7 @@ describe("render_comp", () => {
     const r = asOk(await renderComp.execute({ shot: "B10-S2", promote: true }, slow.ctx));
     expect(r.promoted).toBe(false);
     expect(slow.rec.calls().some((c) => c.startsWith("promote("))).toBe(false);
-    expect(String(r.hint)).toContain("wait_for_jobs");
+    expect(r.hint).toBe("call wait_for_jobs, then set_timeline_source with the rendered take");
     slow.restore();
   });
 });

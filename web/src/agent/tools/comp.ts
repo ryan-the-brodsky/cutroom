@@ -839,10 +839,21 @@ export const renderComp: ActionDef<RenderArgs> = {
       anchor: ANCHORS.compRender, job: job.job,
     });
 
+    // Composites are seconds, not minutes — wait long enough that `promote`
+    // actually has a take to point at instead of handing back a chore.
     const settled = await deps.settleJobs([job.job],
-      { settleMs: 20000, signal: ctx.signal, api: ctx.api });
+      { settleMs: 45000, signal: ctx.signal, api: ctx.api });
     try { await page.refresh(); } catch { /* fine */ }
 
+    // A failed render must not read as a success: the engine's own message
+    // (an ffmpeg stderr tail, when the encoder died) is the useful part.
+    if (settled[0]?.status === "error" || settled[0]?.status === "failed") {
+      return err("render_failed", {
+        shot: shot.sid, comp: comp.cid, jobs: [job.job],
+        hint: cut(settled[0]?.error, 220) ||
+          "The render job failed — open Jobs for its log.",
+      });
+    }
     const done = settled[0]?.status === "done";
     let take = settled[0]?.takes?.[0]?.path ?? null;
     if (!take) { try { take = page.getState().render; } catch { /* fine */ } }
@@ -853,7 +864,8 @@ export const renderComp: ActionDef<RenderArgs> = {
         return ok(`${comp.cid} is still rendering`, {
           shot: shot.sid, comp: comp.cid, jobs: [job.job],
           status: settled[0]?.status ?? "running", promoted: false,
-          hint: "Call wait_for_jobs, then render_comp again with promote:true (or set_timeline_source).",
+          ...(settled[0]?.error ? { job_error: cut(settled[0].error, 120) } : {}),
+          hint: "call wait_for_jobs, then set_timeline_source with the rendered take",
         });
       }
       try {
@@ -874,7 +886,7 @@ export const renderComp: ActionDef<RenderArgs> = {
       jobs: [job.job], status: settled[0]?.status ?? "running",
       take: take ? cut(take, 60) : null,
       plays: promoted ? cut(promoted, 60) : null,
-      ...(settled[0]?.error ? { job_error: cut(settled[0].error, 90) } : {}),
+      ...(settled[0]?.error ? { job_error: cut(settled[0].error, 160) } : {}),
     });
   },
 };

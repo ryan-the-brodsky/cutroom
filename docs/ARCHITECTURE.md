@@ -29,7 +29,10 @@ The deep design ideas worth keeping (they ARE the product):
    background may itself be a **clip**, so a moving background can carry moving cels without
    the figures boiling. `engine.cels.render_comp` streams both: background and every layer are
    decoded one frame at a time through ffmpeg pipes, composited with numpy and piped into an
-   encoder, so peak memory is a handful of frames whatever the clip length.
+   encoder, so peak memory is a handful of frames whatever the clip length. The encoder
+   captures ffmpeg's stderr and reports its exit (including "killed by signal", the shape an
+   OOM kill takes) rather than surfacing a bare `BrokenPipeError` from the write, because on a
+   capped box that error is the only evidence you get.
 2. **The FIRST-SECOND LAW.** LTX's first ~1s is clean anime; drift accumulates. Therefore:
    freeze-tail (burst then held cel), chain-gen (breath-stitching short front-loaded beats),
    and the director grammar built on them.

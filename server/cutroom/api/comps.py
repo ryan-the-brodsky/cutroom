@@ -11,7 +11,7 @@ from ..director.apply import _gen_pool, apply_op
 from ..engine import ffmpeg as e_ff
 from ..jobs.queue import submit_job
 from ..models import Comp
-from .deps import project_or_404, require_admin
+from .deps import project_or_404, require_admin, store_for
 
 router = APIRouter()
 
@@ -62,6 +62,16 @@ async def create_comp(pid: str, req: Request):
         for k in ("width", "height"):
             if body.get(k):
                 setattr(c, k, int(body[k]))
+        if not (body.get("width") and body.get("height")) and \
+                e_ff.is_video(c.background):
+            # A clip background carries its own geometry; inheriting the 1080p
+            # default would upscale every frame for no reason (and cost the
+            # encoder the memory to do it).
+            try:
+                w, h = e_ff.probe_dims(store_for(pid).resolve(c.background))
+                c.width, c.height = w, h
+            except Exception:
+                pass                      # the file may not exist yet
         s.add(c)
         s.flush()
         return _comp_dict(c)
