@@ -833,3 +833,8 @@ at low cost, with the owner able to toggle providers without redeploying.
   shot, with failure modes and fallbacks in the records; PixVerse removed. Landing page + skin
   + `/app` (O) deployed with it (`sha-a4def0a`). Style register (P) and the origin-film
   generalization sweep (Q: `radio`→`narration`, futz→voice treatment) in flight.
+- **Wed 12:50 PT — style register (P) and the generalization sweep (Q) landed.** Every still
+  gets the project's style prefix first and the avoid list folded in (same shot, same seed:
+  caricature → anime cel); reference frames opt-in per backend. `radio` → `narration` with a
+  boot migration; "radio futz" → voice `treatment` (none default; radio, phone, megaphone,
+  hall); baseball and dial leftovers removed from copy. 632 web / 256 server tests. 46 tools.
