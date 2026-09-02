@@ -631,3 +631,9 @@ at low cost, with Ryan able to toggle providers without redeploying.
 - **Cut 5, scored properly (Tue 20:55 PT)** — first score pass was buried (tool default -16 dB
   on a -17 dB RMS bed); re-placed at -8 dB via `place_cue` + `cut_film`; residual score level
   now ≈3 dB under the VO. Tool defaults changed to -8/-4 dB. Spend to date ≈ $1.5.
+- **Regression pass (Tue 21:35 PT)** — full Playwright suite in real Chrome: the three real
+  failures closed (`list_features` now returns every tool as a structured row under a
+  per-tool `outputLimit`; the Film Editor's refresh handle awaits its refetches so `cut_film`
+  shows the animatic; Cuts gallery items carry `data-cut`); the bundled-Chromium annotation
+  check is skipped by design. 300 web unit tests, 166 server tests green. Submission package
+  finalized by F (only `<YOUTUBE_URL>` open); B-roll in `game7/webmcp-broll/`.
