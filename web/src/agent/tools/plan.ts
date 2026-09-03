@@ -651,7 +651,7 @@ export const applyMotionPlan: ActionDef<ApplyArgs> = {
         backend: choice.backend,
         cost_class: "paid",
         estimate: `up to $${budget.toFixed(2)} on ${choice.backend}`,
-        hint: "re-call with confirm_cost:true, or pass backend:\"mock\" to rehearse for free",
+        hint: "re-call with confirm_cost:true once the director has okayed the spend",
       });
     }
 
