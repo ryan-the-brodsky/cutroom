@@ -39,3 +39,4 @@ are left as candidates; cuts re-assemble the same sources.
   keep every changing stretch at 1x (tool activity, playback, typing) and timelapse only runs
   with no change for ≥5 s; blur boxes are given in RAW time (`x:y:w:h@start-end`) and mapped
   through the cut, so only the token text line is blurred, not the UI around it.
+- `edit4.py`: edit3 plus `--windows rawStart-rawEnd,...` (keep only those stretches, activity pacing inside them) and `--dry 1` to estimate length before encoding; used for the 5-minute core cut.
