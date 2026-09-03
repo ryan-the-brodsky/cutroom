@@ -35,3 +35,7 @@ are left as candidates; cuts re-assemble the same sources.
   `ffmpeg -i cut.mp4 -filter_complex "[0:v]format=yuv420p,split[a][b];[b]crop=740:150:540:40,boxblur=30:3[blur];[a][blur]overlay=540:40:enable='lt(t,41)'[v]" -map "[v]" -c:v h264_videotoolbox -b:v 9M out.mp4`
 - `edit2.py` (per-segment, keyframe timelapse for waits) produced a 5.6-minute cut from an
   89-minute session; `edit.py` (single filter graph) is the slower 1x/10x variant.
+- `activity.py` + `edit3.py` (preferred): profile the window at 2 fps for on-screen change,
+  keep every changing stretch at 1x (tool activity, playback, typing) and timelapse only runs
+  with no change for ≥5 s; blur boxes are given in RAW time (`x:y:w:h@start-end`) and mapped
+  through the cut, so only the token text line is blurred, not the UI around it.
