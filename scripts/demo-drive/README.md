@@ -29,3 +29,9 @@ are left as candidates; cuts re-assemble the same sources.
   normal prompt, it reads fine in the cut.
 - Prompts should sound like a new user ("make the background not move"), not like someone
   who knows the parameters.
+- Final pass: the judge token is visible in the first prompt bubble, so blur that region for
+  the opening seconds before publishing (software decode; a videotoolbox-decoded frame fed to
+  boxblur/overlay renders as a green box):
+  `ffmpeg -i cut.mp4 -filter_complex "[0:v]format=yuv420p,split[a][b];[b]crop=740:150:540:40,boxblur=30:3[blur];[a][blur]overlay=540:40:enable='lt(t,41)'[v]" -map "[v]" -c:v h264_videotoolbox -b:v 9M out.mp4`
+- `edit2.py` (per-segment, keyframe timelapse for waits) produced a 5.6-minute cut from an
+  89-minute session; `edit.py` (single filter graph) is the slower 1x/10x variant.
