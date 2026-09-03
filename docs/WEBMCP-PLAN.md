@@ -948,3 +948,13 @@ evidence in this plan still describe the shipped build exactly.
   (3) the visible browser pane only follows the agent when the site is opened in the side
   panel first. Ryan: prompts must read like a new user ("make the background not move"),
   not like someone who knows the parameters.
+- **Thu 09:24 PT — Timeline freshness (Ryan's morning report).** Root causes: the Timeline
+  fetched its compiled model once and never again; compiled clip ids regenerated on any edit
+  so a refetch would remount every playing clip; and a still whose VO outran its nominal
+  seconds went black at the tail (the assembler audio-fits, the compiler did not). Fixed:
+  12 s poll + refetch on focus + tool-driven invalidation; stable lineage keys; stills hold
+  for max(nominal, audio fit). New `GET /projects/{pid}/film/status` ("changes since the
+  last cut · N" next to both cut buttons); film-changing tools answer with "Timeline preview
+  updated. Run cut_film to render the film file." Also today: judge token rotated after it
+  appeared in the demo recording; public film + request-access form live; motion lane
+  default is Seedance; demo cuts in ~/Desktop/genga-demo (12:37 full, 4:35 core).
