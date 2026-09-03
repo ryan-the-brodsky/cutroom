@@ -61,6 +61,13 @@ def init_db() -> None:
 #: one is added and filled once, on boot.
 RENAMES = [("shots", "radio", "narration", "TEXT")]
 
+#: Columns added since a shipped release: (table, name, sqltype, default_sql).
+#: Same story as RENAMES — additive and idempotent — for a column that has no
+#: old name to migrate from.
+ADDED_COLUMNS: list[tuple[str, str, str, str]] = [
+    ("projects", "film_changes", "JSON", "'[]'"),
+]
+
 
 def migrate_db() -> None:
     """Bring an existing database up to the current model.
@@ -87,6 +94,14 @@ def migrate_db() -> None:
                 conn.execute(text(
                     f"UPDATE {table} SET {new} = {old} "
                     f"WHERE {new} IS NULL AND {old} IS NOT NULL"))
+        for table, name, coltype, default in ADDED_COLUMNS:
+            if table not in tables:
+                continue
+            cols = {c["name"] for c in insp.get_columns(table)}
+            if name not in cols:
+                conn.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN {name} {coltype} "
+                    f"DEFAULT {default}"))
 
 
 def reset_db() -> None:

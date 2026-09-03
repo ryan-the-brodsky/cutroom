@@ -7,15 +7,28 @@ Boil clips never auto-play (banned); they stay listed as candidates.
 """
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from . import refs as refs_mod
-from .models import Shot, Take
+from .models import Project, Shot, Take
 from .storage import ProjectStore
 
 FX_KINDS = ("motion", "comp", "panel", "chain", "fx")
+
+#: Take kinds whose creation can change what the compiled film shows or
+#: sounds like (a still that might become a fallback source, a fresh VO line,
+#: a cue's audio). `crop`, `ref`, `upload` and `animatic` are excluded: the
+#: first three never reach the timeline on their own, and `animatic` IS the
+#: rendered film, not a change to catch up on.
+FILM_CHANGE_KINDS = {"still", "i2i", "motion", "fx", "chain", "comp", "panel",
+                     "vo", "music", "sfx"}
+
+#: How many recent notes `touch()` keeps — enough for a status tooltip,
+#: cheap enough to carry on every Project row.
+_CHANGE_LOG_CAP = 30
 
 
 def shots_ordered(session, project_id: str) -> list[Shot]:
@@ -101,4 +114,50 @@ def film_entry(store: ProjectStore, shot: Shot, takes: list[Take]) -> dict:
         "fx": _paths(takes, ("fx", "comp", "panel")),
         "vo": vo_paths(store, shot.sid, shot.beat, takes),
         "active_source": active_source(store, shot, takes),
+    }
+
+
+def touch(session, project_id: str, note: str) -> None:
+    """Record a short note of something that just changed the compiled film —
+    a source, a keeper, a cue, a retime, a fresh take. `GET .../film/status`
+    diffs this log against the last cut to say whether the Timeline preview
+    has drifted ahead of the rendered film file. Cheap and additive: a JSON
+    ring buffer on the Project row, capped so it never grows unbounded."""
+    proj = session.get(Project, project_id)
+    if not proj:
+        return
+    log = list(proj.film_changes or [])
+    log.append({"note": note, "at": time.time()})
+    proj.film_changes = log[-_CHANGE_LOG_CAP:]
+
+
+#: How many of the since-the-cut notes `film_status` spells out — a tooltip's
+#: worth. `changes_count` (below) stays exact even past this.
+_CHANGES_SHOWN = 8
+
+
+def film_status(session, project_id: str) -> dict:
+    """{last_cut_at, last_change_at, stale, changes, changes_count} — has
+    anything changed since the last `cut_film`? `last_cut_at` is the newest
+    animatic take's `created_at`; `last_change_at` the newest entry `touch()`
+    logged; `stale` is true when the film has changed since it was last cut
+    (or was never cut at all but has changes waiting); `changes` lists what,
+    newest first, a tooltip's worth; `changes_count` is the exact number
+    (bounded by the change log's own cap, `_CHANGE_LOG_CAP`)."""
+    proj = session.get(Project, project_id)
+    log = list((proj.film_changes if proj else None) or [])
+    last_cut_at = session.execute(
+        select(func.max(Take.created_at)).where(
+            Take.project_id == project_id, Take.kind == "animatic")).scalar()
+    last_change_at = max((e.get("at", 0) for e in log), default=None)
+    since_cut = [e["note"] for e in reversed(log)
+                if last_cut_at is None or e.get("at", 0) > last_cut_at]
+    stale = last_change_at is not None and (
+        last_cut_at is None or last_change_at > last_cut_at)
+    return {
+        "last_cut_at": last_cut_at,
+        "last_change_at": last_change_at,
+        "stale": stale,
+        "changes": since_cut[:_CHANGES_SHOWN],
+        "changes_count": len(since_cut),
     }

@@ -15,7 +15,7 @@ vi.mock("../../api", async () => {
   return { ...actual, api: vi.fn() };
 });
 import * as apiMod from "../../api";
-import CutFilm, { failureLine, useCutFilm } from "../CutFilm";
+import CutFilm, { FilmStaleness, failureLine, useCutFilm } from "../CutFilm";
 
 const PID = "next-year";
 const now = () => Date.now() / 1000;
@@ -26,7 +26,9 @@ function Harness() {
   return <CutFilm cut={cut} anchor="film.cut" />;
 }
 
-/** Serve POST /animatic, then GET /jobs/{id} from a scripted queue. */
+/** Serve POST /animatic, then GET /jobs/{id} from a scripted queue.
+ *  `<CutFilm>` also mounts `FilmStaleness`, which polls `film/status` on its
+ *  own — served here with "nothing to say" so it stays out of the way. */
 function serve(job: string, states: Record<string, unknown>[],
                log: string[] = []) {
   const queue = [...states];
@@ -34,12 +36,23 @@ function serve(job: string, states: Record<string, unknown>[],
     async (path: string) => {
       if (path.endsWith("/animatic")) return { job };
       if (path.endsWith("/log?tail=200")) return { status: "failed", lines: log };
+      if (path.endsWith("/film/status")) {
+        return { last_cut_at: null, last_change_at: null, stale: false,
+                 changes: [], changes_count: 0 };
+      }
       if (path === `/api/jobs/${job}`) {
         return queue.length > 1 ? queue.shift()! : queue[0];
       }
       throw new Error(`unexpected ${path}`);
     });
 }
+
+/** The `/animatic` (or `/jobs/{id}`) call among the mock's calls — the
+ *  film/status poll `FilmStaleness` fires on its own can otherwise land at
+ *  any index. */
+const calledWith = (path: string) =>
+  (apiMod.api as unknown as ReturnType<typeof vi.fn>).mock.calls
+    .find((c) => String(c[0]).endsWith(path));
 
 describe("cut the film", () => {
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); });
@@ -54,7 +67,7 @@ describe("cut the film", () => {
     fireEvent.click(screen.getByTestId("cut-film"));
 
     await waitFor(() => expect(screen.getByTestId("cut-status")).toBeTruthy());
-    expect((apiMod.api as any).mock.calls[0]).toEqual([
+    expect(calledWith("/animatic")).toEqual([
       `/api/projects/${PID}/animatic`, { res: "1080", scope: "act1" },
     ]);
     // the running job reads as work in progress, with a clock
@@ -74,7 +87,7 @@ describe("cut the film", () => {
     render(<Harness />);
     await waitFor(() =>
       expect(screen.getByTestId("cut-status").textContent).toMatch(/cutting…/));
-    expect((apiMod.api as any).mock.calls[0][0]).toBe("/api/jobs/j3");
+    expect(calledWith("/api/jobs/j3")?.[0]).toBe("/api/jobs/j3");
   });
 
   it("shows ffmpeg's own last word when the cut fails", async () => {
@@ -105,6 +118,57 @@ describe("cut the film", () => {
     await waitFor(() =>
       expect(screen.getByTestId("cut-status").textContent).toMatch(/no shots in scope/));
     expect(localStorage.getItem(`cutroom_cut_job:${PID}`)).toBeNull();
+  });
+});
+
+describe("FilmStaleness", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("says nothing when the film has not changed since the last cut", async () => {
+    (apiMod.api as any).mockResolvedValue({
+      last_cut_at: 100, last_change_at: 100, stale: false, changes: [], changes_count: 0,
+    });
+    render(<FilmStaleness pid={PID} />);
+    await waitFor(() => expect(apiMod.api).toHaveBeenCalled());
+    expect(screen.queryByTestId("film-staleness")).toBeNull();
+  });
+
+  it("counts what changed since the last cut, and lists it in the tooltip", async () => {
+    (apiMod.api as any).mockResolvedValue({
+      last_cut_at: 100, last_change_at: 200, stale: true,
+      changes: ["new keeper on B03-S1", "sfx cue removed"], changes_count: 2,
+    });
+    render(<FilmStaleness pid={PID} />);
+    const el = await screen.findByTestId("film-staleness");
+    expect(el.textContent).toBe("changes since the last cut · 2");
+    expect(el.getAttribute("title")).toContain("new keeper on B03-S1");
+    expect(el.getAttribute("title")).toContain("sfx cue removed");
+  });
+
+  it("says nothing while the film has never been cut but also has no changes", async () => {
+    (apiMod.api as any).mockResolvedValue({
+      last_cut_at: null, last_change_at: null, stale: false, changes: [], changes_count: 0,
+    });
+    render(<FilmStaleness pid={PID} />);
+    await waitFor(() => expect(apiMod.api).toHaveBeenCalled());
+    expect(screen.queryByTestId("film-staleness")).toBeNull();
+  });
+
+  it("refetches the instant a cut settles, rather than waiting out its poll interval", async () => {
+    let call = 0;
+    (apiMod.api as any).mockImplementation(async () => {
+      call += 1;
+      return call === 1
+        ? { last_cut_at: 100, last_change_at: 200, stale: true,
+            changes: ["new keeper on B03-S1"], changes_count: 1 }
+        : { last_cut_at: 999, last_change_at: 200, stale: false, changes: [], changes_count: 0 };
+    });
+    const { rerender } = render(<FilmStaleness pid={PID} justCut={false} />);
+    await screen.findByTestId("film-staleness");
+
+    rerender(<FilmStaleness pid={PID} justCut />);
+    await waitFor(() => expect(screen.queryByTestId("film-staleness")).toBeNull());
+    expect(call).toBeGreaterThanOrEqual(2);
   });
 });
 

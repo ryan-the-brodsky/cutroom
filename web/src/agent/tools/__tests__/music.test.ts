@@ -4,6 +4,7 @@ import { ANCHORS, shotTabAnchor } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
 import { PAID_BACKEND, makeFakeContext, type FakeContext } from "../fakeContext";
 import { generateMusic, generateSfx, listCues, placeCue } from "../index";
+import { NEXT_CUT_FILM } from "../util";
 
 let f: FakeContext;
 beforeEach(() => { f = makeFakeContext(); });
@@ -41,6 +42,7 @@ describe("generate_music", () => {
     ]));
     expect(r.take).toBe("audio/music/theme.mp3");
     expect(r.placed).toBe(true);
+    expect(r.next).toBe(NEXT_CUT_FILM);
     expect(g.cues.rows).toHaveLength(1);
     // No shot named → the head of the film, at the music bed default.
     expect(g.cues.rows[0]).toMatchObject({
@@ -74,6 +76,7 @@ describe("generate_music", () => {
     expect(r.placed).toBe(false);
     expect(g.cues.rows).toHaveLength(0);
     expect(r.hint).toMatch(/place_cue/);
+    expect(r.next).toBeUndefined();
     g.restore();
   });
 
@@ -143,6 +146,7 @@ describe("generate_sfx", () => {
     expect(g.cues.rows[0]).toMatchObject({
       kind: "sfx", shot: "B10-S2", offset: 0.4, gain: -4,
     });
+    expect(r.next).toBe(NEXT_CUT_FILM);
     g.restore();
   });
 
@@ -171,6 +175,7 @@ describe("generate_sfx", () => {
     expect(r.placed).toBe(false);
     expect(r.take).toBe("audio/sfx/a.mp3");
     expect(r.hint).toMatch(/place_cue/);
+    expect(r.next).toBeUndefined();
     g.restore();
   });
 });
@@ -188,6 +193,7 @@ describe("place_cue", () => {
       kind: "music", start: 90, gain: -12, fade_out: 2,
     });
     expect(String(r.summary)).toContain("1:30");
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 
   it("infers the kind from the path", async () => {

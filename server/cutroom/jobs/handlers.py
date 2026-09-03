@@ -205,6 +205,12 @@ def record_take(project_id: str, shot_sid: str | None, kind: str, rel: str,
                    path=rel, backend_id=backend_id, model=model,
                    prompt=prompt, params=params, sources=sources or [],
                    seed=seed, job_id=job_id, meta=meta or {}))
+        # `animatic` IS the rendered film, not a change waiting to be cut —
+        # everything else that can reach the timeline logs here so
+        # GET .../film/status can say what changed since the last cut.
+        if kind in film.FILM_CHANGE_KINDS:
+            note = f"new {kind} on {shot_sid}" if shot_sid else f"new {kind}"
+            film.touch(s, project_id, note)
 
 
 # ===================================================================== stills

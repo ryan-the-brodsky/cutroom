@@ -10,8 +10,8 @@ import type { ActionDef, CuePlacement, CueRecord, ResolvedShot, ToolResult } fro
 import { ANCHORS, err, ok, shotTabAnchor } from "../contract";
 import { deps, type BackendChoice } from "./deps";
 import {
-  FILM_ROUTE, SHOT_ROUTE, asError, basename, costGate, cut, lookupShot,
-  maybeNum, numOr, openFilmPage, openShotPage,
+  FILM_ROUTE, NEXT_CUT_FILM, SHOT_ROUTE, asError, basename, costGate, cut,
+  lookupShot, maybeNum, numOr, openFilmPage, openShotPage, touchTimeline,
 } from "./util";
 
 // ---------------------------------------------------------------- shared
@@ -222,6 +222,7 @@ export const generateMusic: ActionDef<MusicArgs> = {
       });
     }
     try { await page.refresh(); } catch { /* fine */ }
+    if (place && cue) touchTimeline(pid);
 
     return ok(
       place
@@ -236,6 +237,7 @@ export const generateMusic: ActionDef<MusicArgs> = {
         hint: place
           ? "Call cut_film to hear it in the cut, or list_cues for the whole sheet."
           : "Place it later with place_cue using this take path.",
+        ...(place && cue ? { next: NEXT_CUT_FILM } : {}),
       },
     );
   },
@@ -378,6 +380,7 @@ export const generateSfx: ActionDef<SfxArgs> = {
       });
     }
     try { await page.refresh(); } catch { /* fine */ }
+    if (place && cue) touchTimeline(pid);
 
     return ok(
       place ? `SFX pinned to ${shot.sid} at ${timecode(cue?.at)}`
@@ -390,6 +393,7 @@ export const generateSfx: ActionDef<SfxArgs> = {
         hint: place
           ? "Call cut_film to hear it in the cut."
           : "Place it later with place_cue using this take path.",
+        ...(place && cue ? { next: NEXT_CUT_FILM } : {}),
       },
     );
   },
@@ -513,6 +517,7 @@ export const placeCue: ActionDef<PlaceArgs> = {
       anchor: ANCHORS.filmCues, detail: cut(basename(path), 40),
     });
     try { await page.refresh(); } catch { /* fine */ }
+    touchTimeline(pid);
 
     return ok(
       `${kind} cue placed at ${timecode(cue?.at ?? placement.start ?? 0)}` +
@@ -523,6 +528,7 @@ export const placeCue: ActionDef<PlaceArgs> = {
           ? { warning: "no such file in the project yet — the cut will skip it" }
           : {}),
         hint: "Call cut_film to hear it, list_cues for the sheet.",
+        next: NEXT_CUT_FILM,
       },
     );
   },

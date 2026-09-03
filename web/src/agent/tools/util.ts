@@ -8,7 +8,32 @@ import type {
 } from "../contract";
 import { err } from "../contract";
 import type { BackendChoice } from "./deps";
+import { invalidatePoll } from "../../hooks";
 import { ROUTES, filmPath, shotPath } from "../../routes";
+
+// ---------------------------------------------------------------- the film vs. the cut
+//
+// The Timeline's live preview is compiled fresh on every read (source, VO,
+// cues — whatever the project holds right now); the film FILE is only as
+// new as the last `cut_film`. A tool that changes what the compile would
+// show has two things to do: bump the Timeline if it happens to be open in
+// this same tab (`invalidatePoll`, in case a page is polling it right now —
+// see hooks.ts), and tell the caller a cut is now behind.
+
+/** What every tool that changes a source, keeper, timing, VO or cue returns
+ *  as `next`, so an agent (and a human reading the trail) knows the Timeline
+ *  preview reflects this, but the rendered film file does not yet. */
+export const NEXT_CUT_FILM =
+  "Timeline preview updated. Run cut_film to render the film file.";
+
+/** Force a Timeline tab — and the "changes since the last cut" indicator
+ *  next to the cut button on the Timeline and Film Editor — open on this
+ *  project to refetch right now, rather than wait out their poll interval.
+ *  See `web/src/hooks.ts#invalidatePoll`. */
+export const touchTimeline = (pid: string): void => {
+  invalidatePoll(`/api/projects/${pid}/timeline`);
+  invalidatePoll(`/api/projects/${pid}/film/status`);
+};
 
 // ---------------------------------------------------------------- routes
 

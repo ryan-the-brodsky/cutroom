@@ -6,12 +6,56 @@ import { api } from "./api";
 // background — no "reload from scratch" when switching views.
 const _pollCache = new Map<string, unknown>();
 
-export function usePoll<T = any>(path: string | null, intervalMs = 0) {
+// Every currently-mounted usePoll(path), so a mutation anywhere in the app
+// can force an immediate refetch of a path another page is showing right
+// now — see `invalidatePoll`. Keyed the same as the cache above.
+const _pollBumpers = new Map<string, Set<() => void>>();
+
+/**
+ * Forget a cached path and, if any mounted `usePoll(path)` is showing it
+ * right now, make it refetch immediately instead of waiting for its next
+ * interval tick. For state that a WebMCP tool or a page's own UI can change
+ * out from under a DIFFERENT page that is already on screen — e.g. a tool
+ * setting the Timeline's source, keeper or a cue while a director is looking
+ * at the Timeline in another tab: polling and a focus/visibility refetch
+ * (below) will catch it soon regardless, but this closes the gap to "now"
+ * for anything sharing the same page.
+ */
+export function invalidatePoll(path: string): void {
+  _pollCache.delete(path);
+  _pollBumpers.get(path)?.forEach((bump) => bump());
+}
+
+export interface UsePollOpts {
+  /** Refetch the instant the tab/window regains focus or visibility — the
+   *  case an interval alone answers only after a wait: a page left open for
+   *  hours while another tab (or another agent) changed what it shows. */
+  refetchOnFocus?: boolean;
+}
+
+export function usePoll<T = any>(
+  path: string | null, intervalMs = 0, opts?: UsePollOpts,
+) {
   const [data, setData] = useState<T | null>(
     () => (path && _pollCache.has(path) ? (_pollCache.get(path) as T) : null));
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const refetchOnFocus = opts?.refetchOnFocus ?? false;
+
+  // Register so `invalidatePoll(path)` can bump a mount that is showing this
+  // path right now, from anywhere else in the app.
+  useEffect(() => {
+    if (!path) return;
+    let bumpers = _pollBumpers.get(path);
+    if (!bumpers) { bumpers = new Set(); _pollBumpers.set(path, bumpers); }
+    bumpers.add(refresh);
+    return () => {
+      bumpers!.delete(refresh);
+      if (!bumpers!.size) _pollBumpers.delete(path);
+    };
+  }, [path, refresh]);
+
   useEffect(() => {
     if (!path) return;
     let alive = true;
@@ -29,6 +73,22 @@ export function usePoll<T = any>(path: string | null, intervalMs = 0) {
     load();
     return () => { alive = false; clearTimeout(timer); };
   }, [path, intervalMs, tick]);
+
+  // A tab that has been open for a while — or just backgrounded a moment —
+  // is exactly the case a fixed interval answers late. Catch up the instant
+  // it is looked at again.
+  useEffect(() => {
+    if (!path || !refetchOnFocus) return;
+    const onFocus = () => refresh();
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [path, refetchOnFocus, refresh]);
+
   return { data, error, refresh };
 }
 

@@ -17,8 +17,9 @@ import { ANCHORS, err, ok } from "../contract";
 import { deps } from "./deps";
 import { motionModels, unfaithfulHint } from "./plan";
 import {
-  IS_CLIP, SHOT_ROUTE, asError, costGate, cut, fetchShot, listTakes, lookupShot,
-  maybeNum, pickTake, plateOf, shotUrl, type ShotDetail,
+  IS_CLIP, NEXT_CUT_FILM, SHOT_ROUTE, asError, costGate, cut, fetchShot,
+  listTakes, lookupShot, maybeNum, pickTake, plateOf, shotUrl, touchTimeline,
+  type ShotDetail,
 } from "./util";
 
 const REGION_DESC =
@@ -884,6 +885,7 @@ export const renderComp: ActionDef<RenderArgs> = {
           anchor: ANCHORS.compPromote, detail: promoted,
         });
       } catch (e) { return asError(e, "promote_failed", "The composite rendered but could not be promoted"); }
+      touchTimeline(pid);
     }
 
     return ok(`${comp.cid} ${done ? "rendered" : "is rendering"}${promoted ? " and now plays in the cut" : ""}`, {
@@ -895,6 +897,7 @@ export const renderComp: ActionDef<RenderArgs> = {
       take: take ? cut(take, 60) : null,
       plays: promoted ? cut(promoted, 60) : null,
       ...(settled[0]?.error ? { job_error: cut(settled[0].error, 160) } : {}),
+      ...(promoted ? { next: NEXT_CUT_FILM } : {}),
     });
   },
 };

@@ -7,6 +7,7 @@ import time
 
 from sqlalchemy import select
 
+from .. import film
 from ..db import session_scope
 from ..jobs.handlers import pick_backend
 from ..jobs.queue import submit_job
@@ -85,6 +86,7 @@ def apply_op(project: str, op: dict) -> dict:
                 shot.curation_note = ((shot.curation_note + " | ")
                                       if shot.curation_note else "") + \
                     f"[{stamp}] {op['note']}"
+            film.touch(s, project, f"new keeper on {op['shot']}")
         # Echo the pick: a caller (the UI, a WebMCP tool) confirms the change
         # from the response instead of assuming the write landed.
         return {"op": name, "applied": True, "shot": op["shot"],
@@ -92,11 +94,13 @@ def apply_op(project: str, op: dict) -> dict:
     if name == "set_source":
         with session_scope() as s:
             _update_override(s, project, op["shot"], {"source": op["source"]})
+            film.touch(s, project, f"timeline source set on {op['shot']}")
         return {"op": name, "applied": True, "shot": op["shot"]}
     if name == "set_seconds":
         with session_scope() as s:
             _update_override(s, project, op["shot"],
                              {"seconds": float(op["seconds"])})
+            film.touch(s, project, f"{op['shot']} retimed")
         return {"op": name, "applied": True, "shot": op["shot"]}
     if name == "set_vo":
         with session_scope() as s:
@@ -104,6 +108,7 @@ def apply_op(project: str, op: dict) -> dict:
                              {"vo_file": op.get("file"),
                               "vo_offset": op.get("offset"),
                               "mute_vo": op.get("mute")})
+            film.touch(s, project, f"VO changed on {op['shot']}")
         return {"op": name, "applied": True, "shot": op["shot"]}
     if name == "attach_ref":
         with session_scope() as s:

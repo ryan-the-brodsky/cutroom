@@ -1,7 +1,9 @@
 import { forwardRef } from "react";
 import { HeadlessPlayer, type PlayerRef } from "../runtime/player";
 import { Sequence } from "../runtime/player/composition";
-import { type Timeline, clipsOnTrack, orderedTracks } from "../timeline/model";
+import {
+  type Timeline, clipsOnTrack, orderedTracks, stableClipKey,
+} from "../timeline/model";
 import { PreviewImage, PreviewText, PreviewVideo } from "./PreviewClip";
 
 /** A live, scrubbable preview of the timeline — the lifted FreeCut player
@@ -35,7 +37,10 @@ export const PreviewStage = forwardRef<PlayerRef, {
         .filter((t) => t.kind === "video")
         .flatMap((track) =>
           clipsOnTrack(tl, track.id).map((clip) => (
-            <Sequence key={clip.id} from={clip.start}
+            // Keyed on content, not the compiler's per-compile random `id` —
+            // an edit to a DIFFERENT shot must not remount this one's video
+            // mid-playback. See `stableClipKey`.
+            <Sequence key={stableClipKey(clip)} from={clip.start}
                       durationInFrames={clip.duration}>
               {clip.kind === "video"
                 ? <PreviewVideo pid={pid} clip={clip} fps={tl.fps} />

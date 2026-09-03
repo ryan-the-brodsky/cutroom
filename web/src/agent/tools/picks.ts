@@ -5,8 +5,8 @@
 import type { ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import {
-  IS_CLIP, IS_IMAGE, SHOT_ROUTE, asError, cut, fetchShot, lookupShot,
-  openShotPage, pickTake, safeState, stripFor,
+  IS_CLIP, IS_IMAGE, NEXT_CUT_FILM, SHOT_ROUTE, asError, cut, fetchShot,
+  lookupShot, openShotPage, pickTake, safeState, stripFor, touchTimeline,
 } from "./util";
 
 const TAKE_WORDS =
@@ -160,9 +160,17 @@ export const setKeeper: ActionDef<KeeperArgs> = {
     // Read the keeper BACK from the server. "I set it" was the claim the agent
     // made while the plate never moved, and the next motion job started from
     // the old one — so the result reports what is stored, not what was sent.
+    // Same read also says whether this keeper is what plays: a shot with a
+    // timeline-source override, a promoted motion clip or an fx take ahead of
+    // it in the precedence keeps playing THAT — the keeper only picks the
+    // fallback plate, so cutting the film would show no difference.
     let stored = hit.path;
-    try { stored = (await fetchShot(ctx, pid, shot.sid)).keeper ?? hit.path; }
-    catch { /* the write returned ok; fall back to what we asked for */ }
+    let affectsSource = false;
+    try {
+      const after = await fetchShot(ctx, pid, shot.sid);
+      stored = after.keeper ?? hit.path;
+      affectsSource = after.active_source !== detail.active_source;
+    } catch { /* the write returned ok; fall back to what we asked for */ }
     if (stored !== hit.path) {
       return err("keeper_did_not_change", {
         shot: shot.sid,
@@ -172,6 +180,7 @@ export const setKeeper: ActionDef<KeeperArgs> = {
               "refusal, then try again with an explicit path.",
       });
     }
+    if (affectsSource) touchTimeline(pid);
 
     return ok(`${shot.sid} keeper is now ${cut(hit.path.split("/").pop(), 40)}`, {
       shot: shot.sid,
@@ -180,6 +189,7 @@ export const setKeeper: ActionDef<KeeperArgs> = {
       ...(args?.note ? { note: cut(args.note, 90) } : {}),
       hint: "Motion, i2i and compose now start from this still." +
             (previous ? " The old keeper is still in the takes rail." : ""),
+      ...(affectsSource ? { next: NEXT_CUT_FILM } : {}),
     });
   },
 };
@@ -245,8 +255,10 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
       try { await page.setSource(null); }
       catch (e) { return asError(e, "source_rejected", "The server refused the change"); }
       try { await page.refresh(); } catch { /* fine */ }
+      touchTimeline(pid);
       return ok(`${shot.sid} is back to its default source`, {
         shot: shot.sid, plays: null, previous: detail.active_source ? cut(detail.active_source, 60) : null,
+        next: NEXT_CUT_FILM,
       });
     }
 
@@ -268,6 +280,7 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
     try { await page.setSource(hit.path); }
     catch (e) { return asError(e, "source_rejected", "The server refused the change"); }
     try { await page.refresh(); } catch { /* fine */ }
+    touchTimeline(pid);
 
     return ok(`${shot.sid} now plays ${cut(hit.path.split("/").pop(), 40)}`, {
       shot: shot.sid,
@@ -276,6 +289,7 @@ export const setTimelineSource: ActionDef<SourceArgs> = {
       previous: detail.active_source && detail.active_source !== hit.path
         ? cut(detail.active_source, 60) : null,
       hint: "Call cut_film to render a cut with this pick in it.",
+      next: NEXT_CUT_FILM,
     });
   },
 };

@@ -13,11 +13,17 @@ Enrichments (Phase 5):
 - Music / SFX cues in Project.settings compile onto dedicated MUSIC / SFX
   audio tracks, anchored to their shot/beat (or an absolute `start`).
 - `scope="act1".."act4"` compiles only that act, re-based to frame 0.
+- A still whose VO runs past its nominal `seconds` holds for the audio-fit
+  length instead (head_pad + vo_offset + line(s) + AUDIO_FIT_PAD, mirroring
+  `engine.assemble.build_animatic`'s `need`) — otherwise the compiled timeline
+  (and the live preview built from it) would go to black at the tail while the
+  assembled film keeps the still up under the line.
 
 Known v1 simplification (tracked in PLAN.md):
 - a video shorter than its shot plays its full length; the freeze-tail *hold*
   that fills the remainder is not yet emitted as a second item (so total runtime
-  can be slightly under the audio-fit assembler's).
+  can be slightly under the audio-fit assembler's). Only stills get the
+  audio-fit hold above; videos keep this known gap.
 """
 from __future__ import annotations
 
@@ -37,6 +43,8 @@ from . import model as m
 CLIP_EXTS = (".mp4", ".webm", ".mov")
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 HEAD_PAD = 0.3  # seconds — the VO breath before a line, matching the assembler
+AUDIO_FIT_PAD = 0.4  # seconds — the tail after a line, matching the assembler's
+                      # `audio_fit_pad` (build_animatic's default)
 
 # cue records (from audio/*-cues.jsonl → Project.settings) use varied keys;
 # accept every shape the importer preserves plus the plain {path, start} form.
@@ -222,6 +230,7 @@ def compile_film(store: ProjectStore, session, project_id: str, *,
 
     cursor = 0
     head_pad_f = m.seconds_to_frames(head_pad, fps)
+    audio_fit_pad_f = m.seconds_to_frames(AUDIO_FIT_PAD, fps)
     shot_starts: dict[str, int] = {}
     beat_starts: dict[str, int] = {}
 
@@ -237,6 +246,24 @@ def compile_film(store: ProjectStore, session, project_id: str, *,
         lineage = {"shot": shot.sid, "beat": shot.beat, "act": shot.act,
                    "type": shot.type, "register": shot.register}
 
+        # VO for this shot, probed once up front: one clip per SCRIPTED dialogue
+        # line (not per take variant — vo_paths scans the take directory, so cap
+        # to the shot's line count or the film balloons with alternate takes).
+        # Also drives audio-fit below, so a still knows to hold long enough.
+        vo_off = m.seconds_to_frames(float(ov.get("vo_offset", 0) or 0), fps)
+        rel_line_start = max(0, head_pad_f + vo_off)   # relative to `cursor`
+        vo_pairs: list[tuple[str, int]] = []           # (path, duration frames)
+        if not ov.get("mute_vo"):
+            n_lines = max(1, len(shot.dialogue or []))
+            vps = [vp for vp in film.vo_paths(store, shot.sid, shot.beat, stakes)
+                   if store.exists(vp)][:n_lines]
+            for vp in vps:
+                try:
+                    vdur = ff.probe_duration(store.resolve(vp))
+                except Exception:
+                    continue
+                vo_pairs.append((vp, max(1, m.seconds_to_frames(vdur, fps))))
+
         if src and Path(src).suffix.lower() in CLIP_EXTS:
             sf, sfps = _probe_video(str(store.resolve(src)))
             if sf:
@@ -250,7 +277,15 @@ def compile_film(store: ProjectStore, session, project_id: str, *,
                 clip = m.Clip(track_id=v.id, kind="video", start=cursor, duration=dur,
                               source=src, label=shot.sid, cutroom=lineage)
         elif src:                              # a still — a TRUE hold
+            # audio-fit: the assembler stretches a shot so its line finishes
+            # before the cut (`build_animatic`'s `need`, same head_pad/pad
+            # constants) — a still that held only its nominal length while the
+            # line kept talking would go to black at the tail. Mirror that here
+            # so the preview matches what `cut_film` actually renders.
             dur = shot_frames
+            if vo_pairs:
+                needed = rel_line_start + sum(f for _, f in vo_pairs) + audio_fit_pad_f
+                dur = max(dur, needed)
             clip = m.Clip(track_id=v.id, kind="image", start=cursor, duration=dur,
                           source=src, label=shot.sid, cutroom=lineage)
         else:                                  # no take yet — a slate placeholder
@@ -260,33 +295,19 @@ def compile_film(store: ProjectStore, session, project_id: str, *,
                           cutroom={**lineage, "slate": True})
         tl.clips.append(clip)
 
-        # VO → A1: one clip per SCRIPTED dialogue line (not per take variant —
-        # vo_paths scans the take directory, so cap to the shot's line count or
-        # the film balloons with alternate takes). Lines butt sequentially and
-        # never overlap; the first sits at head_pad + offset.
-        if not ov.get("mute_vo"):
-            n_lines = max(1, len(shot.dialogue or []))
-            vps = [vp for vp in film.vo_paths(store, shot.sid, shot.beat, stakes)
-                   if store.exists(vp)][:n_lines]
-            vo_off = m.seconds_to_frames(float(ov.get("vo_offset", 0) or 0), fps)
-            # anchored to THIS shot (no global carry — a long line must not push
-            # every later shot's VO and balloon the film); lines within the shot
-            # butt sequentially.
-            line_start = max(0, cursor + head_pad_f + vo_off)
-            for i, vp in enumerate(vps):
-                try:
-                    vdur = ff.probe_duration(store.resolve(vp))
-                except Exception:
-                    continue
-                vframes = max(1, m.seconds_to_frames(vdur, fps))
-                tl.clips.append(m.Clip(
-                    track_id=a.id, kind="audio",
-                    start=line_start, duration=vframes,
-                    source=vp, source_start=0, source_end=vframes,
-                    source_duration=vframes, source_fps=fps,
-                    label=f"{shot.sid} vo", cutroom={"shot": shot.sid, "role": "vo",
-                                                     "line": i}))
-                line_start += vframes        # next line in this shot butts on
+        # VO → A1: lines butt sequentially and never overlap; the first sits at
+        # head_pad + offset. Anchored to THIS shot (no global carry — a long
+        # line must not push every later shot's VO and balloon the film).
+        line_start = cursor + rel_line_start
+        for i, (vp, vframes) in enumerate(vo_pairs):
+            tl.clips.append(m.Clip(
+                track_id=a.id, kind="audio",
+                start=line_start, duration=vframes,
+                source=vp, source_start=0, source_end=vframes,
+                source_duration=vframes, source_fps=fps,
+                label=f"{shot.sid} vo", cutroom={"shot": shot.sid, "role": "vo",
+                                                 "line": i}))
+            line_start += vframes            # next line in this shot butts on
 
         cursor += dur
 

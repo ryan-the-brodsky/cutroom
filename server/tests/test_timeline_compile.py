@@ -118,6 +118,60 @@ def test_multi_vo_lines_lay_sequentially(data_dir):
     assert all(c.cutroom["role"] == "vo" for c in aclips)
 
 
+def test_still_holds_for_audio_fit_length_past_nominal_seconds(data_dir):
+    """A still under a shot whose VO outruns the nominal `seconds` holds for
+    the audio-fit length instead — head_pad + line + AUDIO_FIT_PAD — mirroring
+    `engine.assemble.build_animatic`'s `need`, so the compiled timeline (and
+    the live preview built from it) never goes black under a talking still."""
+    pid = "tl_still_audiofit"
+    init_db()
+    store = get_storage().create_project(pid)
+    make_image(store.resolve("renders/stills/B06-S2_0.png"))
+    make_wav(store.resolve("audio/generated/B06-S2_0.wav"), seconds=3.0)  # 72f
+    with session_scope() as s:
+        s.add(Project(id=pid, label="t"))
+        s.add(Shot(project_id=pid, sid="B06-S2", type="STILL", seconds=1.0,
+                   order_idx=0, act=1, keeper="renders/stills/B06-S2_0.png"))
+    with session_scope() as s:
+        tl = tc.compile_film(store, s, pid)
+    tl.validate()
+
+    vclips = tl.clips_on(tl.tracks[0].id)
+    aclips = tl.clips_on(tl.tracks[1].id)
+    assert len(vclips) == 1 and len(aclips) == 1
+
+    still = vclips[0]
+    vo = aclips[0]
+    head_pad_f = tc.m.seconds_to_frames(tc.HEAD_PAD, tl.fps)
+    pad_f = tc.m.seconds_to_frames(tc.AUDIO_FIT_PAD, tl.fps)
+    # nominal 1s (24f) is nowhere near long enough for a 3s (72f) line —
+    # the still has to hold until the line finishes plus the tail pad.
+    assert still.kind == "image"
+    assert still.duration == head_pad_f + vo.duration + pad_f
+    assert still.duration > 24                     # longer than the nominal 1s
+    assert vo.start + vo.duration <= still.start + still.duration
+    # and the compiled total_frames follows the still, not the nominal length
+    assert tl.total_frames() == still.duration
+
+
+def test_still_audio_fit_unaffected_when_line_fits_nominal_seconds(data_dir):
+    """The nominal `seconds` still wins when the line is short enough to fit —
+    audio-fit only ever extends, never shrinks, a still's hold."""
+    pid = "tl_still_fits"
+    init_db()
+    store = get_storage().create_project(pid)
+    make_image(store.resolve("renders/stills/B02-S1_0.png"))
+    make_wav(store.resolve("audio/generated/B02-S1_0.wav"), seconds=0.5)  # 12f
+    with session_scope() as s:
+        s.add(Project(id=pid, label="t"))
+        s.add(Shot(project_id=pid, sid="B02-S1", type="STILL", seconds=3.0,
+                   order_idx=0, act=1, keeper="renders/stills/B02-S1_0.png"))
+    with session_scope() as s:
+        tl = tc.compile_film(store, s, pid)
+    still = tl.clips_on(tl.tracks[0].id)[0]
+    assert still.duration == 72                    # the nominal 3s (72f) stands
+
+
 def test_music_and_sfx_cues_become_tracks(data_dir):
     """music_cues / sfx_cues in Project.settings compile onto MUSIC / SFX
     audio tracks (order after A1), anchored to their shot/beat span."""

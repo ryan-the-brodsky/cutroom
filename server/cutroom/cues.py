@@ -38,6 +38,7 @@ import uuid
 
 from sqlalchemy import select
 
+from . import film
 from .db import session_scope
 from .models import Project, Shot
 
@@ -196,6 +197,8 @@ def add(project_id: str, kind: str, body: dict) -> dict:
     rows = [r for r in rows if r.get("id") != cue["id"]]
     rows.append(cue)
     _write(project_id, kind, rows)
+    with session_scope() as s:
+        film.touch(s, project_id, f"{kind} cue placed")
     return cue
 
 
@@ -273,6 +276,8 @@ def move(project_id: str, cue_id: str, *, at: float | None = None,
                     f"nothing to measure the move against")
             row["offset"] = round(at - base, 3)
         _write(project_id, kind, [row if r is hit else r for r in rows])
+        with session_scope() as s:
+            film.touch(s, project_id, f"{kind} cue moved")
         return {"kind": kind, "cue": row, "at": round(at, 3), "previous_at": was}
     return None
 
@@ -286,6 +291,8 @@ def delete(project_id: str, cue_id: str) -> dict | None:
         if hit is None:
             continue
         _write(project_id, kind, [r for r in rows if r is not hit])
+        with session_scope() as s:
+            film.touch(s, project_id, f"{kind} cue removed")
         return hit
     return None
 

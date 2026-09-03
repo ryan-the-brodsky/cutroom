@@ -5,7 +5,8 @@ import type { ActionDef, ToolResult } from "../contract";
 import { ANCHORS, err, ok, shotTabAnchor } from "../contract";
 import { deps, type BackendChoice } from "./deps";
 import {
-  SHOT_ROUTE, asError, costGate, cut, fetchShot, lookupShot, openShotPage,
+  NEXT_CUT_FILM, SHOT_ROUTE, asError, costGate, cut, fetchShot, lookupShot,
+  openShotPage, touchTimeline,
 } from "./util";
 
 /** What a line can be heard through. Mirrors `engine.audio.TREATMENT_NAMES`. */
@@ -131,6 +132,7 @@ export const synthesizeVo: ActionDef<VoArgs> = {
     const s0 = settled[0];
     const take = s0?.takes?.[0]?.path ?? null;
     try { await page.refresh(); } catch { /* fine */ }
+    if (take) touchTimeline(pid);   // a finished line compiles onto A1 right away
 
     if (s0?.status === "error" || s0?.status === "failed") {
       return err("vo_failed", {
@@ -154,7 +156,8 @@ export const synthesizeVo: ActionDef<VoArgs> = {
         take: take ? cut(take, 64) : null,
         ...(s0?.error ? { error_detail: cut(s0.error, 90) } : {}),
         ...(take
-          ? { hint: "Use set_shot_timing vo_offset to slide it against the picture." }
+          ? { hint: "Use set_shot_timing vo_offset to slide it against the picture.",
+              next: NEXT_CUT_FILM }
           : { hint: "Still rendering — call wait_for_jobs with this job id." }),
       },
     );

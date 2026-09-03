@@ -84,16 +84,19 @@ export const resetReferences = (): void => {
 };
 
 /**
- * The keeper the fixtures start with. `setKeeper` MOVES the fixture's keeper,
- * the way the server does — a fake that only logged the call is what let a
- * tool claim "the keeper is now X" while every motion job kept starting from
- * the old plate.
+ * The keeper (and, since it can follow the keeper, active_source) the
+ * fixtures start with. `setKeeper` MOVES the fixture's keeper, the way the
+ * server does — a fake that only logged the call is what let a tool claim
+ * "the keeper is now X" while every motion job kept starting from the old
+ * plate.
  */
-const FIXTURE_KEEPERS: Record<string, unknown> = Object.fromEntries(
-  Object.entries(FIXTURE_DETAIL).map(([sid, d]) => [sid, d.keeper]));
+const FIXTURE_KEEPERS: Record<string, { keeper: unknown; active_source: unknown }> =
+  Object.fromEntries(Object.entries(FIXTURE_DETAIL).map(
+    ([sid, d]) => [sid, { keeper: d.keeper, active_source: d.active_source }]));
 export const resetKeepers = (): void => {
-  for (const [sid, keeper] of Object.entries(FIXTURE_KEEPERS)) {
-    FIXTURE_DETAIL[sid].keeper = keeper;
+  for (const [sid, saved] of Object.entries(FIXTURE_KEEPERS)) {
+    FIXTURE_DETAIL[sid].keeper = saved.keeper;
+    FIXTURE_DETAIL[sid].active_source = saved.active_source;
   }
 };
 
@@ -293,7 +296,14 @@ export class FakeShotPage implements ShotPageHandles {
   async setKeeper(path: string, note?: string) {
     this.log(`setKeeper(${path}${note ? `,${note}` : ""})`);
     const d = FIXTURE_DETAIL[this.sid];
-    if (d) d.keeper = path;                       // the server stores the pick
+    if (!d) return;
+    // Mirror the server's precedence (cutroom.film.active_source): the
+    // keeper only becomes what plays when it already was — an override, a
+    // promoted motion clip or an fx take ahead of it keeps outranking it.
+    // `set_keeper`'s `affectsSource` check reads exactly this signal back.
+    const wasKeeperActive = d.active_source === d.keeper;
+    d.keeper = path;                               // the server stores the pick
+    if (wasKeeperActive) d.active_source = path;
   }
   async setSource(path: string | null) { this.log(`setSource(${path})`); }
   async setOverride(patch: Record<string, unknown>) {

@@ -28,6 +28,14 @@ class Project(Base):
     paused: Mapped[bool] = mapped_column(Boolean, default=False)
     # e.g. {"fps": 24, "style": {...}, "cast": [...], "characters": [...]}
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Ring buffer of `{"note": str, "at": float}` — what changed since the last
+    # cut, for GET /film/status. Capped in `film.touch()`; see FOUNDATION notes
+    # on the Timeline preview vs. the rendered film file. Nullable (unlike
+    # `settings` above) so a row inserted before this column existed, or by
+    # raw SQL, reads back as an empty log rather than failing a NOT NULL
+    # constraint — every reader already treats `None` as `[]`.
+    film_changes: Mapped[list | None] = mapped_column(
+        JSON, default=list, nullable=True)
 
 
 class Shot(Base):

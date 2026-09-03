@@ -16,12 +16,28 @@
  *
  * The job id is remembered per project in localStorage, so a reload mid-cut
  * picks the poll back up instead of losing the film.
+ *
+ * `FilmStaleness` is the other half of "cut to see it": the Timeline's live
+ * preview is the film as it stands RIGHT NOW; this button is what freezes
+ * that into a file. `GET .../film/status` says whether the two have drifted
+ * apart, and this renders it as a small "changes since the last cut · N"
+ * next to the button — on both the Timeline and the Film Editor, since both
+ * render `<CutFilm>`.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { usePoll } from "../hooks";
 import { appPath } from "../routes";
 import * as screen from "../screen/store";
 import type { Job } from "../types";
+
+export interface FilmStatus {
+  last_cut_at: number | null;
+  last_change_at: number | null;
+  stale: boolean;
+  changes: string[];
+  changes_count: number;
+}
 
 /** What the assemble endpoint accepts: the whole film, or one act. */
 export const CUT_SCOPES = ["full", "act1", "act2", "act3", "act4"] as const;
@@ -310,8 +326,34 @@ export default function CutFilm({ cut, anchor, label, title, disabled }: CutFilm
       >
         {busy ? "⏳ cutting…" : (label || "🎞 cut the film")}
       </button>
+      <FilmStaleness pid={cut.pid} justCut={cut.phase === "done"} />
       <CutFilmStatus cut={cut} />
     </>
+  );
+}
+
+/**
+ * "changes since the last cut · N" — the Timeline preview is always live;
+ * this says whether the FILM FILE (what `cut_film` last made, what the
+ * screening room and the public page play) has fallen behind it. Silent
+ * once it agrees there is nothing new — a director should never have to
+ * wonder why the button is shouting at them for no reason.
+ */
+export function FilmStaleness({ pid, justCut }: { pid: string; justCut?: boolean }) {
+  const { data, refresh } = usePoll<FilmStatus>(
+    `/api/projects/${pid}/film/status`, 15000, { refetchOnFocus: true });
+  // A cut just settled — the file this indicator is judged against changed,
+  // so do not wait out the poll interval to say so.
+  useEffect(() => { if (justCut) refresh(); }, [justCut, refresh]);
+
+  if (!data?.stale || !data.changes_count) return null;
+  const tooltip = data.changes.length
+    ? `Since the last cut:\n${data.changes.join("\n")}`
+    : "The film has changed since it was last cut.";
+  return (
+    <span className="muted small" data-testid="film-staleness" title={tooltip}>
+      changes since the last cut · {data.changes_count}
+    </span>
   );
 }
 

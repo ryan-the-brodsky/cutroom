@@ -10,6 +10,7 @@ import {
   restyleBackground, setBackground, setLayer, snapRegion,
 } from "../comp";
 import { FIXTURE_COMPS, PAID_BACKEND, makeFakeContext } from "../fakeContext";
+import { NEXT_CUT_FILM } from "../util";
 
 type Fake = ReturnType<typeof makeFakeContext>;
 let f: Fake;
@@ -291,6 +292,7 @@ describe("render_comp", () => {
       ANCHORS.compRender, ANCHORS.compPromote,
     ]));
     expect(r.plays).toBeTruthy();
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 
   it("reports a failed render as a failure, with the engine's own message", async () => {
@@ -315,6 +317,7 @@ describe("render_comp", () => {
     expect(r.promoted).toBe(false);
     expect(slow.rec.calls().some((c) => c.startsWith("promote("))).toBe(false);
     expect(r.hint).toBe("call wait_for_jobs, then set_timeline_source with the rendered take");
+    expect(r.next).toBeUndefined();
     slow.restore();
   });
 });

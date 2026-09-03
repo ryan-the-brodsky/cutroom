@@ -6,6 +6,7 @@ import {
   FIXTURE_DETAIL, PAID_BACKEND, makeFakeContext, type FakeContext,
 } from "../fakeContext";
 import { ANIME_CLAUSE } from "../plan";
+import { NEXT_CUT_FILM } from "../util";
 import {
   applyPlan, cutFilm, describeShot, directShot, findShots, freezeTail, generateTakes,
   getContext, getJobs, listFeatures, openShot, selectTake, setKeeper, setShotTiming,
@@ -440,6 +441,23 @@ describe("set_keeper", () => {
     expect(r.error).toBe("keeper_must_be_a_still");
     expect(r.hint).toMatch(/set_timeline_source/);
   });
+
+  it("does not claim a cut is stale when a motion clip already outranks the keeper", async () => {
+    // B10-S2 plays a motion clip regardless of which still is the keeper —
+    // the keeper only sets the fallback plate, so cutting the film would
+    // show no difference.
+    const r = asOk(await setKeeper.execute(
+      { shot: "B10-S2", take: "renders/B10-S2/stills/s2.png" }, f.ctx));
+    expect(r.next).toBeUndefined();
+  });
+
+  it("says a cut is now behind when the keeper WAS what plays", async () => {
+    // B11-S4 has no override, motion or fx take ahead of it — its keeper
+    // IS the active source, so changing it changes what the film shows.
+    const r = asOk(await setKeeper.execute(
+      { shot: "B11-S4", take: "renders/B11-S4/stills/new.png" }, f.ctx));
+    expect(r.next).toBe(NEXT_CUT_FILM);
+  });
 });
 
 describe("set_timeline_source", () => {
@@ -449,12 +467,14 @@ describe("set_timeline_source", () => {
     expect(f.rec.calls()).toContain("setSource(renders/B10-S2/i2i/warm.png)");
     expect(f.rec.anchors()).toContain(ANCHORS.takeSource);
     expect(r.hint).toMatch(/cut_film/);
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 
   it("clears the override", async () => {
     const r = asOk(await setTimelineSource.execute({ shot: "B10-S2", clear: true }, f.ctx));
     expect(f.rec.calls()).toContain("setSource(null)");
     expect(r.plays).toBeNull();
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 });
 
@@ -471,6 +491,7 @@ describe("set_shot_timing", () => {
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       ANCHORS.quickSeconds, ANCHORS.quickVoOffset, ANCHORS.quickMute]));
     expect(r.applied).toEqual({ seconds: 5, vo_offset: -0.3, mute_vo: true });
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 
   it("sends null for mute_vo:false so the server drops the key", async () => {
@@ -497,6 +518,7 @@ describe("synthesize_vo", () => {
     expect(f.rec.anchors()).toEqual(expect.arrayContaining([
       shotTabAnchor("audio"), ANCHORS.audioText, ANCHORS.audioTreatment, ANCHORS.audioSubmit]));
     expect(r.job).toBeTruthy();
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 
   it("leaves the line untreated unless a treatment is asked for", async () => {

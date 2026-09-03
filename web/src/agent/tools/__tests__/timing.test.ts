@@ -12,6 +12,7 @@ import { ANCHORS } from "../../contract";
 import type { ToolErr, ToolOk } from "../../contract";
 import { makeFakeContext, type FakeContext } from "../fakeContext";
 import { moveAudio } from "../timing";
+import { NEXT_CUT_FILM } from "../util";
 
 let f: FakeContext;
 beforeEach(() => { f = makeFakeContext(); });
@@ -34,6 +35,7 @@ describe("move_audio", () => {
     expect(r.vo_offset).toBe(2.2);            // seconds after the shot's head pad
     expect(String(r.summary)).toMatch(/0:02.50/);
     expect(f.rec.anchors()).toContain(ANCHORS.timelineAudioDrag);
+    expect(r.next).toBe(NEXT_CUT_FILM);
   });
 
   it("slides a cue by a delta and names what it still overlaps", async () => {

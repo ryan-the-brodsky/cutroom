@@ -58,8 +58,15 @@ const cutText = (t: string, n: number) =>
  * hangs on: a shot is a unit of production; a clip is a unit of time. */
 export default function TimelinePage() {
   const { pid } = useParams() as { pid: string };
+  // Compiled fresh from shots/overrides/cues/takes on every read — this is the
+  // live state, not a render. A tab can sit open for hours while another
+  // session (another tab, an agent) changes what plays, so it cannot rely on
+  // "the human will navigate back to remount": poll on a reasonable interval,
+  // AND catch up the instant this tab is looked at again (focus/visibility).
+  // `invalidatePoll` (hooks.ts) covers the third leg — a WebMCP tool bumping
+  // this same path the moment it changes a source, VO offset or cue.
   const { data: tl, error, refresh } = usePoll<Timeline>(
-    `/api/projects/${pid}/timeline`, 0);
+    `/api/projects/${pid}/timeline`, 12000, { refetchOnFocus: true });
   const fps = tl?.fps || 24;
   const [ppf, setPpf] = useState(0.7); // pixels per frame (zoom)
   const [sel, setSel] = useState<Clip | null>(null);

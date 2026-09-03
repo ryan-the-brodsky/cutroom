@@ -20,7 +20,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dbToGain } from "../audio/shotMix";
 import { type AudioRole, roleOf } from "../timeline/audioMoves";
-import { type Clip, type Timeline, framesToSeconds } from "../timeline/model";
+import {
+  type Clip, type Timeline, framesToSeconds, stableClipKey,
+} from "../timeline/model";
 
 // `roleOf` lives with the move arithmetic (the Timeline's drag needs it too) and is
 // re-exported here because the mix is where a role is heard.
@@ -84,7 +86,10 @@ export function audioCues(tl: Timeline, srcOf: (rel: string) => string): AudioCu
       const role = roleOf(c, audioTracks.get(c.track_id));
       const srcFps = c.source_fps || fps;
       return {
-        id: c.id,
+        // Content-derived, not the compiler's per-compile random `id`: an
+        // edit elsewhere in the film must not tear down and recreate a VO
+        // line or music bed that is already playing. See `stableClipKey`.
+        id: stableClipKey(c),
         src: srcOf(c.source as string),
         start: framesToSeconds(c.start, fps),
         end: framesToSeconds(c.start + c.duration, fps),

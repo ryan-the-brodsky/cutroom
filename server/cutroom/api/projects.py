@@ -148,6 +148,20 @@ def get_film(pid: str):
                 for sh in film.shots_ordered(s, pid)]
 
 
+@router.get("/projects/{pid}/film/status")
+def film_status(pid: str):
+    """Has the film changed since the last cut? The Timeline's live preview
+    (GET .../timeline) always reflects the current shots/overrides/cues —
+    only a rendered cut (`cut_film`, what the screening room and the public
+    page play) is frozen at whatever it looked like when it was made. This is
+    the field that lets a human or an agent tell the two apart at a glance:
+    `{last_cut_at, last_change_at, stale, changes}` — `stale` true means
+    cut_film has not caught up with what changed."""
+    project_or_404(pid)
+    with session_scope() as s:
+        return film.film_status(s, pid)
+
+
 @router.get("/projects/{pid}/cast")
 def get_cast(pid: str):
     """The character index the shot resolver matches names against.
@@ -373,6 +387,17 @@ async def upsert_shots(pid: str, req: Request):
             "replaced": bool(body.get("replace"))}
 
 
+#: What a changed override key means on the film's compiled result, for the
+#: change log GET /film/status reads. Order sets which note wins when a
+#: single call touches more than one (the source outranks a mere retime).
+_OVERRIDE_NOTES = (
+    ("source", "timeline source set on {sid}"),
+    ("vo_offset", "VO offset changed on {sid}"),
+    ("mute_vo", "VO muted/unmuted on {sid}"),
+    ("seconds", "{sid} retimed"),
+)
+
+
 @router.post("/projects/{pid}/shots/{sid}/override")
 async def set_override(pid: str, sid: str, req: Request):
     body = await req.json()
@@ -386,6 +411,10 @@ async def set_override(pid: str, sid: str, req: Request):
         ov.update({k: v for k, v in body.items() if k in allowed})
         ov = {k: v for k, v in ov.items() if v is not None}
         shot.override = ov
+        for key, note in _OVERRIDE_NOTES:
+            if key in body:
+                film.touch(s, pid, note.format(sid=sid))
+                break
         return {"ok": True, "override": ov}
 
 

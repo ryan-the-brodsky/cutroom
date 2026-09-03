@@ -91,6 +91,31 @@ export const totalFrames = (tl: Timeline): number =>
 export const clipsOnTrack = (tl: Timeline, trackId: string): Clip[] =>
   tl.clips.filter((c) => c.track_id === trackId).sort((a, b) => a.start - b.start);
 
+/**
+ * A key for this clip that survives a recompile, unlike `id`: the server
+ * mints a fresh random id for EVERY clip whenever anything in the film
+ * changes (the whole-film compile is cached by a fingerprint over the whole
+ * project, not per clip — see `cutroom.timeline.compile`), so `id` churns
+ * project-wide on an edit to a single shot.
+ *
+ * The live preview (`preview/PreviewStage.tsx`'s `<Sequence>` key, and the
+ * audio mix's element pool in `preview/timelineAudio.ts`) keys on this
+ * instead, so an edit to shot B does not remount shot A's still-playing
+ * video or reset its still-sounding VO line. Derived from the `cutroom`
+ * lineage the server always attaches: a cue's own id when it has one, else
+ * the shot (+ line, for a VO clip) it belongs to. Falls back to `id` when a
+ * clip carries no lineage at all — never true of a server-compiled clip, so
+ * hand-built fixtures in tests behave exactly as before.
+ */
+export function stableClipKey(c: Clip): string {
+  const cr = (c.cutroom || {}) as Record<string, unknown>;
+  if (cr.cue != null) return `cue:${cr.cue}`;
+  if (cr.shot == null) return c.id;    // no lineage to key on — id is all there is
+  return c.kind === "audio"
+    ? `${cr.role != null ? String(cr.role) : "audio"}:${cr.shot}:${cr.line ?? 0}`
+    : `v:${cr.shot}`;
+}
+
 /** Tracks in render order (video under, ordered by `order`). */
 export const orderedTracks = (tl: Timeline): Track[] =>
   [...tl.tracks].sort((a, b) => a.order - b.order);

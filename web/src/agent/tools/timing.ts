@@ -5,7 +5,10 @@
 import type { ActionDef, AudioMoveResult, ToolResult } from "../contract";
 import { ANCHORS, err, ok } from "../contract";
 import { ROUTES } from "../../routes";
-import { FILM_ROUTE, asError, cut, lookupShot, maybeNum, openFilmPage } from "./util";
+import {
+  FILM_ROUTE, NEXT_CUT_FILM, asError, cut, lookupShot, maybeNum, openFilmPage,
+  touchTimeline,
+} from "./util";
 
 const TIMELINE_ROUTE = ROUTES.timeline;
 
@@ -109,6 +112,7 @@ export const setShotTiming: ActionDef<TimingArgs> = {
     try { await page.setOverride(shot.sid, patch); }
     catch (e) { return asError(e, "override_rejected", "The server refused the timing change"); }
     try { await page.refresh(); } catch { /* fine */ }
+    touchTimeline(pid);
 
     const applied: Record<string, unknown> = {};
     if (seconds !== undefined) applied.seconds = seconds;
@@ -120,6 +124,7 @@ export const setShotTiming: ActionDef<TimingArgs> = {
       shot: shot.sid,
       applied,
       hint: "Run cut_film to hear and see it in a rendered cut.",
+      next: NEXT_CUT_FILM,
     });
   },
 };
@@ -241,6 +246,7 @@ export const moveAudio: ActionDef<MoveAudioArgs> = {
         hint: res.shot
           ? "A line moved late can stretch its shot when the film is cut (audio-fit). cut_film to hear it."
           : "cut_film to hear it; preview_timeline plays it without a render.",
+        next: NEXT_CUT_FILM,
       },
     );
   },
