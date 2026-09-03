@@ -933,3 +933,18 @@ evidence in this plan still describe the shipped build exactly.
   judges have obvious things to regenerate and improve. Note for the record: commit
   34b4972 dropped `server/cutroom/config.py` from the index by mistake; 89a7111 restores it,
   so never pin 34b4972.
+- **Wed 22:58 PT — recorded demo session, ChatGPT desktop native browser.** Drove the studio
+  through ChatGPT's WebMCP site tools via macOS automation (clipboard + keystrokes, screen
+  capture), 14 prompts over 89 minutes: open the judge link (50 tools), list shots and play
+  the first ten seconds, two colder stills for B03-S1 and a keeper pick, motion on the new
+  keeper (planner chose Seedance; the first submission went to the lane default Wan at
+  5 s, re-run on Seedance at 8 s and set as source), move the SFX off B01-S2's VO, warm
+  restyle of B06-S2 set as source, whispered "Goodbye, then." VO, full cut screened, Settings
+  and spend explained ($0.41 for the session), the whoosh cue removed and re-cut, last twenty
+  seconds played. Findings: (1) the lane default for motion is Wan, so a generate without an
+  explicit model ignores the planner's Seedance pick — the planner's choice should travel
+  with the shot; (2) the agent asks before every paid action even with ChatGPT's "Approve
+  for me" on and a standing approval in chat — the cost lines in tool results invite it;
+  (3) the visible browser pane only follows the agent when the site is opened in the side
+  panel first. Ryan: prompts must read like a new user ("make the background not move"),
+  not like someone who knows the parameters.
